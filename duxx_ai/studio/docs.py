@@ -452,7 +452,7 @@ DOCS_TEMPLATE = """<!DOCTYPE html>
     <div class="top-header-nav">
         <a href="/docs" class="active">Docs</a>
         <a href="/docs#api-reference" onclick="navigateTo('api-reference')">API</a>
-        <a href="https://github.com/duxx_ai/duxx_ai" target="_blank">GitHub</a>
+        <a href="https://github.com/bankyresearch/duxx-ai" target="_blank">GitHub</a>
         <a href="/studio" class="btn-studio">Studio</a>
     </div>
 </div>
@@ -568,7 +568,7 @@ DOCS_TEMPLATE = """<!DOCTYPE html>
     <p>Build, fine-tune, orchestrate, and govern AI agents at scale. The only open-source SDK that unifies agentic AI with fine-tuning pipelines and enterprise governance.</p>
     <div class="hero-actions">
         <a class="hero-btn hero-btn-primary" onclick="navigateTo('quickstart')">Get Started</a>
-        <a class="hero-btn hero-btn-secondary" href="https://github.com/duxx_ai/duxx_ai" target="_blank">View on GitHub</a>
+        <a class="hero-btn hero-btn-secondary" href="https://github.com/bankyresearch/duxx-ai" target="_blank">View on GitHub</a>
     </div>
 </div>
 
