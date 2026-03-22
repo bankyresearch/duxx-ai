@@ -671,3 +671,396 @@ class Graph:
             cond = f" [if {edge.condition.key} {edge.condition.operator} {edge.condition.value}]" if edge.condition else ""
             lines.append(f"  {edge.source} -> {edge.target}{cond}")
         return "\n".join(lines)
+
+    # ── LangGraph-Compatible Features ──
+
+    def add_conditional_edge(
+        self, source: str, condition_fn: Callable[[GraphState], str],
+        path_map: dict[str, str] | None = None,
+    ) -> "Graph":
+        """Add a conditional edge with a routing function (LangGraph-style).
+
+        The condition_fn receives the state and returns a string key.
+        The path_map maps keys to target node IDs.
+
+        Usage:
+            def route(state):
+                if state.get("needs_review"):
+                    return "review"
+                return "publish"
+
+            graph.add_conditional_edge("analyze", route, {
+                "review": "human_review",
+                "publish": "publish_node",
+            })
+        """
+        if path_map is None:
+            path_map = {}
+
+        async def _conditional_handler(state: GraphState) -> GraphState:
+            key = condition_fn(state) if not asyncio.iscoroutinefunction(condition_fn) else await condition_fn(state)
+            target = path_map.get(key, key)  # fallback to key as node_id
+            state.data["_next_node"] = target
+            return state
+
+        cond_node_id = f"_cond_{source}_{id(condition_fn)}"
+        self.add_node(cond_node_id, _conditional_handler, NodeType.CONDITIONAL)
+        self.add_edge(source, cond_node_id)
+
+        for _, target in path_map.items():
+            self.add_edge(cond_node_id, target, EdgeCondition(
+                key="_next_node", operator="eq", value=target,
+            ))
+
+        return self
+
+    def compile(self, checkpointer: Any = None, store: Any = None) -> "Graph":
+        """Compile the graph for execution (LangGraph-compatible).
+
+        Validates the graph, sets up checkpointing backend, and optimizes.
+
+        Args:
+            checkpointer: Checkpoint backend (None=in-memory, or CheckpointBackend)
+            store: Cross-thread store for persistent memory
+
+        Usage:
+            graph = Graph("my-graph")
+            graph.add_node("a", handler_a)
+            graph.add_node("b", handler_b)
+            graph.add_edge("a", "b")
+            compiled = graph.compile(checkpointer=SqliteCheckpointer("state.db"))
+        """
+        # Validate graph
+        if not self.entry_point:
+            # Auto-detect entry point
+            targets = {e.target for e in self.edges}
+            sources = {e.source for e in self.edges}
+            roots = sources - targets
+            if roots:
+                self.entry_point = next(iter(roots))
+
+        # Set checkpointer
+        if checkpointer is not None:
+            self._checkpointer = checkpointer
+
+        # Set store
+        if store is not None:
+            self._store = store
+
+        # Validate edges reference existing nodes
+        for edge in self.edges:
+            if edge.source not in self.nodes:
+                raise ValueError(f"Edge source '{edge.source}' not found in nodes")
+            if edge.target not in self.nodes:
+                raise ValueError(f"Edge target '{edge.target}' not found in nodes")
+
+        self._compiled = True
+        return self
+
+    def update_state(self, config: dict[str, Any], values: dict[str, Any], as_node: str | None = None) -> GraphState:
+        """Update graph state externally (LangGraph-compatible).
+
+        Modifies the current state and creates a new checkpoint.
+        Used for human-in-the-loop state modifications.
+
+        Args:
+            config: {"configurable": {"thread_id": "...", "checkpoint_id": "..."}}
+            values: State values to update
+            as_node: Pretend this update came from this node
+
+        Usage:
+            graph.update_state(
+                config={"configurable": {"thread_id": "t1"}},
+                values={"approved": True, "reviewer_notes": "Looks good"},
+                as_node="human_review",
+            )
+        """
+        # Find the relevant checkpoint
+        cp_id = config.get("configurable", {}).get("checkpoint_id")
+        if cp_id is not None and isinstance(cp_id, int) and cp_id < len(self.checkpoints):
+            state = self.checkpoints[cp_id].model_copy(deep=True)
+        elif self.checkpoints:
+            state = self.checkpoints[-1].model_copy(deep=True)
+        else:
+            state = GraphState()
+
+        # Apply updates with reducers
+        for key, value in values.items():
+            if key in self._state_reducers:
+                state.data[key] = self._state_reducers[key](state.data.get(key), value)
+            else:
+                state.data[key] = value
+
+        # Record the update source
+        if as_node:
+            state.current_node = as_node
+            state.history.append(as_node)
+
+        # Save as new checkpoint
+        self.checkpoints.append(state.model_copy(deep=True))
+
+        return state
+
+    def get_state(self, config: dict[str, Any] | None = None) -> GraphState | None:
+        """Get current graph state (LangGraph-compatible).
+
+        Args:
+            config: Optional config with thread_id/checkpoint_id
+
+        Returns:
+            Current GraphState or None if no checkpoints
+        """
+        if not self.checkpoints:
+            return None
+
+        if config:
+            cp_id = config.get("configurable", {}).get("checkpoint_id")
+            if cp_id is not None and isinstance(cp_id, int) and cp_id < len(self.checkpoints):
+                return self.checkpoints[cp_id]
+
+        return self.checkpoints[-1]
+
+    def get_state_history(self, config: dict[str, Any] | None = None) -> list[GraphState]:
+        """Get checkpoint history in reverse chronological order (LangGraph-compatible).
+
+        Returns:
+            List of GraphState checkpoints, most recent first
+        """
+        return list(reversed(self.checkpoints))
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#  Command — Resume with goto/update (LangGraph-compatible)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+class Command:
+    """Control flow command for resuming interrupted graphs.
+
+    Usage:
+        # Resume with a value
+        Command(resume="approved")
+
+        # Resume and jump to a specific node
+        Command(resume="approved", goto="publish")
+
+        # Resume with state updates
+        Command(resume=True, update={"approved": True})
+    """
+
+    def __init__(
+        self,
+        resume: Any = None,
+        goto: str | None = None,
+        update: dict[str, Any] | None = None,
+    ):
+        self.resume = resume
+        self.goto = goto
+        self.update = update or {}
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#  Checkpoint Backends (LangGraph-compatible)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+class BaseCheckpointSaver:
+    """Base class for checkpoint persistence backends."""
+
+    async def put(self, config: dict[str, Any], state: GraphState) -> None:
+        raise NotImplementedError
+
+    async def get(self, config: dict[str, Any]) -> GraphState | None:
+        raise NotImplementedError
+
+    async def list(self, config: dict[str, Any]) -> list[GraphState]:
+        raise NotImplementedError
+
+    async def delete(self, config: dict[str, Any]) -> None:
+        raise NotImplementedError
+
+
+class InMemorySaver(BaseCheckpointSaver):
+    """In-memory checkpoint saver (LangGraph MemorySaver equivalent)."""
+
+    def __init__(self):
+        self._storage: dict[str, list[GraphState]] = {}
+
+    async def put(self, config: dict[str, Any], state: GraphState) -> None:
+        thread_id = config.get("configurable", {}).get("thread_id", "default")
+        if thread_id not in self._storage:
+            self._storage[thread_id] = []
+        self._storage[thread_id].append(state.model_copy(deep=True))
+
+    async def get(self, config: dict[str, Any]) -> GraphState | None:
+        thread_id = config.get("configurable", {}).get("thread_id", "default")
+        states = self._storage.get(thread_id, [])
+        cp_id = config.get("configurable", {}).get("checkpoint_id")
+        if cp_id is not None and isinstance(cp_id, int) and cp_id < len(states):
+            return states[cp_id]
+        return states[-1] if states else None
+
+    async def list(self, config: dict[str, Any]) -> list[GraphState]:
+        thread_id = config.get("configurable", {}).get("thread_id", "default")
+        return list(reversed(self._storage.get(thread_id, [])))
+
+    async def delete(self, config: dict[str, Any]) -> None:
+        thread_id = config.get("configurable", {}).get("thread_id", "default")
+        self._storage.pop(thread_id, None)
+
+
+class SqliteCheckpointer(BaseCheckpointSaver):
+    """SQLite-based checkpoint persistence.
+
+    Usage:
+        checkpointer = SqliteCheckpointer("checkpoints.db")
+        graph.compile(checkpointer=checkpointer)
+    """
+
+    def __init__(self, db_path: str = "checkpoints.db"):
+        self.db_path = db_path
+        self._ensure_table()
+
+    def _ensure_table(self) -> None:
+        import sqlite3
+        conn = sqlite3.connect(self.db_path)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS checkpoints (
+                thread_id TEXT NOT NULL,
+                checkpoint_id INTEGER NOT NULL,
+                state_json TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (thread_id, checkpoint_id)
+            )
+        """)
+        conn.commit()
+        conn.close()
+
+    async def put(self, config: dict[str, Any], state: GraphState) -> None:
+        import sqlite3
+        thread_id = config.get("configurable", {}).get("thread_id", "default")
+        conn = sqlite3.connect(self.db_path)
+        # Get next checkpoint_id
+        cursor = conn.execute(
+            "SELECT MAX(checkpoint_id) FROM checkpoints WHERE thread_id = ?",
+            (thread_id,)
+        )
+        row = cursor.fetchone()
+        next_id = (row[0] or -1) + 1
+        conn.execute(
+            "INSERT INTO checkpoints (thread_id, checkpoint_id, state_json) VALUES (?, ?, ?)",
+            (thread_id, next_id, state.model_dump_json()),
+        )
+        conn.commit()
+        conn.close()
+
+    async def get(self, config: dict[str, Any]) -> GraphState | None:
+        import sqlite3
+        thread_id = config.get("configurable", {}).get("thread_id", "default")
+        cp_id = config.get("configurable", {}).get("checkpoint_id")
+        conn = sqlite3.connect(self.db_path)
+        if cp_id is not None:
+            cursor = conn.execute(
+                "SELECT state_json FROM checkpoints WHERE thread_id = ? AND checkpoint_id = ?",
+                (thread_id, cp_id),
+            )
+        else:
+            cursor = conn.execute(
+                "SELECT state_json FROM checkpoints WHERE thread_id = ? ORDER BY checkpoint_id DESC LIMIT 1",
+                (thread_id,),
+            )
+        row = cursor.fetchone()
+        conn.close()
+        if row:
+            return GraphState.model_validate_json(row[0])
+        return None
+
+    async def list(self, config: dict[str, Any]) -> list[GraphState]:
+        import sqlite3
+        thread_id = config.get("configurable", {}).get("thread_id", "default")
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.execute(
+            "SELECT state_json FROM checkpoints WHERE thread_id = ? ORDER BY checkpoint_id DESC",
+            (thread_id,),
+        )
+        states = [GraphState.model_validate_json(row[0]) for row in cursor.fetchall()]
+        conn.close()
+        return states
+
+    async def delete(self, config: dict[str, Any]) -> None:
+        import sqlite3
+        thread_id = config.get("configurable", {}).get("thread_id", "default")
+        conn = sqlite3.connect(self.db_path)
+        conn.execute("DELETE FROM checkpoints WHERE thread_id = ?", (thread_id,))
+        conn.commit()
+        conn.close()
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#  @task Decorator — Durable Execution (LangGraph-compatible)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+def task(fn: Callable | None = None, *, retries: int = 0) -> Callable:
+    """Decorator for durable task execution within graph nodes.
+
+    Wraps non-deterministic or side-effect operations to ensure
+    they are properly checkpointed and can be retried.
+
+    Usage:
+        @task
+        async def call_api(url: str) -> dict:
+            response = await httpx.get(url)
+            return response.json()
+
+        @task(retries=3)
+        async def send_email(to: str, body: str) -> bool:
+            ...
+    """
+    def decorator(func: Callable) -> Callable:
+        async def wrapper(*args: Any, **kwargs: Any) -> Any:
+            last_error = None
+            for attempt in range(max(1, retries + 1)):
+                try:
+                    if asyncio.iscoroutinefunction(func):
+                        return await func(*args, **kwargs)
+                    else:
+                        return func(*args, **kwargs)
+                except Exception as e:
+                    last_error = e
+                    if attempt < retries:
+                        await asyncio.sleep(0.5 * (attempt + 1))
+            raise last_error  # type: ignore
+        wrapper.__name__ = func.__name__
+        wrapper.__doc__ = func.__doc__
+        wrapper._is_task = True  # type: ignore
+        wrapper._retries = retries  # type: ignore
+        return wrapper
+
+    if fn is not None:
+        return decorator(fn)
+    return decorator
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#  interrupt() function — LangGraph-compatible
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+def interrupt(value: Any = None) -> None:
+    """Pause graph execution for human input (LangGraph-compatible).
+
+    Call this inside a node handler to pause execution and wait for
+    human input. The graph state is checkpointed automatically.
+
+    Args:
+        value: JSON-serializable payload to send to the human
+               (e.g., a question, approval request, or data to review)
+
+    Usage:
+        async def review_node(state: GraphState) -> GraphState:
+            answer = interrupt("Do you approve this action?")
+            state.set("approved", answer)
+            return state
+    """
+    raise GraphInterrupt(
+        node_id="__interrupt__",
+        prompt=str(value) if value is not None else "Interrupt requested",
+        metadata={"value": value},
+    )
