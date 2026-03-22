@@ -45,16 +45,11 @@ finetune = [
     "bitsandbytes>=0.41",
     "accelerate>=0.25",
 ]
-studio = [
-    "fastapi>=0.104",
-    "uvicorn>=0.24",
-    "websockets>=12.0",
-]
 tools = [
     "yfinance>=0.2",
     "pdfplumber>=0.10",
 ]
-all = ["duxx-ai[finetune,studio,tools]"]
+all = ["duxx-ai[finetune,tools]"]
 dev = [
     "pytest>=7.0",
     "pytest-asyncio>=0.23",
@@ -66,24 +61,13 @@ dev = [
 duxx-ai = "duxx_ai.cli.main:cli"
 
 [project.urls]
-Homepage = "https://github.com/duxxai/duxx-ai"
+Homepage = "https://github.com/bankyresearch/duxx-ai"
 Documentation = "https://duxxai.com/docs"
-Repository = "https://github.com/duxxai/duxx-ai"
+Repository = "https://github.com/bankyresearch/duxx-ai"
 
 [tool.setuptools.packages.find]
 include = ["duxx_ai*"]
-exclude = ["duxx_ai.cloud*", "duxx_ai.studio.frontend*"]
-
-[tool.setuptools.exclude-package-data]
-duxx_ai = [
-    "TIER_SPLIT.py",
-    "credentials.py",
-    "finetune/tinker.py",
-    "finetune/storage.py",
-    "studio/website.py",
-    "studio/frontend/*",
-    "cloud/*",
-]
+exclude = ["duxx_ai.cloud*"]
 
 [tool.ruff]
 line-length = 100

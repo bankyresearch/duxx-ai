@@ -1,1 +1,1 @@
-"""Duxx AI Studio: web-based UI for agent management, monitoring, and fine-tuning."""
+"""Studio is available in Duxx AI Cloud. Visit duxxai.com for access."""

@@ -356,7 +356,7 @@ class DatasetManager:
         return mgr
 
 
-# ── Global dataset store for Studio UI ──
+# ── Global dataset store ──
 _datasets: dict[str, DatasetManager] = {}
 
 

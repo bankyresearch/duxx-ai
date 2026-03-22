@@ -54,18 +54,12 @@ def run(config_path: str, user_input: str, verbose: bool) -> None:
 
 
 @cli.command()
-@click.option("--host", default="0.0.0.0", help="Host to bind to")
-@click.option("--port", default=8080, help="Port to bind to")
-def studio(host: str, port: int) -> None:
-    """Launch Duxx AI Studio web UI."""
-    console.print(f"[bold]Starting Duxx AI Studio on {host}:{port}[/bold]")
-    try:
-        import uvicorn
-        from duxx_ai.studio.app import create_app
-        app = create_app()
-        uvicorn.run(app, host=host, port=port)
-    except ImportError:
-        console.print("[red]Studio requires: pip install duxx_ai[studio][/red]")
+def studio() -> None:
+    """Duxx AI Studio — available at duxxai.com"""
+    console.print("[bold]Duxx AI Studio[/bold] is available as a managed service.")
+    console.print("Visit [link=https://duxxai.com/waitlist]duxxai.com/waitlist[/link] to join the waitlist.")
+    console.print("\nFor open source usage, use the Python SDK directly:")
+    console.print("  [cyan]from duxx_ai import Agent, AgentConfig[/cyan]")
 
 
 @cli.command()
@@ -272,7 +266,7 @@ def info() -> None:
     deps = {
         "torch": "Fine-tuning",
         "transformers": "Fine-tuning",
-        "fastapi": "Studio",
+        "fastapi": "FastAPI",
         "opentelemetry": "Tracing",
     }
     for pkg, feature in deps.items():

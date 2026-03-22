@@ -227,13 +227,6 @@ result = importer.convert(n8n_json)
 print(result["python_code"])  # Ready-to-run Duxx AI code
 ```
 
-### Studio UI
-```bash
-duxx-ai studio  # Launch at http://localhost:8085
-```
-
-Interactive playground with chat, agent management, traces, fine-tuning config, and governance dashboard.
-
 ## Architecture
 
 ```
@@ -249,9 +242,10 @@ duxx_ai/
 ├── tools/         # 8 builtin + 9 domain libraries (40+ tools)
 ├── templates/     # 14 enterprise agent templates
 ├── importers/     # n8n workflow converter
-├── cli/           # Click CLI
-└── studio/        # FastAPI web UI
+└── cli/           # Click CLI
 ```
+
+> **Duxx AI Cloud** — Visual Studio dashboard, workflow builder, cloud fine-tuning, and fleet management are available at [duxxai.com](https://duxxai.com). [Join the waitlist](https://duxxai.com/waitlist).
 
 ## Requirements
 
@@ -266,9 +260,6 @@ pip install duxx-ai
 
 # With fine-tuning support
 pip install duxx-ai[finetune]
-
-# With Studio UI
-pip install duxx-ai[studio]
 
 # Everything
 pip install duxx-ai[all]
