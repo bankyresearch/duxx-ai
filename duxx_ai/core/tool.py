@@ -43,34 +43,40 @@ class Tool(BaseModel):
                 tool_call_id=call.id, name=call.name, error="Tool has no bound function"
             )
 
-        start = time.monotonic()
-        try:
-            if asyncio.iscoroutinefunction(fn):
-                result = await asyncio.wait_for(fn(**call.arguments), self.timeout_seconds)
-            else:
-                result = await asyncio.wait_for(
-                    asyncio.get_event_loop().run_in_executor(None, lambda: fn(**call.arguments)),
-                    self.timeout_seconds,
+        last_error = None
+        for attempt in range(max(1, self.max_retries)):
+            start = time.monotonic()
+            try:
+                if asyncio.iscoroutinefunction(fn):
+                    result = await asyncio.wait_for(fn(**call.arguments), self.timeout_seconds)
+                else:
+                    result = await asyncio.wait_for(
+                        asyncio.get_event_loop().run_in_executor(None, lambda: fn(**call.arguments)),
+                        self.timeout_seconds,
+                    )
+                duration = (time.monotonic() - start) * 1000
+                return ToolResult(
+                    tool_call_id=call.id, name=call.name, result=result, duration_ms=duration
                 )
-            duration = (time.monotonic() - start) * 1000
-            return ToolResult(
-                tool_call_id=call.id, name=call.name, result=result, duration_ms=duration
-            )
-        except asyncio.TimeoutError:
-            duration = (time.monotonic() - start) * 1000
-            return ToolResult(
-                tool_call_id=call.id,
-                name=call.name,
-                error=f"Tool timed out after {self.timeout_seconds}s",
-                duration_ms=duration,
-            )
-        except Exception as e:
-            duration = (time.monotonic() - start) * 1000
-            return ToolResult(
-                tool_call_id=call.id,
-                name=call.name,
-                error=f"{type(e).__name__}: {e}",
-                duration_ms=duration,
+            except asyncio.TimeoutError:
+                last_error = f"Tool timed out after {self.timeout_seconds}s"
+                if attempt < self.max_retries - 1:
+                    await asyncio.sleep(0.5 * (attempt + 1))  # backoff
+                    continue
+                duration = (time.monotonic() - start) * 1000
+                return ToolResult(
+                    tool_call_id=call.id, name=call.name,
+                    error=last_error, duration_ms=duration,
+                )
+            except Exception as e:
+                last_error = f"{type(e).__name__}: {e}"
+                if attempt < self.max_retries - 1:
+                    await asyncio.sleep(0.5 * (attempt + 1))
+                    continue
+                duration = (time.monotonic() - start) * 1000
+                return ToolResult(
+                    tool_call_id=call.id, name=call.name,
+                    error=last_error, duration_ms=duration,
             )
 
     def to_schema(self) -> dict[str, Any]:
