@@ -1,0 +1,63 @@
+"""Fine-tuning pipeline integration inspired by Unsloth's efficiency."""
+
+from duxx_ai.finetune.pipeline import (
+    DatasetConfig,
+    EvalConfig,
+    EvalResult,
+    FineTunePipeline,
+    TraceToDataset,
+    TrainingConfig,
+    TrainingMetrics,
+    TrainingResult,
+)
+from duxx_ai.finetune.registry import (
+    CHAT_TEMPLATES,
+    GGUF_QUANT_METHODS,
+    MODEL_REGISTRY,
+    FineTuneJob,
+    FineTuneJobManager,
+    GGUFQuantMethod,
+    JobStatus,
+    ModelInfo,
+    format_dataset_for_training,
+    format_sample,
+    get_model_info,
+    job_manager,
+    list_models,
+    list_quant_methods,
+)
+from duxx_ai.finetune.datasets import (
+    DatasetManager,
+    DatasetStats,
+    SplitResult,
+    ValidationResult,
+)
+
+__all__ = [
+    "DatasetConfig",
+    "EvalConfig",
+    "EvalResult",
+    "FineTunePipeline",
+    "TraceToDataset",
+    "TrainingConfig",
+    "TrainingMetrics",
+    "TrainingResult",
+    "CHAT_TEMPLATES",
+    "GGUF_QUANT_METHODS",
+    "MODEL_REGISTRY",
+    "FineTuneJob",
+    "FineTuneJobManager",
+    "GGUFQuantMethod",
+    "JobStatus",
+    "ModelInfo",
+    "format_dataset_for_training",
+    "format_sample",
+    "get_model_info",
+    "job_manager",
+    "list_models",
+    "list_quant_methods",
+    "DatasetManager",
+    "DatasetStats",
+    "SplitResult",
+    "ValidationResult",
+]

@@ -1,0 +1,1954 @@
+"""Duxx AI Documentation — Complete enterprise SDK documentation site."""
+
+from __future__ import annotations
+
+DOCS_TEMPLATE = """<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Duxx AI Documentation</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --navy: #0c1b3a;
+            --navy-light: #14284b;
+            --navy-50: #eef1f6;
+            --pink: #d6336c;
+            --pink-light: #f06595;
+            --pink-bg: #fdf2f6;
+            --pink-50: #fff0f6;
+            --black: #1a1a1a;
+            --gray-900: #212529;
+            --gray-800: #343a40;
+            --gray-700: #495057;
+            --gray-600: #6c757d;
+            --gray-500: #888;
+            --gray-400: #adb5bd;
+            --gray-300: #ced4da;
+            --gray-200: #e5e7eb;
+            --gray-100: #f3f4f6;
+            --gray-50: #f9fafb;
+            --white: #ffffff;
+            --green: #16a34a;
+            --green-bg: #f0fdf4;
+            --blue: #2563eb;
+            --blue-bg: #eff6ff;
+            --orange: #e8590c;
+            --orange-bg: #fff4e6;
+            --purple: #7c3aed;
+            --purple-bg: #f5f3ff;
+            --radius: 8px;
+            --radius-lg: 12px;
+            --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+            --shadow-md: 0 4px 12px rgba(0,0,0,0.08);
+            --sidebar-w: 280px;
+            --toc-w: 220px;
+            --header-h: 60px;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html { scroll-behavior: smooth; }
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--white); color: var(--gray-800);
+            line-height: 1.7; font-size: 15px;
+        }
+
+        /* ── Animations ── */
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-12px); }
+        }
+        @keyframes float-slow {
+            0%, 100% { transform: translateY(0px) rotate(0deg); }
+            50% { transform: translateY(-8px) rotate(3deg); }
+        }
+        @keyframes pulse-glow {
+            0%, 100% { opacity: 0.4; transform: scale(1); }
+            50% { opacity: 0.7; transform: scale(1.05); }
+        }
+        @keyframes gradient-shift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        @keyframes fade-in-up {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes slide-in-left {
+            from { opacity: 0; transform: translateX(-20px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+        @keyframes shimmer {
+            0% { background-position: -200% 0; }
+            100% { background-position: 200% 0; }
+        }
+        @keyframes particle-drift {
+            0% { transform: translate(0, 0) scale(1); opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { transform: translate(var(--dx, 80px), var(--dy, -120px)) scale(0.3); opacity: 0; }
+        }
+        @keyframes border-glow {
+            0%, 100% { border-color: var(--gray-200); }
+            50% { border-color: var(--pink-light); }
+        }
+
+        .animate-in { animation: fade-in-up 0.5s ease both; }
+
+        /* ── Top Header ── */
+        .top-header {
+            position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+            height: var(--header-h);
+            background: rgba(255,255,255,0.85);
+            backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+            border-bottom: 1px solid rgba(229,231,235,0.6);
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 0 24px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+        }
+        .top-header-brand { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+        .top-header-brand .logo {
+            width: 32px; height: 32px; border-radius: 8px;
+            background: linear-gradient(-45deg, var(--navy), var(--pink), #1a3a6e, var(--pink-light));
+            background-size: 300% 300%;
+            animation: gradient-shift 6s ease infinite;
+            display: flex; align-items: center; justify-content: center;
+            color: var(--white); font-weight: 700; font-size: 13px;
+            transition: transform 0.3s;
+        }
+        .top-header-brand:hover .logo { transform: rotate(8deg) scale(1.1); }
+        .top-header-brand h1 { font-size: 18px; font-weight: 700; color: var(--navy); }
+        .top-header-brand h1 span { color: var(--pink); }
+        .top-header-badge {
+            font-size: 11px; background: var(--pink-bg); color: var(--pink);
+            padding: 2px 8px; border-radius: 4px; font-weight: 600; margin-left: 8px;
+        }
+        .top-header-nav { display: flex; align-items: center; gap: 6px; }
+        .top-header-nav a {
+            font-size: 13px; font-weight: 500; color: var(--gray-600);
+            text-decoration: none; padding: 6px 14px; border-radius: 6px;
+            transition: all 0.15s;
+        }
+        .top-header-nav a:hover { color: var(--navy); background: var(--gray-100); }
+        .top-header-nav a.active { color: var(--pink); background: var(--pink-bg); }
+        .top-header-nav .btn-studio {
+            background: var(--navy); color: var(--white); font-weight: 600;
+            padding: 7px 18px; border-radius: 6px;
+        }
+        .top-header-nav .btn-studio:hover { background: var(--navy-light); color: var(--white); }
+
+        /* ── Layout ── */
+        .docs-layout {
+            display: flex; margin-top: var(--header-h); min-height: calc(100vh - var(--header-h));
+        }
+
+        /* ── Sidebar ── */
+        .docs-sidebar {
+            width: var(--sidebar-w); position: fixed; top: var(--header-h); bottom: 0;
+            left: 0; background: var(--gray-50); border-right: 1px solid var(--gray-200);
+            overflow-y: auto; padding: 20px 0; z-index: 50;
+        }
+        .docs-sidebar::-webkit-scrollbar { width: 4px; }
+        .docs-sidebar::-webkit-scrollbar-thumb { background: var(--gray-300); border-radius: 2px; }
+        .sidebar-section { margin-bottom: 8px; }
+        .sidebar-section-title {
+            font-size: 11px; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 1.2px; color: var(--gray-500); padding: 12px 24px 6px;
+        }
+        .sidebar-link {
+            display: block; padding: 7px 24px 7px 28px; font-size: 13px;
+            color: var(--gray-700); text-decoration: none; border-left: 3px solid transparent;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); cursor: pointer; font-weight: 450;
+        }
+        .sidebar-link:hover { color: var(--navy); background: var(--white); padding-left: 32px; }
+        .sidebar-link.active {
+            color: var(--pink); border-left-color: var(--pink);
+            background: var(--pink-bg); font-weight: 600;
+        }
+        .sidebar-link.sub { padding-left: 42px; font-size: 12.5px; color: var(--gray-600); }
+
+        /* ── Content ── */
+        .docs-content {
+            margin-left: var(--sidebar-w); flex: 1; padding: 40px 56px 80px;
+            max-width: 860px; min-height: 100vh;
+        }
+
+        /* ── TOC ── */
+        .docs-toc {
+            position: fixed; top: var(--header-h); right: 0; width: var(--toc-w);
+            padding: 28px 20px; overflow-y: auto; bottom: 0;
+        }
+        .docs-toc h4 {
+            font-size: 11px; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 1px; color: var(--gray-500); margin-bottom: 12px;
+        }
+        .docs-toc a {
+            display: block; font-size: 12px; color: var(--gray-500);
+            text-decoration: none; padding: 4px 0; border-left: 2px solid var(--gray-200);
+            padding-left: 12px; transition: all 0.12s;
+        }
+        .docs-toc a:hover { color: var(--navy); border-left-color: var(--navy); }
+        .docs-toc a.active { color: var(--pink); border-left-color: var(--pink); font-weight: 600; }
+
+        /* ── Typography ── */
+        .docs-content h1 {
+            font-size: 32px; font-weight: 800; color: var(--navy);
+            margin-bottom: 12px; letter-spacing: -0.5px; line-height: 1.2;
+        }
+        .docs-content h2 {
+            font-size: 22px; font-weight: 700; color: var(--navy);
+            margin-top: 48px; margin-bottom: 16px; padding-bottom: 8px;
+            border-bottom: 1px solid var(--gray-200); letter-spacing: -0.3px;
+        }
+        .docs-content h3 {
+            font-size: 17px; font-weight: 600; color: var(--navy);
+            margin-top: 32px; margin-bottom: 12px;
+        }
+        .docs-content p { margin-bottom: 16px; color: var(--gray-700); }
+        .docs-content ul, .docs-content ol { margin-bottom: 16px; padding-left: 24px; }
+        .docs-content li { margin-bottom: 6px; color: var(--gray-700); }
+        .docs-content a { color: var(--pink); text-decoration: none; font-weight: 500; }
+        .docs-content a:hover { text-decoration: underline; }
+        .lead { font-size: 17px; color: var(--gray-600); line-height: 1.7; margin-bottom: 32px; }
+
+        /* ── Code Blocks ── */
+        code {
+            font-family: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
+            font-size: 13px;
+        }
+        :not(pre) > code {
+            background: var(--gray-100); color: var(--pink);
+            padding: 2px 6px; border-radius: 4px; font-size: 13px;
+        }
+        pre {
+            background: var(--navy); color: #e0e7ff; border-radius: var(--radius-lg);
+            padding: 20px 24px; margin-bottom: 24px; overflow-x: auto;
+            line-height: 1.6; position: relative;
+        }
+        pre code { color: #e0e7ff; background: none; padding: 0; font-size: 13px; }
+        pre .comment { color: #6b7994; }
+        pre .keyword { color: #f06595; }
+        pre .string { color: #69db7c; }
+        pre .function { color: #74c0fc; }
+        pre .decorator { color: #ffd43b; }
+        pre .number { color: #ffa94d; }
+        .code-header {
+            display: flex; justify-content: space-between; align-items: center;
+            background: #081428; padding: 8px 16px; border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+            margin-bottom: 0;
+        }
+        .code-header span { font-size: 12px; color: #6b7994; font-weight: 500; }
+        .code-header + pre { border-radius: 0 0 var(--radius-lg) var(--radius-lg); margin-top: 0; }
+
+        /* ── Callouts ── */
+        .callout {
+            border-radius: var(--radius-lg); padding: 16px 20px; margin-bottom: 24px;
+            display: flex; gap: 12px; font-size: 14px; border-left: 4px solid;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .callout:hover { transform: translateX(4px); box-shadow: var(--shadow-sm); }
+        .callout-icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+        .callout-info { background: var(--blue-bg); border-color: var(--blue); }
+        .callout-warn { background: var(--orange-bg); border-color: var(--orange); }
+        .callout-tip { background: var(--green-bg); border-color: var(--green); }
+        .callout-note { background: var(--purple-bg); border-color: var(--purple); }
+        .callout p { margin-bottom: 0; }
+        .callout strong { color: var(--navy); }
+
+        /* ── Feature Cards ── */
+        .feature-grid {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 32px;
+        }
+        .feature-card {
+            background: rgba(249,250,251,0.7); border: 1px solid var(--gray-200);
+            border-radius: 14px; padding: 24px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); cursor: pointer;
+            backdrop-filter: blur(6px); position: relative; overflow: hidden;
+        }
+        .feature-card::before {
+            content: ''; position: absolute; inset: 0; border-radius: 14px;
+            background: linear-gradient(135deg, rgba(214,51,108,0.03), rgba(37,99,235,0.03));
+            opacity: 0; transition: opacity 0.3s;
+        }
+        .feature-card:hover {
+            border-color: var(--pink); transform: translateY(-4px);
+            box-shadow: 0 12px 32px rgba(12,27,58,0.1);
+        }
+        .feature-card:hover::before { opacity: 1; }
+        .feature-card h4 { font-size: 15px; font-weight: 600; color: var(--navy); margin-bottom: 6px; position: relative; }
+        .feature-card p { font-size: 13px; color: var(--gray-600); margin-bottom: 0; line-height: 1.5; position: relative; }
+        .feature-card .icon {
+            font-size: 28px; margin-bottom: 12px; display: inline-block;
+            animation: float-slow 4s ease-in-out infinite;
+            animation-delay: var(--delay, 0s);
+        }
+
+        /* ── Tabs ── */
+        .tabs { display: flex; gap: 0; border-bottom: 2px solid var(--gray-200); margin-bottom: 20px; }
+        .tab {
+            padding: 10px 20px; font-size: 13px; font-weight: 500;
+            color: var(--gray-500); cursor: pointer; border-bottom: 2px solid transparent;
+            margin-bottom: -2px; transition: all 0.15s;
+        }
+        .tab:hover { color: var(--navy); }
+        .tab.active { color: var(--pink); border-bottom-color: var(--pink); font-weight: 600; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        /* ── Tables ── */
+        table {
+            width: 100%; border-collapse: collapse; margin-bottom: 24px;
+            font-size: 14px; border-radius: var(--radius); overflow: hidden;
+        }
+        th {
+            background: var(--gray-50); text-align: left; padding: 10px 16px;
+            font-weight: 600; color: var(--navy); border-bottom: 2px solid var(--gray-200);
+            font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;
+        }
+        td { padding: 10px 16px; border-bottom: 1px solid var(--gray-100); color: var(--gray-700); }
+        tr:hover td { background: var(--gray-50); }
+
+        /* ── Badges ── */
+        .badge {
+            display: inline-block; font-size: 11px; font-weight: 600;
+            padding: 2px 8px; border-radius: 4px; margin-left: 6px;
+        }
+        .badge-new { background: var(--green-bg); color: var(--green); }
+        .badge-enterprise { background: var(--purple-bg); color: var(--purple); }
+        .badge-beta { background: var(--orange-bg); color: var(--orange); }
+
+        /* ── Hero ── */
+        .hero {
+            background: linear-gradient(-45deg, #0c1b3a, #14284b, #1a3a6e, #0f2347);
+            background-size: 400% 400%;
+            animation: gradient-shift 12s ease infinite;
+            border-radius: 20px; padding: 56px 48px; margin-bottom: 40px;
+            color: var(--white); position: relative; overflow: hidden;
+        }
+        .hero::before {
+            content: ''; position: absolute; top: -60%; right: -25%;
+            width: 500px; height: 500px; border-radius: 50%;
+            background: radial-gradient(circle, rgba(214,51,108,0.25), transparent 70%);
+            animation: pulse-glow 6s ease-in-out infinite;
+        }
+        .hero::after {
+            content: ''; position: absolute; bottom: -40%; left: -15%;
+            width: 350px; height: 350px; border-radius: 50%;
+            background: radial-gradient(circle, rgba(37,99,235,0.15), transparent 70%);
+            animation: pulse-glow 8s ease-in-out infinite 2s;
+        }
+        .hero-particles {
+            position: absolute; inset: 0; overflow: hidden; pointer-events: none;
+        }
+        .hero-particle {
+            position: absolute; width: 4px; height: 4px; border-radius: 50%;
+            background: rgba(255,255,255,0.3);
+            animation: particle-drift var(--duration, 8s) linear infinite;
+            animation-delay: var(--delay, 0s);
+        }
+        .hero h1 {
+            color: var(--white); font-size: 40px; margin-bottom: 14px;
+            position: relative; letter-spacing: -0.5px;
+            animation: fade-in-up 0.6s ease both;
+        }
+        .hero h1 span { color: var(--pink-light); }
+        .hero p {
+            color: rgba(255,255,255,0.8); font-size: 17px; max-width: 600px;
+            position: relative; margin-bottom: 28px;
+            animation: fade-in-up 0.6s ease 0.15s both;
+        }
+        .hero-actions {
+            display: flex; gap: 12px; position: relative;
+            animation: fade-in-up 0.6s ease 0.3s both;
+        }
+        .hero-btn {
+            display: inline-block; padding: 12px 28px; border-radius: 10px;
+            font-weight: 600; font-size: 14px; text-decoration: none;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1); cursor: pointer;
+        }
+        .hero-btn:hover { transform: translateY(-2px); }
+        .hero-btn-primary {
+            background: var(--pink); color: #ffffff !important; border: none;
+            box-shadow: 0 4px 15px rgba(214,51,108,0.4);
+        }
+        .hero-btn-primary:hover {
+            background: var(--pink-light); text-decoration: none; color: #ffffff !important;
+            box-shadow: 0 6px 25px rgba(214,51,108,0.5);
+        }
+        .hero-btn-secondary {
+            background: rgba(255,255,255,0.1); color: #ffffff !important;
+            border: 1px solid rgba(255,255,255,0.25);
+            backdrop-filter: blur(8px);
+        }
+        .hero-btn-secondary:hover {
+            background: rgba(255,255,255,0.2); text-decoration: none; color: #ffffff !important;
+            border-color: rgba(255,255,255,0.4);
+        }
+
+        /* ── Install Block ── */
+        .install-block {
+            background: linear-gradient(90deg, var(--navy), #14284b);
+            border-radius: var(--radius-lg);
+            padding: 16px 24px; font-family: 'JetBrains Mono', monospace;
+            color: #e0e7ff; font-size: 14px; margin-bottom: 24px;
+            display: flex; justify-content: space-between; align-items: center;
+            border: 1px solid rgba(255,255,255,0.08);
+            transition: all 0.3s;
+        }
+        .install-block:hover {
+            box-shadow: 0 4px 20px rgba(12,27,58,0.2);
+            border-color: rgba(214,51,108,0.3);
+        }
+        .install-block .dollar { color: var(--pink-light); margin-right: 8px; }
+
+        /* ── Page sections ── */
+        .page { display: none; }
+        .page.active { display: block; }
+
+        /* ── Architecture Diagram ── */
+        .arch-diagram {
+            background: var(--gray-50); border: 1px solid var(--gray-200);
+            border-radius: var(--radius-lg); padding: 32px; margin: 24px 0;
+            font-family: 'JetBrains Mono', monospace; font-size: 13px;
+            line-height: 1.5; color: var(--navy); white-space: pre; overflow-x: auto;
+        }
+
+        /* ── Footer ── */
+        .docs-footer {
+            margin-top: 64px; padding-top: 32px; border-top: 1px solid var(--gray-200);
+            display: flex; justify-content: space-between;
+        }
+        .docs-footer a {
+            display: flex; flex-direction: column; gap: 4px; padding: 16px 20px;
+            background: var(--gray-50); border: 1px solid var(--gray-200);
+            border-radius: var(--radius-lg); text-decoration: none; transition: all 0.15s;
+            min-width: 180px;
+        }
+        .docs-footer a:hover { border-color: var(--pink); box-shadow: var(--shadow-sm); text-decoration: none; }
+        .docs-footer .label { font-size: 12px; color: var(--gray-500); font-weight: 500; }
+        .docs-footer .title { font-size: 15px; color: var(--navy); font-weight: 600; }
+
+        /* ── Responsive ── */
+        @media (max-width: 1200px) { .docs-toc { display: none; } }
+        @media (max-width: 900px) {
+            .docs-sidebar { display: none; }
+            .docs-content { margin-left: 0; padding: 24px; }
+            .feature-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- ── Top Header ── -->
+<div class="top-header">
+    <a href="/docs" class="top-header-brand">
+        <div class="logo">B</div>
+        <h1>Duxx <span>AI</span></h1>
+        <span class="top-header-badge">v0.1.0</span>
+    </a>
+    <div class="top-header-nav">
+        <a href="/docs" class="active">Docs</a>
+        <a href="/docs#api-reference" onclick="navigateTo('api-reference')">API</a>
+        <a href="https://github.com/duxx_ai/duxx_ai" target="_blank">GitHub</a>
+        <a href="/studio" class="btn-studio">Studio</a>
+    </div>
+</div>
+
+<div class="docs-layout">
+
+<!-- ── Sidebar ── -->
+<nav class="docs-sidebar">
+    <div class="sidebar-section">
+        <div class="sidebar-section-title">Getting Started</div>
+        <a class="sidebar-link active" onclick="navigateTo('overview')">Overview</a>
+        <a class="sidebar-link" onclick="navigateTo('installation')">Installation</a>
+        <a class="sidebar-link" onclick="navigateTo('quickstart')">Quick Start</a>
+    </div>
+    <div class="sidebar-section">
+        <div class="sidebar-section-title">Core Concepts</div>
+        <a class="sidebar-link" onclick="navigateTo('agents')">Agents</a>
+        <a class="sidebar-link" onclick="navigateTo('agent-advanced')">Advanced Agent</a>
+        <a class="sidebar-link" onclick="navigateTo('tools')">Tools</a>
+        <a class="sidebar-link" onclick="navigateTo('parsers')">Output Parsers</a>
+        <a class="sidebar-link" onclick="navigateTo('providers')">LLM Providers</a>
+        <a class="sidebar-link" onclick="navigateTo('llm-advanced')">Cache &amp; Rate Limit</a>
+        <a class="sidebar-link" onclick="navigateTo('messages')">Messages</a>
+    </div>
+    <div class="sidebar-section">
+        <div class="sidebar-section-title">Orchestration</div>
+        <a class="sidebar-link" onclick="navigateTo('graph')">Graph Workflows</a>
+        <a class="sidebar-link" onclick="navigateTo('graph-advanced')">Advanced Graph</a>
+        <a class="sidebar-link" onclick="navigateTo('crew')">Multi-Agent Crews</a>
+    </div>
+    <div class="sidebar-section">
+        <div class="sidebar-section-title">RAG Pipeline</div>
+        <a class="sidebar-link" onclick="navigateTo('rag')">RAG Overview</a>
+    </div>
+    <div class="sidebar-section">
+        <div class="sidebar-section-title">Fine-Tuning</div>
+        <a class="sidebar-link" onclick="navigateTo('finetune')">Pipeline Overview</a>
+        <a class="sidebar-link" onclick="navigateTo('lora')">LoRA / QLoRA</a>
+        <a class="sidebar-link" onclick="navigateTo('dataset')">Dataset Preparation</a>
+        <a class="sidebar-link" onclick="navigateTo('connectors')">Data Connectors</a>
+        <a class="sidebar-link" onclick="navigateTo('model-storage')">Model Storage</a>
+    </div>
+    <div class="sidebar-section">
+        <div class="sidebar-section-title">Governance</div>
+        <a class="sidebar-link" onclick="navigateTo('guardrails')">Guardrails</a>
+        <a class="sidebar-link" onclick="navigateTo('rbac')">RBAC</a>
+        <a class="sidebar-link" onclick="navigateTo('audit')">Audit Logging</a>
+    </div>
+    <div class="sidebar-section">
+        <div class="sidebar-section-title">Memory</div>
+        <a class="sidebar-link" onclick="navigateTo('memory')">5-Tier Memory</a>
+    </div>
+    <div class="sidebar-section">
+        <div class="sidebar-section-title">Routing</div>
+        <a class="sidebar-link" onclick="navigateTo('router')">Adaptive Router</a>
+    </div>
+    <div class="sidebar-section">
+        <div class="sidebar-section-title">Observability</div>
+        <a class="sidebar-link" onclick="navigateTo('tracing')">Tracing</a>
+        <a class="sidebar-link" onclick="navigateTo('evaluation')">Evaluation</a>
+    </div>
+    <div class="sidebar-section">
+        <div class="sidebar-section-title">Templates</div>
+        <a class="sidebar-link" onclick="navigateTo('templates')">14 Enterprise Agents</a>
+    </div>
+    <div class="sidebar-section">
+        <div class="sidebar-section-title">Reference</div>
+        <a class="sidebar-link" onclick="navigateTo('api-reference')">API Reference</a>
+        <a class="sidebar-link" onclick="navigateTo('cli-ref')">CLI Reference</a>
+        <a class="sidebar-link" onclick="navigateTo('rest-api')">REST API (43)</a>
+    </div>
+</nav>
+
+<!-- ── Main Content ── -->
+<main class="docs-content">
+
+<!-- ════════════════ OVERVIEW ════════════════ -->
+<div id="page-overview" class="page active">
+<div class="hero">
+    <div class="hero-particles" id="hero-particles"></div>
+    <h1>Duxx <span>AI</span> Enterprise SDK</h1>
+    <p>Build, fine-tune, orchestrate, and govern AI agents at scale. The only open-source SDK that unifies agentic AI with fine-tuning pipelines and enterprise governance.</p>
+    <div class="hero-actions">
+        <a class="hero-btn hero-btn-primary" onclick="navigateTo('quickstart')">Get Started</a>
+        <a class="hero-btn hero-btn-secondary" href="https://github.com/duxx_ai/duxx_ai" target="_blank">View on GitHub</a>
+    </div>
+</div>
+
+<div class="install-block">
+    <span><span class="dollar">$</span> pip install duxx_ai</span>
+</div>
+
+<h2 id="why-duxx_ai">Why Duxx AI?</h2>
+<p>Existing frameworks force you to choose: agent orchestration <em>or</em> model fine-tuning. Duxx AI delivers both in a single, enterprise-ready platform.</p>
+
+<div class="feature-grid">
+    <div class="feature-card" onclick="navigateTo('agents')" style="animation: fade-in-up 0.5s ease 0.1s both">
+        <div class="icon" style="--delay:0s">&#129302;</div>
+        <h4>Agent SDK</h4>
+        <p>Multi-provider agents with tool use, multi-turn conversation, and configurable LLM backends (OpenAI, Anthropic, local models).</p>
+    </div>
+    <div class="feature-card" onclick="navigateTo('graph')" style="animation: fade-in-up 0.5s ease 0.2s both">
+        <div class="icon" style="--delay:0.5s">&#128300;</div>
+        <h4>Graph Orchestration</h4>
+        <p>DAG-based workflows with conditional routing, parallel branches, state reducers, human-in-the-loop, and map-reduce.</p>
+    </div>
+    <div class="feature-card" onclick="navigateTo('finetune')" style="animation: fade-in-up 0.5s ease 0.3s both">
+        <div class="icon" style="--delay:1s">&#9881;&#65039;</div>
+        <h4>Fine-Tuning Pipeline</h4>
+        <p>Integrated Unsloth/PEFT training. Convert agent traces to training data. LoRA, QLoRA, GGUF export.</p>
+    </div>
+    <div class="feature-card" onclick="navigateTo('guardrails')" style="animation: fade-in-up 0.5s ease 0.4s both">
+        <div class="icon" style="--delay:1.5s">&#128737;&#65039;</div>
+        <h4>Enterprise Governance</h4>
+        <p>Built-in guardrails, RBAC with role inheritance, audit logging, and policy enforcement.</p>
+    </div>
+    <div class="feature-card" onclick="navigateTo('router')" style="animation: fade-in-up 0.5s ease 0.5s both">
+        <div class="icon" style="--delay:2s">&#128268;</div>
+        <h4>Adaptive Router</h4>
+        <p>Complexity-based model routing. Send simple tasks to cheap models, complex tasks to powerful ones. Budget enforcement.</p>
+    </div>
+    <div class="feature-card" onclick="navigateTo('memory')" style="animation: fade-in-up 0.5s ease 0.6s both">
+        <div class="icon" style="--delay:2.5s">&#129504;</div>
+        <h4>5-Tier Memory</h4>
+        <p>Working, episodic, semantic, procedural, and shared memory with TTL, LRU eviction, and cross-agent coordination.</p>
+    </div>
+</div>
+
+<h2 id="architecture">Architecture</h2>
+<div class="arch-diagram">duxx_ai/
+  core/           Agent, Tool, Message, LLM provider abstractions
+  orchestration/  Graph engine + Crew-based multi-agent coordination
+  finetune/       Fine-tuning pipeline (Unsloth / PEFT integration)
+  governance/     Guardrails, RBAC, audit logging
+  router/         Adaptive model routing with complexity estimation
+  memory/         5-tier memory system (working, episodic, semantic, procedural, shared)
+  observability/  OpenTelemetry-compatible tracing
+  tools/          Built-in tools (code exec, file ops, web requests)
+  studio/         FastAPI web UI for agent management
+  cli/            Command-line interface</div>
+
+<h2 id="comparison">How Duxx AI Compares</h2>
+<table>
+    <thead><tr><th>Feature</th><th>Duxx AI</th><th>LangChain</th><th>CrewAI</th><th>Unsloth</th></tr></thead>
+    <tbody>
+        <tr><td>Agent SDK</td><td><strong style="color:var(--green)">&#10003;</strong></td><td>&#10003;</td><td>&#10003;</td><td>&#10007;</td></tr>
+        <tr><td>Graph Orchestration</td><td><strong style="color:var(--green)">&#10003;</strong></td><td>&#10003; (LangGraph)</td><td>&#10007;</td><td>&#10007;</td></tr>
+        <tr><td>Multi-Agent Crews</td><td><strong style="color:var(--green)">&#10003;</strong></td><td>&#10007;</td><td>&#10003;</td><td>&#10007;</td></tr>
+        <tr><td>Fine-Tuning Pipeline</td><td><strong style="color:var(--green)">&#10003;</strong></td><td>&#10007;</td><td>&#10007;</td><td>&#10003;</td></tr>
+        <tr><td>Guardrails &amp; RBAC</td><td><strong style="color:var(--green)">&#10003;</strong></td><td>&#10007;</td><td>&#10007;</td><td>&#10007;</td></tr>
+        <tr><td>Adaptive Routing</td><td><strong style="color:var(--green)">&#10003;</strong></td><td>&#10007;</td><td>&#10007;</td><td>&#10007;</td></tr>
+        <tr><td>Memory System</td><td><strong style="color:var(--green)">5-tier</strong></td><td>Basic</td><td>Basic</td><td>&#10007;</td></tr>
+        <tr><td>Observability</td><td><strong style="color:var(--green)">&#10003;</strong></td><td>&#10003;</td><td>&#10007;</td><td>&#10007;</td></tr>
+    </tbody>
+</table>
+
+<div class="docs-footer">
+    <div></div>
+    <a onclick="navigateTo('installation')">
+        <span class="label">Next</span>
+        <span class="title">Installation &#8594;</span>
+    </a>
+</div>
+</div>
+
+<!-- ════════════════ INSTALLATION ════════════════ -->
+<div id="page-installation" class="page">
+<h1>Installation</h1>
+<p class="lead">Install Duxx AI and its optional dependencies for fine-tuning, the Studio web UI, or the full enterprise suite.</p>
+
+<h2 id="install-core">Core SDK</h2>
+<p>The core SDK includes agents, tools, orchestration, governance, memory, routing, and observability.</p>
+<div class="install-block"><span><span class="dollar">$</span> pip install duxx_ai</span></div>
+
+<h2 id="install-extras">Optional Extras</h2>
+<div class="code-header"><span>Fine-tuning support (Unsloth + PEFT)</span></div>
+<pre><code>pip install duxx_ai[finetune]</code></pre>
+
+<div class="code-header"><span>Studio web UI (FastAPI)</span></div>
+<pre><code>pip install duxx_ai[studio]</code></pre>
+
+<div class="code-header"><span>Everything</span></div>
+<pre><code>pip install duxx_ai[all]</code></pre>
+
+<h2 id="install-requirements">Requirements</h2>
+<table>
+    <thead><tr><th>Dependency</th><th>Version</th><th>Purpose</th></tr></thead>
+    <tbody>
+        <tr><td><code>Python</code></td><td>&gt;= 3.10</td><td>Runtime</td></tr>
+        <tr><td><code>pydantic</code></td><td>&gt;= 2.0</td><td>Data models</td></tr>
+        <tr><td><code>httpx</code></td><td>&gt;= 0.25</td><td>HTTP client for LLM APIs</td></tr>
+        <tr><td><code>tiktoken</code></td><td>&gt;= 0.5</td><td>Token counting</td></tr>
+        <tr><td><code>opentelemetry-sdk</code></td><td>&gt;= 1.20</td><td>Tracing</td></tr>
+        <tr><td><code>rich</code></td><td>&gt;= 13.0</td><td>Terminal output</td></tr>
+        <tr><td><code>click</code></td><td>&gt;= 8.0</td><td>CLI framework</td></tr>
+    </tbody>
+</table>
+
+<div class="callout callout-tip">
+    <span class="callout-icon">&#128161;</span>
+    <div><strong>GPU Fine-Tuning:</strong> For fine-tuning, you need a CUDA-capable GPU with at least 8GB VRAM. QLoRA with 4-bit quantization can fine-tune 7B models on a single 16GB GPU.</div>
+</div>
+
+<h2 id="install-verify">Verify Installation</h2>
+<div class="code-header"><span>Python</span></div>
+<pre><code><span class="keyword">import</span> duxx_ai
+<span class="function">print</span>(duxx_ai.__version__)  <span class="comment"># 0.1.0</span></code></pre>
+
+<div class="docs-footer">
+    <a onclick="navigateTo('overview')">
+        <span class="label">&#8592; Previous</span>
+        <span class="title">Overview</span>
+    </a>
+    <a onclick="navigateTo('quickstart')">
+        <span class="label">Next</span>
+        <span class="title">Quick Start &#8594;</span>
+    </a>
+</div>
+</div>
+
+<!-- ════════════════ QUICK START ════════════════ -->
+<div id="page-quickstart" class="page">
+<h1>Quick Start</h1>
+<p class="lead">Build your first AI agent in under 5 minutes. This guide covers creating an agent, adding tools, and running a conversation.</p>
+
+<h2 id="qs-agent">1. Create an Agent</h2>
+<div class="code-header"><span>Python</span></div>
+<pre><code><span class="keyword">import</span> asyncio
+<span class="keyword">from</span> duxx_ai <span class="keyword">import</span> Agent, AgentConfig
+<span class="keyword">from</span> duxx_ai.core.llm <span class="keyword">import</span> LLMConfig
+<span class="keyword">from</span> duxx_ai.tools.builtin <span class="keyword">import</span> get_builtin_tools
+
+agent = Agent(
+    config=AgentConfig(
+        name=<span class="string">"assistant"</span>,
+        system_prompt=<span class="string">"You are a helpful assistant."</span>,
+        llm=LLMConfig(provider=<span class="string">"openai"</span>, model=<span class="string">"gpt-4o"</span>),
+    ),
+    tools=get_builtin_tools([<span class="string">"python_exec"</span>, <span class="string">"calculator"</span>]),
+)
+
+result = asyncio.run(agent.run(<span class="string">"What is the sum of the first 100 primes?"</span>))
+<span class="function">print</span>(result)</code></pre>
+
+<h2 id="qs-tools">2. Custom Tools</h2>
+<p>Use the <code>@tool</code> decorator to turn any function into an agent tool.</p>
+<div class="code-header"><span>Python</span></div>
+<pre><code><span class="keyword">from</span> duxx_ai <span class="keyword">import</span> tool
+
+<span class="decorator">@tool</span>(name=<span class="string">"lookup_user"</span>, description=<span class="string">"Look up a user by ID"</span>)
+<span class="keyword">def</span> <span class="function">lookup_user</span>(user_id: <span class="function">str</span>) -> <span class="function">str</span>:
+    <span class="keyword">return</span> <span class="string">f"User {user_id}: John Doe, Engineering"</span></code></pre>
+
+<h2 id="qs-guardrails">3. Add Guardrails</h2>
+<div class="code-header"><span>Python</span></div>
+<pre><code><span class="keyword">from</span> duxx_ai <span class="keyword">import</span> GuardrailChain
+<span class="keyword">from</span> duxx_ai.governance.guardrails <span class="keyword">import</span> PIIGuardrail, PromptInjectionGuardrail
+
+guardrails = GuardrailChain([
+    PromptInjectionGuardrail(),
+    PIIGuardrail(),
+])
+
+agent = Agent(config=config, guardrails=guardrails)</code></pre>
+
+<h2 id="qs-graph">4. Graph Workflow</h2>
+<div class="code-header"><span>Python</span></div>
+<pre><code><span class="keyword">from</span> duxx_ai <span class="keyword">import</span> Graph, EdgeCondition
+
+graph = Graph(name=<span class="string">"support-workflow"</span>)
+graph.add_node(<span class="string">"classify"</span>, handler=classify_ticket)
+graph.add_node(<span class="string">"urgent"</span>, handler=handle_urgent)
+graph.add_node(<span class="string">"normal"</span>, handler=handle_normal)
+
+graph.set_entry_point(<span class="string">"classify"</span>)
+graph.add_edge(<span class="string">"classify"</span>, <span class="string">"urgent"</span>,
+    condition=EdgeCondition(key=<span class="string">"priority"</span>, value=<span class="string">"high"</span>))
+graph.add_edge(<span class="string">"classify"</span>, <span class="string">"normal"</span>,
+    condition=EdgeCondition(key=<span class="string">"priority"</span>, value=<span class="string">"low"</span>))
+
+result = <span class="keyword">await</span> graph.run({<span class="string">"ticket"</span>: <span class="string">"Server is down!"</span>})</code></pre>
+
+<h2 id="qs-next">Next Steps</h2>
+<div class="feature-grid">
+    <div class="feature-card" onclick="navigateTo('agents')">
+        <h4>Core Concepts &#8594;</h4>
+        <p>Deep dive into agents, tools, providers, and messages.</p>
+    </div>
+    <div class="feature-card" onclick="navigateTo('graph')">
+        <h4>Graph Orchestration &#8594;</h4>
+        <p>Build complex DAG workflows with conditional routing.</p>
+    </div>
+    <div class="feature-card" onclick="navigateTo('finetune')">
+        <h4>Fine-Tuning &#8594;</h4>
+        <p>Train domain-specific models from agent traces.</p>
+    </div>
+    <div class="feature-card" onclick="navigateTo('guardrails')">
+        <h4>Governance &#8594;</h4>
+        <p>Guardrails, RBAC, and audit logging for production.</p>
+    </div>
+</div>
+</div>
+
+<!-- ════════════════ AGENTS ════════════════ -->
+<div id="page-agents" class="page">
+<h1>Agents</h1>
+<p class="lead">An Agent is the fundamental building block of Duxx AI. It combines an LLM, tools, guardrails, memory, and observability into a single autonomous unit.</p>
+
+<h2 id="agent-config">AgentConfig</h2>
+<p>Every agent is configured via an <code>AgentConfig</code> object:</p>
+<div class="code-header"><span>Python</span></div>
+<pre><code><span class="keyword">from</span> duxx_ai <span class="keyword">import</span> Agent, AgentConfig
+<span class="keyword">from</span> duxx_ai.core.llm <span class="keyword">import</span> LLMConfig
+
+config = AgentConfig(
+    name=<span class="string">"my-agent"</span>,
+    description=<span class="string">"A research assistant"</span>,
+    system_prompt=<span class="string">"You are an expert researcher."</span>,
+    llm=LLMConfig(provider=<span class="string">"openai"</span>, model=<span class="string">"gpt-4o"</span>),
+    max_iterations=<span class="number">10</span>,
+    max_tokens_per_turn=<span class="number">4096</span>,
+)</code></pre>
+
+<table>
+    <thead><tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr></thead>
+    <tbody>
+        <tr><td><code>name</code></td><td><code>str</code></td><td><code>"agent"</code></td><td>Unique identifier for the agent</td></tr>
+        <tr><td><code>description</code></td><td><code>str</code></td><td><code>""</code></td><td>Human-readable description</td></tr>
+        <tr><td><code>system_prompt</code></td><td><code>str</code></td><td>Default prompt</td><td>System instructions for the LLM</td></tr>
+        <tr><td><code>llm</code></td><td><code>LLMConfig</code></td><td>OpenAI GPT-4o</td><td>LLM provider configuration</td></tr>
+        <tr><td><code>max_iterations</code></td><td><code>int</code></td><td><code>10</code></td><td>Max tool-calling loop iterations</td></tr>
+        <tr><td><code>max_tokens_per_turn</code></td><td><code>int</code></td><td><code>4096</code></td><td>Token limit per LLM call</td></tr>
+    </tbody>
+</table>
+
+<h2 id="agent-loop">The Agent Loop</h2>
+<p>When you call <code>agent.run()</code>, the agent enters an iterative loop:</p>
+<ol>
+    <li><strong>Input guardrails</strong> check the user message</li>
+    <li><strong>LLM call</strong> with conversation history and available tools</li>
+    <li>If the LLM returns <strong>tool calls</strong>, execute them in parallel</li>
+    <li>Append tool results and loop back to step 2</li>
+    <li>If the LLM returns <strong>text only</strong>, run output guardrails and return</li>
+</ol>
+
+<div class="callout callout-info">
+    <span class="callout-icon">&#9432;</span>
+    <div><strong>Parallel Tool Execution:</strong> When the LLM requests multiple tool calls in a single turn, Duxx AI executes them concurrently via <code>asyncio.gather()</code> for maximum throughput.</div>
+</div>
+
+<h2 id="agent-tools">Registering Tools</h2>
+<div class="code-header"><span>Python</span></div>
+<pre><code>agent = Agent(config=config)
+agent.register_tool(my_custom_tool)
+
+<span class="comment"># Or pass tools at construction</span>
+agent = Agent(config=config, tools=[tool_a, tool_b])</code></pre>
+
+<h2 id="agent-state">Agent State</h2>
+<p>Track runtime metrics via <code>agent.state</code>:</p>
+<div class="code-header"><span>Python</span></div>
+<pre><code><span class="function">print</span>(agent.state.iteration)     <span class="comment"># Current iteration</span>
+<span class="function">print</span>(agent.state.total_tokens)   <span class="comment"># Cumulative token usage</span>
+<span class="function">print</span>(agent.state.total_cost)     <span class="comment"># Cumulative cost</span>
+<span class="function">print</span>(agent.state.status)         <span class="comment"># idle | running | error</span></code></pre>
+</div>
+
+<!-- ════════════════ TOOLS ════════════════ -->
+<div id="page-tools" class="page">
+<h1>Tools</h1>
+<p class="lead">Tools give agents the ability to take actions: execute code, read files, make HTTP requests, and more. Create custom tools from any Python function with the <code>@tool</code> decorator.</p>
+
+<h2 id="tool-decorator">The @tool Decorator</h2>
+<div class="code-header"><span>Python</span></div>
+<pre><code><span class="keyword">from</span> duxx_ai <span class="keyword">import</span> tool
+
+<span class="decorator">@tool</span>(
+    name=<span class="string">"search_database"</span>,
+    description=<span class="string">"Search the company database"</span>,
+    requires_approval=<span class="keyword">True</span>,
+    tags=[<span class="string">"database"</span>],
+)
+<span class="keyword">async def</span> <span class="function">search_database</span>(query: <span class="function">str</span>, limit: <span class="function">int</span> = <span class="number">10</span>) -> <span class="function">str</span>:
+    <span class="comment"># Both sync and async functions are supported</span>
+    results = <span class="keyword">await</span> db.search(query, limit=limit)
+    <span class="keyword">return</span> json.dumps(results)</code></pre>
+
+<p>The decorator automatically extracts parameter names, types, and defaults from the function signature to build the tool's JSON schema.</p>
+
+<h2 id="builtin-tools">Built-in Tools</h2>
+<table>
+    <thead><tr><th>Name</th><th>Description</th><th>Approval</th></tr></thead>
+    <tbody>
+        <tr><td><code>python_exec</code></td><td>Execute Python code in a sandboxed subprocess</td><td>No</td></tr>
+        <tr><td><code>bash_exec</code></td><td>Execute a shell command</td><td>Yes</td></tr>
+        <tr><td><code>read_file</code></td><td>Read file contents</td><td>No</td></tr>
+        <tr><td><code>write_file</code></td><td>Write content to a file</td><td>Yes</td></tr>
+        <tr><td><code>list_files</code></td><td>List files in a directory</td><td>No</td></tr>
+        <tr><td><code>web_request</code></td><td>Make HTTP requests (GET/POST/PUT/DELETE)</td><td>No</td></tr>
+        <tr><td><code>json_query</code></td><td>Query JSON data with dot-notation paths</td><td>No</td></tr>
+        <tr><td><code>calculator</code></td><td>Evaluate math expressions safely</td><td>No</td></tr>
+    </tbody>
+</table>
+
+<div class="code-header"><span>Python</span></div>
+<pre><code><span class="keyword">from</span> duxx_ai.tools.builtin <span class="keyword">import</span> get_builtin_tools
+
+<span class="comment"># Get specific tools</span>
+tools = get_builtin_tools([<span class="string">"python_exec"</span>, <span class="string">"calculator"</span>])
+
+<span class="comment"># Get all built-in tools</span>
+all_tools = get_builtin_tools()</code></pre>
+
+<h2 id="tool-execution">Tool Execution</h2>
+<p>Tools support timeouts, retries, and both sync/async execution:</p>
+<ul>
+    <li><strong>Async functions</strong> are awaited directly</li>
+    <li><strong>Sync functions</strong> run in a thread pool executor</li>
+    <li><strong>Timeouts</strong> are enforced via <code>asyncio.wait_for()</code></li>
+    <li><strong>Errors</strong> are caught and returned as <code>ToolResult</code> with error details</li>
+</ul>
+</div>
+
+<!-- ════════════════ LLM PROVIDERS ════════════════ -->
+<div id="page-providers" class="page">
+<h1>LLM Providers</h1>
+<p class="lead">Duxx AI supports multiple LLM providers through a unified interface. Switch between OpenAI, Anthropic, and local models with a single config change.</p>
+
+<h2 id="provider-openai">OpenAI</h2>
+<div class="code-header"><span>Python</span></div>
+<pre><code><span class="keyword">from</span> duxx_ai.core.llm <span class="keyword">import</span> LLMConfig
+
+config = LLMConfig(
+    provider=<span class="string">"openai"</span>,
+    model=<span class="string">"gpt-4o"</span>,
+    api_key=<span class="string">"sk-..."</span>,
+    temperature=<span class="number">0.7</span>,
+    max_tokens=<span class="number">4096</span>,
+)</code></pre>
+
+<h2 id="provider-anthropic">Anthropic</h2>
+<div class="code-header"><span>Python</span></div>
+<pre><code>config = LLMConfig(
+    provider=<span class="string">"anthropic"</span>,
+    model=<span class="string">"claude-sonnet-4-6"</span>,
+    api_key=<span class="string">"sk-ant-..."</span>,
+)</code></pre>
+
+<h2 id="provider-local">Local Models</h2>
+<p>Use any OpenAI-compatible API (vLLM, Ollama, llama.cpp):</p>
+<div class="code-header"><span>Python</span></div>
+<pre><code>config = LLMConfig(
+    provider=<span class="string">"local"</span>,
+    model=<span class="string">"qwen2.5-7b"</span>,
+    base_url=<span class="string">"http://localhost:8000/v1"</span>,
+)</code></pre>
+
+<div class="callout callout-tip">
+    <span class="callout-icon">&#128161;</span>
+    <div><strong>Adaptive Routing:</strong> Use the <a onclick="navigateTo('router')">AdaptiveRouter</a> to automatically select the best provider based on task complexity and cost.</div>
+</div>
+</div>
+
+<!-- ════════════════ MESSAGES ════════════════ -->
+<div id="page-messages" class="page">
+<h1>Messages &amp; Conversations</h1>
+<p class="lead">Duxx AI uses a structured message system for all agent communication, including tool calls and results.</p>
+
+<h2 id="msg-roles">Message Roles</h2>
+<table>
+    <thead><tr><th>Role</th><th>Description</th></tr></thead>
+    <tbody>
+        <tr><td><code>Role.SYSTEM</code></td><td>System instructions</td></tr>
+        <tr><td><code>Role.USER</code></td><td>User input</td></tr>
+        <tr><td><code>Role.ASSISTANT</code></td><td>Agent / LLM response</td></tr>
+        <tr><td><code>Role.TOOL</code></td><td>Tool execution results</td></tr>
+        <tr><td><code>Role.ORCHESTRATOR</code></td><td>Orchestration control messages</td></tr>
+    </tbody>
+</table>
+
+<h2 id="msg-conversation">Conversation</h2>
+<div class="code-header"><span>Python</span></div>
+<pre><code><span class="keyword">from</span> duxx_ai <span class="keyword">import</span> Message, Role
+<span class="keyword">from</span> duxx_ai.core.message <span class="keyword">import</span> Conversation
+
+conv = Conversation()
+conv.add(Message(role=Role.USER, content=<span class="string">"Hello!"</span>))
+
+<span class="comment"># Access history</span>
+last = conv.last_message
+history = conv.get_history(last_n=<span class="number">5</span>)</code></pre>
+</div>
+
+<!-- ════════════════ GRAPH WORKFLOWS ════════════════ -->
+<div id="page-graph" class="page">
+<h1>Graph Workflows</h1>
+<p class="lead">Build complex agent workflows as directed acyclic graphs (DAGs) with conditional routing, parallel execution, and state checkpointing. Inspired by LangGraph and state machine research.</p>
+
+<div class="callout callout-note">
+    <span class="callout-icon">&#128218;</span>
+    <div><strong>Research Foundation:</strong> Duxx AI's graph engine draws from recent research on Graph of Thoughts (GoT), Tree of Thoughts (ToT), and state-machine-based agent control flow. See the <a href="#graph-research">Research Background</a> section below.</div>
+</div>
+
+<h2 id="graph-basic">Basic Graph</h2>
+<div class="code-header"><span>Python</span></div>
+<pre><code><span class="keyword">from</span> duxx_ai <span class="keyword">import</span> Graph, EdgeCondition
+
+graph = Graph(name=<span class="string">"my-workflow"</span>)
+
+<span class="comment"># Define nodes (each node is an async handler)</span>
+graph.add_node(<span class="string">"classify"</span>, handler=classify)
+graph.add_node(<span class="string">"process"</span>, handler=process)
+graph.add_node(<span class="string">"respond"</span>, handler=respond)
+
+<span class="comment"># Wire the graph</span>
+graph.set_entry_point(<span class="string">"classify"</span>)
+graph.add_edge(<span class="string">"classify"</span>, <span class="string">"process"</span>)
+graph.add_edge(<span class="string">"process"</span>, <span class="string">"respond"</span>)
+graph.set_exit_point(<span class="string">"respond"</span>)
+
+result = <span class="keyword">await</span> graph.run({<span class="string">"input"</span>: <span class="string">"Hello"</span>})</code></pre>
+
+<h2 id="graph-conditional">Conditional Routing</h2>
+<p>Route execution based on state values using <code>EdgeCondition</code>:</p>
+<div class="code-header"><span>Python</span></div>
+<pre><code><span class="comment"># Supported operators: eq, neq, gt, lt, contains, exists</span>
+graph.add_edge(<span class="string">"classify"</span>, <span class="string">"urgent"</span>,
+    condition=EdgeCondition(key=<span class="string">"priority"</span>, value=<span class="string">"high"</span>, operator=<span class="string">"eq"</span>))
+graph.add_edge(<span class="string">"classify"</span>, <span class="string">"normal"</span>,
+    condition=EdgeCondition(key=<span class="string">"priority"</span>, value=<span class="string">"high"</span>, operator=<span class="string">"neq"</span>))</code></pre>
+
+<h2 id="graph-parallel">Parallel Execution</h2>
+<p>When multiple edges lead from a node, the graph engine detects and executes branches in parallel:</p>
+<div class="code-header"><span>Python</span></div>
+<pre><code>graph.add_edge(<span class="string">"start_node"</span>, <span class="string">"branch_a"</span>)
+graph.add_edge(<span class="string">"start_node"</span>, <span class="string">"branch_b"</span>)
+graph.add_edge(<span class="string">"start_node"</span>, <span class="string">"branch_c"</span>)
+<span class="comment"># All three branches execute concurrently via asyncio.gather()</span></code></pre>
+
+<h2 id="graph-state">GraphState</h2>
+<p>State flows through the graph and is accessible at every node:</p>
+<div class="code-header"><span>Python</span></div>
+<pre><code><span class="keyword">async def</span> <span class="function">my_handler</span>(state: GraphState) -> GraphState:
+    data = state.get(<span class="string">"input"</span>)
+    state.set(<span class="string">"result"</span>, process(data))
+    <span class="keyword">return</span> state</code></pre>
+
+<h2 id="graph-checkpoint">Checkpointing</h2>
+<p>The graph automatically checkpoints state after each node execution, enabling recovery and debugging:</p>
+<div class="code-header"><span>Python</span></div>
+<pre><code>result = <span class="keyword">await</span> graph.run({<span class="string">"input"</span>: <span class="string">"data"</span>})
+
+<span class="comment"># Access execution history</span>
+<span class="keyword">for</span> checkpoint <span class="keyword">in</span> graph.checkpoints:
+    <span class="function">print</span>(checkpoint.current_node, checkpoint.data)</code></pre>
+
+<h2 id="graph-node-types">Node Types</h2>
+<table>
+    <thead><tr><th>Type</th><th>Purpose</th></tr></thead>
+    <tbody>
+        <tr><td><code>AGENT</code></td><td>Runs an AI agent with LLM</td></tr>
+        <tr><td><code>TOOL</code></td><td>Executes a specific tool</td></tr>
+        <tr><td><code>CONDITIONAL</code></td><td>Branching logic</td></tr>
+        <tr><td><code>PARALLEL</code></td><td>Fan-out parallel execution</td></tr>
+        <tr><td><code>HUMAN</code></td><td>Human-in-the-loop approval</td></tr>
+        <tr><td><code>START</code> / <code>END</code></td><td>Graph entry and exit points</td></tr>
+    </tbody>
+</table>
+
+<h2 id="graph-research">Research Background</h2>
+<div class="callout callout-info">
+    <span class="callout-icon">&#128214;</span>
+    <div>
+        <strong>Graph of Thoughts (Besta et al., 2023):</strong> Represents LLM reasoning as an arbitrary graph where thoughts can branch, merge, and loop &mdash; enabling more flexible problem solving than chain or tree structures.
+        <br><br>
+        <strong>Tree of Thoughts (Yao et al., 2023):</strong> Tree-based deliberation allowing LLMs to explore multiple reasoning paths with backtracking.
+        <br><br>
+        <strong>State Machines for Agents:</strong> Finite automaton approaches to agent control flow provide formal guarantees about execution paths, error handling, and termination conditions.
+    </div>
+</div>
+</div>
+
+<!-- ════════════════ CREW ════════════════ -->
+<div id="page-crew" class="page">
+<h1>Multi-Agent Crews</h1>
+<p class="lead">Orchestrate multiple agents working together on complex tasks. Define roles, goals, and task dependencies for collaborative workflows.</p>
+
+<h2 id="crew-basic">Creating a Crew</h2>
+<div class="code-header"><span>Python</span></div>
+<pre><code><span class="keyword">from</span> duxx_ai <span class="keyword">import</span> Crew, CrewAgent
+<span class="keyword">from</span> duxx_ai.orchestration.crew <span class="keyword">import</span> Task
+
+crew = Crew(
+    name=<span class="string">"content-team"</span>,
+    agents=[
+        CrewAgent(name=<span class="string">"researcher"</span>, role=<span class="string">"Researcher"</span>,
+                  goal=<span class="string">"Find accurate information"</span>),
+        CrewAgent(name=<span class="string">"writer"</span>, role=<span class="string">"Writer"</span>,
+                  goal=<span class="string">"Write compelling content"</span>),
+    ],
+    tasks=[
+        Task(id=<span class="string">"research"</span>, description=<span class="string">"Research AI trends"</span>,
+             assigned_to=<span class="string">"researcher"</span>),
+        Task(id=<span class="string">"write"</span>, description=<span class="string">"Write a blog post"</span>,
+             assigned_to=<span class="string">"writer"</span>, dependencies=[<span class="string">"research"</span>]),
+    ],
+    strategy=<span class="string">"sequential"</span>,
+)
+
+result = <span class="keyword">await</span> crew.run()</code></pre>
+
+<h2 id="crew-strategies">Execution Strategies</h2>
+<table>
+    <thead><tr><th>Strategy</th><th>Behavior</th></tr></thead>
+    <tbody>
+        <tr><td><code>sequential</code></td><td>Tasks run one-by-one, each receiving context from prior tasks</td></tr>
+        <tr><td><code>parallel</code></td><td>Independent tasks run concurrently; respects dependency ordering</td></tr>
+        <tr><td><code>hierarchical</code></td><td>A manager agent delegates and reviews work from other agents</td></tr>
+    </tbody>
+</table>
+
+<h2 id="crew-deps">Task Dependencies</h2>
+<p>Tasks with dependencies receive results from prerequisite tasks in their context automatically. The crew uses topological sorting to determine execution order.</p>
+</div>
+
+<!-- ════════════════ FINE-TUNE PIPELINE ════════════════ -->
+<div id="page-finetune" class="page">
+<h1>Fine-Tuning Pipeline</h1>
+<p class="lead">Train domain-specific agent models from execution traces. Integrated Unsloth and HuggingFace PEFT support for efficient LoRA/QLoRA training.</p>
+
+<span class="badge badge-enterprise">Enterprise</span>
+
+<h2 id="ft-overview">How It Works</h2>
+<ol>
+    <li><strong>Collect traces</strong> &mdash; Agent execution traces are recorded via the observability system</li>
+    <li><strong>Prepare dataset</strong> &mdash; Convert traces to chat or instruction format training data</li>
+    <li><strong>Train</strong> &mdash; Fine-tune a base model with LoRA/QLoRA (Unsloth for 2x speed, 70% less VRAM)</li>
+    <li><strong>Evaluate</strong> &mdash; Measure loss and task-specific metrics</li>
+    <li><strong>Export</strong> &mdash; Save as SafeTensors or GGUF for deployment</li>
+</ol>
+
+<h2 id="ft-quick">Quick Example</h2>
+<div class="code-header"><span>Python</span></div>
+<pre><code><span class="keyword">from</span> duxx_ai.finetune.pipeline <span class="keyword">import</span> FineTunePipeline, TrainingConfig
+
+pipeline = FineTunePipeline(
+    training_config=TrainingConfig(
+        base_model=<span class="string">"unsloth/Qwen2.5-7B"</span>,
+        method=<span class="string">"lora"</span>,
+        lora_r=<span class="number">16</span>,
+        epochs=<span class="number">3</span>,
+        load_in_4bit=<span class="keyword">True</span>,
+    )
+)
+
+<span class="comment"># Convert agent traces to training data</span>
+pipeline.prepare_dataset()
+
+<span class="comment"># Train</span>
+result = pipeline.train(<span class="string">"dataset.jsonl"</span>)
+<span class="function">print</span>(<span class="string">f"Loss: {result.final_loss:.4f}"</span>)</code></pre>
+
+<h2 id="ft-unsloth">Unsloth Integration</h2>
+<div class="callout callout-tip">
+    <span class="callout-icon">&#9889;</span>
+    <div><strong>Performance:</strong> When Unsloth is installed, Duxx AI automatically uses it for 2x faster training and 70% less VRAM. Falls back to standard HuggingFace PEFT if unavailable.</div>
+</div>
+</div>
+
+<!-- ════════════════ LORA ════════════════ -->
+<div id="page-lora" class="page">
+<h1>LoRA / QLoRA Training</h1>
+<p class="lead">Parameter-efficient fine-tuning with Low-Rank Adaptation. Train 7B models on a single GPU.</p>
+
+<h2 id="lora-config">Training Configuration</h2>
+<table>
+    <thead><tr><th>Parameter</th><th>Default</th><th>Description</th></tr></thead>
+    <tbody>
+        <tr><td><code>base_model</code></td><td><code>"unsloth/Qwen2.5-7B"</code></td><td>HuggingFace model ID</td></tr>
+        <tr><td><code>method</code></td><td><code>"lora"</code></td><td>Training method: lora, qlora, full</td></tr>
+        <tr><td><code>lora_r</code></td><td><code>16</code></td><td>LoRA rank</td></tr>
+        <tr><td><code>lora_alpha</code></td><td><code>32</code></td><td>LoRA scaling factor</td></tr>
+        <tr><td><code>lora_dropout</code></td><td><code>0.05</code></td><td>Dropout rate</td></tr>
+        <tr><td><code>epochs</code></td><td><code>3</code></td><td>Training epochs</td></tr>
+        <tr><td><code>batch_size</code></td><td><code>4</code></td><td>Per-device batch size</td></tr>
+        <tr><td><code>learning_rate</code></td><td><code>2e-4</code></td><td>Peak learning rate</td></tr>
+        <tr><td><code>load_in_4bit</code></td><td><code>True</code></td><td>Enable 4-bit quantization (QLoRA)</td></tr>
+        <tr><td><code>max_seq_length</code></td><td><code>2048</code></td><td>Maximum sequence length</td></tr>
+    </tbody>
+</table>
+
+<h2 id="lora-export">Model Export</h2>
+<div class="code-header"><span>Python</span></div>
+<pre><code><span class="comment"># Export as SafeTensors (default)</span>
+path = pipeline.export(format=<span class="string">"safetensors"</span>)
+
+<span class="comment"># Export as GGUF for llama.cpp / Ollama</span>
+path = pipeline.export(format=<span class="string">"gguf"</span>, quantize=<span class="string">"q4_k_m"</span>)</code></pre>
+</div>
+
+<!-- ════════════════ DATASET ════════════════ -->
+<div id="page-dataset" class="page">
+<h1>Dataset Preparation</h1>
+<p class="lead">Convert agent execution traces into fine-tuning datasets. Supports chat and instruction formats.</p>
+
+<h2 id="ds-trace">From Traces</h2>
+<div class="code-header"><span>Python</span></div>
+<pre><code><span class="keyword">from</span> duxx_ai.finetune.pipeline <span class="keyword">import</span> TraceToDataset
+
+<span class="comment"># Convert trace JSONL to training dataset</span>
+count = TraceToDataset.from_traces(
+    <span class="string">"traces.jsonl"</span>,     <span class="comment"># Input: agent traces</span>
+    <span class="string">"dataset.jsonl"</span>,    <span class="comment"># Output: training data</span>
+    format=<span class="string">"chat"</span>,       <span class="comment"># "chat" or "instruction"</span>
+)
+<span class="function">print</span>(<span class="string">f"Generated {count} training samples"</span>)</code></pre>
+
+<h2 id="ds-formats">Dataset Formats</h2>
+<table>
+    <thead><tr><th>Format</th><th>Structure</th><th>Use Case</th></tr></thead>
+    <tbody>
+        <tr><td><code>chat</code></td><td><code>{"messages": [...]}</code></td><td>Multi-turn conversations with tool calls</td></tr>
+        <tr><td><code>instruction</code></td><td><code>{"instruction": ..., "output": ...}</code></td><td>Single-turn instruction following</td></tr>
+    </tbody>
+</table>
+</div>
+
+<!-- ════════════════ GUARDRAILS ════════════════ -->
+<div id="page-guardrails" class="page">
+<h1>Guardrails</h1>
+<p class="lead">Protect your agents with input/output safety checks. Detect PII, block prompt injection, enforce token budgets, and filter content.</p>
+
+<h2 id="gr-chain">Guardrail Chain</h2>
+<p>Compose multiple guardrails into a chain that runs on every agent input and output:</p>
+<div class="code-header"><span>Python</span></div>
+<pre><code><span class="keyword">from</span> duxx_ai <span class="keyword">import</span> GuardrailChain
+<span class="keyword">from</span> duxx_ai.governance.guardrails <span class="keyword">import</span> (
+    PIIGuardrail,
+    PromptInjectionGuardrail,
+    ContentFilterGuardrail,
+    TokenBudgetGuardrail,
+    TopicGuardrail,
+)
+
+chain = GuardrailChain([
+    PromptInjectionGuardrail(),
+    PIIGuardrail(allow_email=<span class="keyword">False</span>),
+    ContentFilterGuardrail(blocked_patterns=[<span class="string">r"password"</span>, <span class="string">r"secret"</span>]),
+    TokenBudgetGuardrail(max_tokens=<span class="number">100_000</span>),
+    TopicGuardrail(blocked_topics=[<span class="string">"politics"</span>, <span class="string">"religion"</span>]),
+])</code></pre>
+
+<h2 id="gr-builtin">Built-in Guardrails</h2>
+<table>
+    <thead><tr><th>Guardrail</th><th>Direction</th><th>Description</th></tr></thead>
+    <tbody>
+        <tr><td><code>PromptInjectionGuardrail</code></td><td>Input</td><td>Detects common prompt injection patterns</td></tr>
+        <tr><td><code>PIIGuardrail</code></td><td>Both</td><td>Blocks SSN, credit cards, phone numbers, emails</td></tr>
+        <tr><td><code>ContentFilterGuardrail</code></td><td>Both</td><td>Regex-based content blocking</td></tr>
+        <tr><td><code>TokenBudgetGuardrail</code></td><td>Both</td><td>Enforces cumulative token limits</td></tr>
+        <tr><td><code>TopicGuardrail</code></td><td>Both</td><td>Restricts conversation topics</td></tr>
+    </tbody>
+</table>
+
+<h2 id="gr-custom">Custom Guardrails</h2>
+<div class="code-header"><span>Python</span></div>
+<pre><code><span class="keyword">from</span> duxx_ai <span class="keyword">import</span> Guardrail
+<span class="keyword">from</span> duxx_ai.governance.guardrails <span class="keyword">import</span> GuardrailResult
+
+<span class="keyword">class</span> <span class="function">MyGuardrail</span>(Guardrail):
+    name = <span class="string">"my_guardrail"</span>
+
+    <span class="keyword">async def</span> <span class="function">check</span>(self, text: <span class="function">str</span>, direction: <span class="function">str</span> = <span class="string">"input"</span>) -> GuardrailResult:
+        <span class="keyword">if</span> <span class="string">"forbidden"</span> <span class="keyword">in</span> text.lower():
+            <span class="keyword">return</span> GuardrailResult(passed=<span class="keyword">False</span>, reason=<span class="string">"Forbidden content"</span>)
+        <span class="keyword">return</span> GuardrailResult(passed=<span class="keyword">True</span>)</code></pre>
+</div>
+
+<!-- ════════════════ RBAC ════════════════ -->
+<div id="page-rbac" class="page">
+<h1>Role-Based Access Control</h1>
+<p class="lead">Enterprise RBAC with role inheritance. Control who can run agents, execute tools, and manage fine-tuning.</p>
+
+<span class="badge badge-enterprise">Enterprise</span>
+
+<h2 id="rbac-roles">Default Roles</h2>
+<table>
+    <thead><tr><th>Role</th><th>Inherits</th><th>Permissions</th></tr></thead>
+    <tbody>
+        <tr><td><strong>viewer</strong></td><td>&mdash;</td><td>Read agents and traces</td></tr>
+        <tr><td><strong>operator</strong></td><td>viewer</td><td>+ Execute agents and tools</td></tr>
+        <tr><td><strong>developer</strong></td><td>operator</td><td>+ Create/modify agents, fine-tuning</td></tr>
+        <tr><td><strong>admin</strong></td><td>&mdash;</td><td>Full access to all resources</td></tr>
+    </tbody>
+</table>
+
+<h2 id="rbac-usage">Usage</h2>
+<div class="code-header"><span>Python</span></div>
+<pre><code><span class="keyword">from</span> duxx_ai.governance.rbac <span class="keyword">import</span> RBACManager, User
+
+rbac = RBACManager()
+rbac.add_user(User(id=<span class="string">"user-1"</span>, name=<span class="string">"Alice"</span>))
+rbac.assign_role(<span class="string">"user-1"</span>, <span class="string">"developer"</span>)
+
+<span class="comment"># Check permissions</span>
+rbac.check_permission(<span class="string">"user-1"</span>, <span class="string">"agent:researcher"</span>, <span class="string">"execute"</span>)  <span class="comment"># True</span>
+rbac.check_permission(<span class="string">"user-1"</span>, <span class="string">"finetune:*"</span>, <span class="string">"write"</span>)        <span class="comment"># True</span></code></pre>
+</div>
+
+<!-- ════════════════ AUDIT ════════════════ -->
+<div id="page-audit" class="page">
+<h1>Audit Logging</h1>
+<p class="lead">Append-only audit trail for compliance. Track every agent run, tool call, and guardrail trigger with risk levels.</p>
+
+<span class="badge badge-enterprise">Enterprise</span>
+
+<h2 id="audit-usage">Usage</h2>
+<div class="code-header"><span>Python</span></div>
+<pre><code><span class="keyword">from</span> duxx_ai <span class="keyword">import</span> AuditLog
+
+audit = AuditLog(storage_path=<span class="string">"./audit.jsonl"</span>)
+
+<span class="comment"># Log agent runs, tool calls, guardrail triggers</span>
+audit.log_agent_run(<span class="string">"my-agent"</span>, user_input, output, user_id=<span class="string">"user-1"</span>)
+audit.log_tool_call(<span class="string">"my-agent"</span>, <span class="string">"bash_exec"</span>, args, risk_level=<span class="string">"high"</span>)
+
+<span class="comment"># Query audit log</span>
+entries = audit.query(event_type=<span class="string">"tool_call"</span>, risk_level=<span class="string">"high"</span>)
+summary = audit.get_risk_summary()</code></pre>
+</div>
+
+<!-- ════════════════ MEMORY ════════════════ -->
+<div id="page-memory" class="page">
+<h1>5-Tier Memory System</h1>
+<p class="lead">A comprehensive memory architecture for agents: working, episodic, semantic, procedural, and shared memory.</p>
+
+<h2 id="mem-tiers">Memory Tiers</h2>
+<table>
+    <thead><tr><th>Tier</th><th>Scope</th><th>Persistence</th><th>Use Case</th></tr></thead>
+    <tbody>
+        <tr><td><strong>Working</strong></td><td>Single task</td><td>TTL + LRU eviction</td><td>Current task context, scratch pad</td></tr>
+        <tr><td><strong>Episodic</strong></td><td>Agent lifetime</td><td>File-backed JSONL</td><td>Past interactions, task history</td></tr>
+        <tr><td><strong>Semantic</strong></td><td>Global</td><td>In-memory</td><td>Facts, domain knowledge</td></tr>
+        <tr><td><strong>Procedural</strong></td><td>Global</td><td>In-memory</td><td>Learned workflows, SOPs</td></tr>
+        <tr><td><strong>Shared</strong></td><td>Multi-agent</td><td>In-memory + locking</td><td>Cross-agent coordination</td></tr>
+    </tbody>
+</table>
+
+<h2 id="mem-manager">MemoryManager</h2>
+<div class="code-header"><span>Python</span></div>
+<pre><code><span class="keyword">from</span> duxx_ai <span class="keyword">import</span> MemoryManager
+
+memory = MemoryManager(storage_dir=<span class="string">"./memory"</span>)
+
+<span class="comment"># Auto-route to the right tier</span>
+memory.auto_store(<span class="string">"User prefers JSON format"</span>, context=<span class="string">"fact"</span>)
+memory.auto_store(<span class="string">"Completed data migration"</span>, context=<span class="string">"result"</span>)
+
+<span class="comment"># Search across all tiers</span>
+results = memory.recall_all(<span class="string">"data migration"</span>, top_k=<span class="number">5</span>)</code></pre>
+
+<h2 id="mem-shared">Shared Memory with Locking</h2>
+<div class="code-header"><span>Python</span></div>
+<pre><code><span class="comment"># Cross-agent coordination</span>
+memory.shared.lock(<span class="string">"report_draft"</span>, agent_id=<span class="string">"writer"</span>)
+memory.shared.write(<span class="string">"report_draft"</span>, content, agent_id=<span class="string">"writer"</span>)
+memory.shared.unlock(<span class="string">"report_draft"</span>, agent_id=<span class="string">"writer"</span>)
+
+<span class="comment"># Other agents can read</span>
+draft = memory.shared.read(<span class="string">"report_draft"</span>)</code></pre>
+</div>
+
+<!-- ════════════════ ROUTER ════════════════ -->
+<div id="page-router" class="page">
+<h1>Adaptive Router</h1>
+<p class="lead">Automatically route requests to the optimal model tier based on complexity, cost, and required capabilities. Enforce budget limits.</p>
+
+<h2 id="router-setup">Setup</h2>
+<div class="code-header"><span>Python</span></div>
+<pre><code><span class="keyword">from</span> duxx_ai <span class="keyword">import</span> AdaptiveRouter
+<span class="keyword">from</span> duxx_ai.router.adaptive <span class="keyword">import</span> ModelTier
+
+router = AdaptiveRouter(
+    tiers=[
+        ModelTier(name=<span class="string">"small"</span>, config=local_config,
+                  max_complexity=<span class="number">0.3</span>, cost_per_1k_input=<span class="number">0.0001</span>),
+        ModelTier(name=<span class="string">"medium"</span>, config=openai_35_config,
+                  max_complexity=<span class="number">0.6</span>, cost_per_1k_input=<span class="number">0.001</span>),
+        ModelTier(name=<span class="string">"large"</span>, config=openai_4o_config,
+                  max_complexity=<span class="number">1.0</span>, cost_per_1k_input=<span class="number">0.01</span>),
+    ],
+    budget_limit=<span class="number">50.0</span>,
+)
+
+response, decision = <span class="keyword">await</span> router.complete(<span class="string">"Explain quantum computing"</span>)
+<span class="function">print</span>(<span class="string">f"Routed to: {decision.selected_tier}"</span>)
+<span class="function">print</span>(<span class="string">f"Complexity: {decision.complexity_score:.2f}"</span>)</code></pre>
+
+<h2 id="router-complexity">Complexity Estimation</h2>
+<p>The router estimates task complexity using:</p>
+<ul>
+    <li><strong>Keyword analysis</strong> &mdash; detects complex vs. simple task indicators</li>
+    <li><strong>Input length</strong> &mdash; longer prompts correlate with higher complexity</li>
+    <li><strong>Conversation depth</strong> &mdash; multi-turn conversations score higher</li>
+    <li><strong>Tool requirements</strong> &mdash; tasks requiring code or API calls score higher</li>
+</ul>
+
+<h2 id="router-stats">Routing Statistics</h2>
+<div class="code-header"><span>Python</span></div>
+<pre><code><span class="function">print</span>(router.stats.total_requests)
+<span class="function">print</span>(router.stats.requests_per_tier)
+<span class="function">print</span>(router.stats.total_cost)
+<span class="function">print</span>(router.stats.avg_latency_per_tier)</code></pre>
+</div>
+
+<!-- ════════════════ TRACING ════════════════ -->
+<div id="page-tracing" class="page">
+<h1>Tracing &amp; Observability</h1>
+<p class="lead">OpenTelemetry-compatible span-based tracing. Visualize agent execution, track costs, and export traces for fine-tuning.</p>
+
+<h2 id="trace-basic">Basic Usage</h2>
+<div class="code-header"><span>Python</span></div>
+<pre><code><span class="keyword">from</span> duxx_ai <span class="keyword">import</span> Tracer
+<span class="keyword">from</span> duxx_ai.observability.tracer <span class="keyword">import</span> ConsoleExporter, JSONExporter
+
+tracer = Tracer(exporters=[
+    ConsoleExporter(),                   <span class="comment"># Print to terminal</span>
+    JSONExporter(<span class="string">"traces.jsonl"</span>),        <span class="comment"># Save for fine-tuning</span>
+])
+
+agent = Agent(config=config, tracer=tracer)</code></pre>
+
+<h2 id="trace-spans">Span Hierarchy</h2>
+<p>Duxx AI automatically creates nested spans:</p>
+<div class="arch-diagram">agent.assistant.run (1200ms)
+  &#9492; agent.assistant.llm_call (800ms)
+  &#9492; tool.python_exec (350ms)
+  &#9492; agent.assistant.llm_call (450ms)</div>
+
+<h2 id="trace-cost">Cost Tracking</h2>
+<div class="code-header"><span>Python</span></div>
+<pre><code>summary = tracer.get_cost_summary()
+<span class="function">print</span>(summary)
+<span class="comment"># {"total_traces": 5, "total_spans": 23, "total_duration_ms": 4520.0}</span></code></pre>
+</div>
+
+<!-- ════════════════ API REFERENCE ════════════════ -->
+<div id="page-api-reference" class="page">
+<h1>API Reference</h1>
+<p class="lead">Complete API documentation for all Duxx AI modules.</p>
+
+<h2 id="api-core">duxx_ai.core</h2>
+<h3>Agent</h3>
+<table>
+    <thead><tr><th>Method</th><th>Signature</th><th>Description</th></tr></thead>
+    <tbody>
+        <tr><td><code>run()</code></td><td><code>async (user_input: str, context: dict | None) -> str</code></td><td>Run the agent with user input</td></tr>
+        <tr><td><code>register_tool()</code></td><td><code>(tool: Tool) -> None</code></td><td>Register a tool with the agent</td></tr>
+        <tr><td><code>reset()</code></td><td><code>() -> None</code></td><td>Reset conversation and state</td></tr>
+    </tbody>
+</table>
+
+<h3>Tool</h3>
+<table>
+    <thead><tr><th>Method</th><th>Signature</th><th>Description</th></tr></thead>
+    <tbody>
+        <tr><td><code>execute()</code></td><td><code>async (call: ToolCall) -> ToolResult</code></td><td>Execute the tool with arguments</td></tr>
+        <tr><td><code>bind()</code></td><td><code>(fn: Callable) -> Tool</code></td><td>Bind a function to the tool</td></tr>
+        <tr><td><code>to_schema()</code></td><td><code>() -> dict</code></td><td>Generate OpenAI-compatible tool schema</td></tr>
+    </tbody>
+</table>
+
+<h2 id="api-orchestration">duxx_ai.orchestration</h2>
+<h3>Graph</h3>
+<table>
+    <thead><tr><th>Method</th><th>Signature</th><th>Description</th></tr></thead>
+    <tbody>
+        <tr><td><code>add_node()</code></td><td><code>(node_id, handler, node_type) -> Graph</code></td><td>Add a node to the graph</td></tr>
+        <tr><td><code>add_edge()</code></td><td><code>(source, target, condition) -> Graph</code></td><td>Add a directed edge</td></tr>
+        <tr><td><code>set_entry_point()</code></td><td><code>(node_id) -> Graph</code></td><td>Set the graph entry point</td></tr>
+        <tr><td><code>run()</code></td><td><code>async (initial_state) -> GraphState</code></td><td>Execute the graph</td></tr>
+        <tr><td><code>visualize()</code></td><td><code>() -> str</code></td><td>ASCII visualization of the graph</td></tr>
+    </tbody>
+</table>
+
+<h3>Crew</h3>
+<table>
+    <thead><tr><th>Method</th><th>Signature</th><th>Description</th></tr></thead>
+    <tbody>
+        <tr><td><code>add_agent()</code></td><td><code>(agent: CrewAgent) -> Crew</code></td><td>Add an agent to the crew</td></tr>
+        <tr><td><code>add_task()</code></td><td><code>(task: Task) -> Crew</code></td><td>Add a task</td></tr>
+        <tr><td><code>run()</code></td><td><code>async (input_data) -> CrewResult</code></td><td>Execute the crew workflow</td></tr>
+    </tbody>
+</table>
+
+<h2 id="api-governance">duxx_ai.governance</h2>
+<h3>GuardrailChain</h3>
+<table>
+    <thead><tr><th>Method</th><th>Signature</th><th>Description</th></tr></thead>
+    <tbody>
+        <tr><td><code>check_input()</code></td><td><code>async (text: str) -> GuardrailResult</code></td><td>Run all guardrails on input</td></tr>
+        <tr><td><code>check_output()</code></td><td><code>async (text: str) -> GuardrailResult</code></td><td>Run all guardrails on output</td></tr>
+        <tr><td><code>add()</code></td><td><code>(guardrail: Guardrail) -> GuardrailChain</code></td><td>Add a guardrail to the chain</td></tr>
+    </tbody>
+</table>
+
+<h2 id="api-finetune">duxx_ai.finetune</h2>
+<h3>FineTunePipeline</h3>
+<table>
+    <thead><tr><th>Method</th><th>Signature</th><th>Description</th></tr></thead>
+    <tbody>
+        <tr><td><code>prepare_dataset()</code></td><td><code>() -> str</code></td><td>Prepare training dataset from traces</td></tr>
+        <tr><td><code>train()</code></td><td><code>(dataset_path: str | None) -> TrainingResult</code></td><td>Run fine-tuning</td></tr>
+        <tr><td><code>evaluate()</code></td><td><code>(eval_config) -> EvalResult</code></td><td>Evaluate the trained model</td></tr>
+        <tr><td><code>export()</code></td><td><code>(format, quantize) -> str</code></td><td>Export model (safetensors/gguf)</td></tr>
+    </tbody>
+</table>
+</div>
+
+<!-- ════════════════ CLI REFERENCE ════════════════ -->
+<div id="page-cli-ref" class="page">
+<h1>CLI Reference</h1>
+<p class="lead">Command-line interface for managing agents, fine-tuning, and the Studio web UI.</p>
+
+<h2 id="cli-commands">Commands</h2>
+
+<h3><code>duxx_ai init</code></h3>
+<p>Initialize a new Duxx AI project with a default <code>duxx_ai.json</code> configuration file.</p>
+<div class="install-block"><span><span class="dollar">$</span> duxx_ai init</span></div>
+
+<h3><code>duxx_ai run &lt;config&gt;</code></h3>
+<p>Run an agent from a YAML or JSON configuration file.</p>
+<div class="install-block"><span><span class="dollar">$</span> duxx_ai run duxx_ai.json -i "What is 2+2?"</span></div>
+
+<h3><code>duxx_ai studio</code></h3>
+<p>Launch the Duxx AI Studio web UI.</p>
+<div class="install-block"><span><span class="dollar">$</span> duxx_ai studio --port 8080</span></div>
+
+<h3><code>duxx_ai finetune prepare</code></h3>
+<p>Convert agent traces to a training dataset.</p>
+<div class="install-block"><span><span class="dollar">$</span> duxx_ai finetune prepare traces.jsonl -o dataset.jsonl</span></div>
+
+<h3><code>duxx_ai finetune train</code></h3>
+<p>Fine-tune a model on your dataset.</p>
+<div class="install-block"><span><span class="dollar">$</span> duxx_ai finetune train --model unsloth/Qwen2.5-7B --dataset dataset.jsonl</span></div>
+
+<h3><code>duxx_ai info</code></h3>
+<p>Show system information and installed dependencies.</p>
+<div class="install-block"><span><span class="dollar">$</span> duxx_ai info</span></div>
+</div>
+
+<!-- ══ Advanced Agent ══ -->
+<div id="page-agent-advanced" class="page">
+<h1>Advanced Agent Features</h1>
+<p class="lead">Subagent spawning, planning, streaming, batch processing, and hooks.</p>
+
+<h2 id="agent-stream">Streaming</h2>
+<pre class="code-block"><code><span class="kw">async for</span> token <span class="kw">in</span> agent.stream(<span class="str">"Explain AI"</span>):
+    print(token, end=<span class="str">""</span>, flush=<span class="val">True</span>)</code></pre>
+
+<h2 id="agent-subagent">Subagent Spawning</h2>
+<p>Spawn child agents with isolated context for subtask delegation.</p>
+<pre class="code-block"><code>result = <span class="kw">await</span> agent.spawn_subagent(
+    task=<span class="str">"Research quantum computing breakthroughs"</span>,
+    name=<span class="str">"researcher-sub"</span>,
+    system_prompt=<span class="str">"You are a physics researcher."</span>,
+    isolated=<span class="val">True</span>,  <span class="cm"># Fresh conversation (no parent history)</span>
+)</code></pre>
+
+<h2 id="agent-plan">Plan and Execute</h2>
+<p>Auto-decompose a complex objective into subtasks, run each via subagents, then synthesize.</p>
+<pre class="code-block"><code>result = <span class="kw">await</span> agent.plan_and_execute(
+    objective=<span class="str">"Build a complete market analysis for the EV industry"</span>,
+    max_subtasks=<span class="val">5</span>,
+)
+print(result[<span class="str">"plan"</span>])          <span class="cm"># ["Research market size", ...]</span>
+print(result[<span class="str">"final_answer"</span>])   <span class="cm"># Synthesized answer</span></code></pre>
+
+<h2 id="agent-batch">Batch Processing</h2>
+<pre class="code-block"><code>results = <span class="kw">await</span> agent.batch(
+    [<span class="str">"What is AI?"</span>, <span class="str">"What is ML?"</span>, <span class="str">"What is DL?"</span>],
+    max_concurrency=<span class="val">3</span>,
+)</code></pre>
+
+<h2 id="agent-retry">Retry + Fallback</h2>
+<pre class="code-block"><code>agent = Agent(config=AgentConfig(
+    llm=LLMConfig(provider=<span class="str">"openai"</span>, model=<span class="str">"gpt-4o"</span>),
+    fallback_llm=LLMConfig(provider=<span class="str">"anthropic"</span>, model=<span class="str">"claude-sonnet-4-20250514"</span>),
+    retry=RetryConfig(max_retries=<span class="val">3</span>, backoff_factor=<span class="val">1.5</span>),
+))</code></pre>
+
+<h2 id="agent-hooks">Pre/Post Model Hooks</h2>
+<pre class="code-block"><code><span class="kw">def</span> <span class="fn">log_before</span>(conversation):
+    print(<span class="str">f"Calling LLM with {len(conversation.messages)} msgs"</span>)
+    <span class="kw">return</span> conversation
+
+agent.add_pre_hook(log_before)
+agent.add_post_hook(<span class="kw">lambda</span> resp: resp)  <span class="cm"># Inspect/modify response</span></code></pre>
+</div>
+
+<!-- ══ Output Parsers ══ -->
+<div id="page-parsers" class="page">
+<h1>Output Parsers</h1>
+<p class="lead">6 built-in parsers to extract structured data from LLM responses.</p>
+
+<h2 id="parser-json">JSONOutputParser</h2>
+<pre class="code-block"><code><span class="kw">from</span> duxx_ai.core.parsers <span class="kw">import</span> JSONOutputParser
+parser = JSONOutputParser()
+data = parser.parse(<span class="str">'```json\n{"score": 95}\n```'</span>)  <span class="cm"># Handles code fences</span></code></pre>
+
+<h2 id="parser-pydantic">PydanticOutputParser</h2>
+<pre class="code-block"><code><span class="kw">from</span> duxx_ai.core.parsers <span class="kw">import</span> PydanticOutputParser
+<span class="kw">class</span> <span class="fn">Analysis</span>(BaseModel):
+    sentiment: str
+    confidence: float
+
+parser = PydanticOutputParser(Analysis)
+print(parser.get_format_instructions())  <span class="cm"># Inject into prompt</span>
+result = parser.parse(<span class="str">'{"sentiment": "positive", "confidence": 0.9}'</span>)</code></pre>
+
+<h2 id="parser-markdown">MarkdownOutputParser</h2>
+<pre class="code-block"><code>parser = MarkdownOutputParser(sections=[<span class="str">"Summary"</span>, <span class="str">"Actions"</span>])
+result = parser.parse(<span class="str">"## Summary\nGood.\n## Actions\n- Deploy"</span>)</code></pre>
+
+<h2 id="parser-list">ListOutputParser</h2>
+<pre class="code-block"><code>items = ListOutputParser().parse(<span class="str">"1. First\n2. Second\n- Third"</span>)</code></pre>
+
+<h2 id="parser-regex">RegexOutputParser</h2>
+<pre class="code-block"><code>parser = RegexOutputParser(<span class="str">r"Score: (?P&lt;score&gt;\\d+)/100"</span>)
+result = parser.parse(<span class="str">"Score: 85/100"</span>)  <span class="cm"># {"score": "85"}</span></code></pre>
+
+<h2 id="parser-structured">Structured Output from LLM</h2>
+<pre class="code-block"><code><span class="kw">from</span> duxx_ai.core.llm <span class="kw">import</span> with_structured_output_async
+result = <span class="kw">await</span> with_structured_output_async(provider, Analysis, conversation)</code></pre>
+</div>
+
+<!-- ══ LLM Cache & Rate Limit ══ -->
+<div id="page-llm-advanced" class="page">
+<h1>LLM Cache &amp; Rate Limiting</h1>
+<p class="lead">Response caching, token-bucket rate limiting, and the CachedProvider wrapper.</p>
+
+<h2 id="llm-cache">LLMCache</h2>
+<pre class="code-block"><code><span class="kw">from</span> duxx_ai.core.llm <span class="kw">import</span> LLMCache
+cache = LLMCache(ttl_seconds=<span class="val">300</span>, max_entries=<span class="val">1000</span>)
+cached = cache.get(conversation, tools, system_prompt)
+<span class="kw">if</span> cached: <span class="kw">return</span> cached
+cache.set(conversation, tools, system_prompt, response)
+print(cache.stats)  <span class="cm"># {"hits": 5, "misses": 2, "entries": 7}</span></code></pre>
+
+<h2 id="llm-rate">RateLimiter</h2>
+<pre class="code-block"><code><span class="kw">from</span> duxx_ai.core.llm <span class="kw">import</span> RateLimiter
+limiter = RateLimiter(max_requests_per_minute=<span class="val">60</span>)
+<span class="kw">await</span> limiter.acquire()  <span class="cm"># Blocks if rate exceeded</span></code></pre>
+
+<h2 id="llm-cached-provider">CachedProvider (all-in-one)</h2>
+<pre class="code-block"><code><span class="kw">from</span> duxx_ai.core.llm <span class="kw">import</span> CachedProvider, create_provider
+base = create_provider(LLMConfig(model=<span class="str">"gpt-4o"</span>))
+provider = CachedProvider(base, cache_ttl=<span class="val">300</span>, rate_limit_rpm=<span class="val">60</span>)</code></pre>
+</div>
+
+<!-- ══ Advanced Graph ══ -->
+<div id="page-graph-advanced" class="page">
+<h1>Advanced Graph Features</h1>
+<p class="lead">Subgraphs, streaming modes, time-travel debugging, node caching, and deferred nodes.</p>
+
+<h2 id="graph-subgraph">Subgraph Composition</h2>
+<pre class="code-block"><code>inner = Graph(<span class="str">"data-pipeline"</span>)
+<span class="cm"># ... build inner graph ...</span>
+outer = Graph(<span class="str">"main"</span>)
+outer.add_subgraph(<span class="str">"data"</span>, inner,
+    input_mapping={<span class="str">"raw_url"</span>: <span class="str">"source"</span>},
+    output_mapping={<span class="str">"cleaned"</span>: <span class="str">"data"</span>},
+    isolated=<span class="val">True</span>,
+)</code></pre>
+
+<h2 id="graph-stream">Streaming Modes</h2>
+<pre class="code-block"><code><span class="cm"># values — full state after each node</span>
+<span class="kw">async for</span> event <span class="kw">in</span> graph.stream(data, mode=<span class="str">"values"</span>): ...
+
+<span class="cm"># updates — only changed keys per node</span>
+<span class="kw">async for</span> event <span class="kw">in</span> graph.stream(data, mode=<span class="str">"updates"</span>): ...
+
+<span class="cm"># debug — full execution info (node, duration, state diff)</span>
+<span class="kw">async for</span> event <span class="kw">in</span> graph.stream(data, mode=<span class="str">"debug"</span>):
+    print(event[<span class="str">"node"</span>], event[<span class="str">"duration_ms"</span>], event[<span class="str">"changes"</span>])</code></pre>
+
+<h2 id="graph-timetravel">Time-Travel Debugging</h2>
+<pre class="code-block"><code><span class="cm"># List all checkpoints</span>
+checkpoints = graph.list_checkpoints()
+
+<span class="cm"># Replay from any checkpoint</span>
+states = <span class="kw">await</span> graph.replay(from_checkpoint=<span class="val">0</span>)
+
+<span class="cm"># Fork with modified state (explore alternatives)</span>
+forked = <span class="kw">await</span> graph.fork(checkpoint_index=<span class="val">2</span>, state_overrides={<span class="str">"approved"</span>: <span class="val">False</span>})
+
+<span class="cm"># Persist checkpoints to disk</span>
+graph.save_checkpoints(<span class="str">"checkpoints.json"</span>)
+graph.load_checkpoints(<span class="str">"checkpoints.json"</span>)</code></pre>
+
+<h2 id="graph-cache">Node Caching</h2>
+<pre class="code-block"><code>graph.enable_node_caching()  <span class="cm"># Skip redundant node execution</span>
+graph.clear_cache()</code></pre>
+
+<h2 id="graph-deferred">Deferred Nodes</h2>
+<pre class="code-block"><code>graph.add_deferred_node(<span class="str">"final"</span>, handler, wait_for=[<span class="str">"step_a"</span>, <span class="str">"step_b"</span>])</code></pre>
+</div>
+
+<!-- ══ RAG ══ -->
+<div id="page-rag" class="page">
+<h1>RAG Pipeline</h1>
+<p class="lead">Retrieval-Augmented Generation: load, split, embed, store, and retrieve documents.</p>
+
+<h2 id="rag-load">Document Loaders (5 types)</h2>
+<pre class="code-block"><code><span class="kw">from</span> duxx_ai.rag <span class="kw">import</span> TextLoader, CSVLoader, JSONLLoader, WebLoader
+docs = TextLoader(<span class="str">"knowledge.txt"</span>).load()
+docs = CSVLoader(<span class="str">"data.csv"</span>, content_columns=[<span class="str">"q"</span>, <span class="str">"a"</span>]).load()
+docs = JSONLLoader(<span class="str">"data.jsonl"</span>).load()
+docs = WebLoader(<span class="str">"https://example.com"</span>).load()</code></pre>
+
+<h2 id="rag-split">Text Splitters (3 types)</h2>
+<pre class="code-block"><code><span class="kw">from</span> duxx_ai.rag <span class="kw">import</span> CharacterSplitter, RecursiveSplitter, TokenSplitter
+chunks = RecursiveSplitter(chunk_size=<span class="val">500</span>, chunk_overlap=<span class="val">50</span>).split_many(docs)</code></pre>
+
+<h2 id="rag-embed">Embed + Store + Search</h2>
+<pre class="code-block"><code><span class="kw">from</span> duxx_ai.rag <span class="kw">import</span> LocalEmbedder, InMemoryVectorStore
+embedder = LocalEmbedder(dimension=<span class="val">384</span>)
+store = InMemoryVectorStore(embedder)
+store.add(chunks)
+results = store.search(<span class="str">"fine-tuning"</span>, top_k=<span class="val">5</span>)</code></pre>
+
+<h2 id="rag-retrieve">Retrievers (3 types)</h2>
+<pre class="code-block"><code><span class="kw">from</span> duxx_ai.rag <span class="kw">import</span> VectorRetriever, KeywordRetriever, HybridRetriever
+hybrid = HybridRetriever(
+    VectorRetriever(store), KeywordRetriever(chunks),
+    vector_weight=<span class="val">0.7</span>, keyword_weight=<span class="val">0.3</span>,
+)
+docs = hybrid.retrieve(<span class="str">"LoRA parameters"</span>, top_k=<span class="val">5</span>)</code></pre>
+</div>
+
+<!-- ══ Data Connectors ══ -->
+<div id="page-connectors" class="page">
+<h1>Data Connectors</h1>
+<p class="lead">Load training data from 7 sources: HuggingFace, S3, GCS, Azure, Google Drive, Database, Local.</p>
+
+<h2 id="conn-hf">HuggingFace</h2>
+<pre class="code-block"><code><span class="kw">from</span> duxx_ai.finetune.datasets <span class="kw">import</span> DatasetManager
+mgr = DatasetManager()
+mgr.load_from_huggingface(<span class="str">"tatsu-lab/alpaca"</span>, max_samples=<span class="val">5000</span>)</code></pre>
+
+<h2 id="conn-s3">AWS S3</h2>
+<pre class="code-block"><code><span class="kw">from</span> duxx_ai.finetune.connectors <span class="kw">import</span> S3Connector
+s3 = S3Connector(bucket=<span class="str">"my-data"</span>, key=<span class="str">"train.csv"</span>)
+mgr.load_from_connector(s3)</code></pre>
+
+<h2 id="conn-gcs">Google Cloud Storage</h2>
+<pre class="code-block"><code><span class="kw">from</span> duxx_ai.finetune.connectors <span class="kw">import</span> GCSConnector
+gcs = GCSConnector(bucket=<span class="str">"my-bucket"</span>, blob_name=<span class="str">"data.jsonl"</span>)
+mgr.load_from_connector(gcs)</code></pre>
+
+<h2 id="conn-azure">Azure Blob</h2>
+<pre class="code-block"><code><span class="kw">from</span> duxx_ai.finetune.connectors <span class="kw">import</span> AzureBlobConnector
+azure = AzureBlobConnector(container=<span class="str">"data"</span>, blob_name=<span class="str">"train.parquet"</span>)
+mgr.load_from_connector(azure)</code></pre>
+
+<h2 id="conn-db">Database (SQL + MongoDB)</h2>
+<pre class="code-block"><code><span class="kw">from</span> duxx_ai.finetune.connectors <span class="kw">import</span> DatabaseConnector
+db = DatabaseConnector(connection_string=<span class="str">"postgresql://..."</span>, query=<span class="str">"SELECT * FROM data"</span>)
+mgr.load_from_connector(db)</code></pre>
+
+<h2 id="conn-convert">Auto-Convert Raw Formats</h2>
+<pre class="code-block"><code><span class="kw">from</span> duxx_ai.finetune.converter <span class="kw">import</span> FormatConverter
+raw = [{<span class="str">"question"</span>: <span class="str">"What is AI?"</span>, <span class="str">"answer"</span>: <span class="str">"..."</span>}]
+training = FormatConverter.auto_convert(raw, target_format=<span class="str">"chat"</span>)</code></pre>
+
+<h2 id="conn-popular">Popular HuggingFace Datasets (26 curated)</h2>
+<pre class="code-block"><code><span class="kw">from</span> duxx_ai.finetune.popular_datasets <span class="kw">import</span> list_popular_datasets
+datasets = list_popular_datasets(<span class="str">"Chat"</span>)  <span class="cm"># Filter by category</span></code></pre>
+</div>
+
+<p class="lead">Train on 40+ models (up to 397B params) with pay-per-token pricing. No local GPU required.</p>
+
+    api_key=<span class="str">"tk-..."</span>,
+    base_model=<span class="str">"meta-llama/Llama-3.1-8B"</span>,
+    lora_rank=<span class="val">32</span>,
+    learning_rate=<span class="val">1e-4</span>,
+))</code></pre>
+
+<pre class="code-block"><code>cost = provider.estimate_cost(<span class="str">"llama-3.1-8b"</span>, dataset_tokens=<span class="val">500000</span>, epochs=<span class="val">3</span>)
+print(<span class="str">f"Estimated: ${cost['total_estimated_usd']}"</span>)</code></pre>
+
+<pre class="code-block"><code>job = provider.create_job(<span class="str">"my-finetune"</span>, dataset_path=<span class="str">"train.jsonl"</span>)
+result = <span class="kw">await</span> provider.start_training(job.id)</code></pre>
+
+    print(<span class="str">f"{m['name']:30s} ${m['price_train']:.2f}/1M tok"</span>)</code></pre>
+</div>
+
+<!-- ══ Model Storage ══ -->
+<div id="page-model-storage" class="page">
+<h1>Model Storage</h1>
+<p class="lead">Export trained models to S3, GCS, Azure, HuggingFace Hub, or Duxx AI Cloud.</p>
+
+<h2 id="storage-s3">AWS S3</h2>
+<pre class="code-block"><code><span class="kw">from</span> duxx_ai.finetune.storage <span class="kw">import</span> S3ModelStorage
+s3 = S3ModelStorage(bucket=<span class="str">"my-models"</span>)
+uri = s3.upload(<span class="str">"./duxx_ai-finetuned"</span>, <span class="str">"my-model-v1"</span>)
+<span class="cm"># s3://my-models/duxx_ai-models/my-model-v1</span></code></pre>
+
+<h2 id="storage-hf">HuggingFace Hub</h2>
+<pre class="code-block"><code><span class="kw">from</span> duxx_ai.finetune.storage <span class="kw">import</span> HuggingFaceHubStorage
+hf = HuggingFaceHubStorage(token=<span class="str">"hf_..."</span>)
+uri = hf.upload(<span class="str">"./model"</span>, <span class="str">"my-org/my-model"</span>)</code></pre>
+
+<h2 id="storage-cloud">Duxx AI Cloud (Managed)</h2>
+uri = cloud.upload(<span class="str">"./model"</span>, <span class="str">"my-model-v1"</span>)
+<span class="cm"># duxx_ai://my-org/my-model-v1</span></code></pre>
+</div>
+
+<!-- ══ Evaluation ══ -->
+<div id="page-evaluation" class="page">
+<h1>Agent Evaluation</h1>
+<p class="lead">12 scoring metrics, A/B testing, regression detection, human annotations, experiment tracking.</p>
+
+<h2 id="eval-basic">Multi-Metric Evaluation</h2>
+<pre class="code-block"><code><span class="kw">from</span> duxx_ai.observability.evaluator <span class="kw">import</span> AgentEvaluator, EvalCase
+evaluator = AgentEvaluator(
+    scorers=[<span class="str">"contains"</span>, <span class="str">"coherence"</span>, <span class="str">"safety"</span>, <span class="str">"faithfulness"</span>],
+    pass_threshold=<span class="val">0.6</span>,
+)
+cases = [EvalCase(input=<span class="str">"What is AI?"</span>, expected_output=<span class="str">"artificial intelligence"</span>)]
+result = <span class="kw">await</span> evaluator.evaluate(agent, cases, name=<span class="str">"v1.0"</span>)
+print(result.summary())
+print(result.metric_averages)     <span class="cm"># Per-scorer breakdown</span>
+print(result.scores_by_category)  <span class="cm"># By category</span></code></pre>
+
+<h2 id="eval-scorers">12 Built-in Scorers</h2>
+<p><code>exact_match</code>, <code>contains</code>, <code>keyword</code>, <code>tool_call</code>, <code>semantic_similarity</code>, <code>length_ratio</code>, <code>format_compliance</code>, <code>coherence</code>, <code>safety</code>, <code>faithfulness</code>, <code>latency</code>, <code>cost</code></p>
+
+<h2 id="eval-ab">A/B Testing (Pairwise)</h2>
+<pre class="code-block"><code>results = <span class="kw">await</span> evaluator.pairwise_compare(agent_v1, agent_v2, cases)
+wins_a = sum(<span class="val">1</span> <span class="kw">for</span> r <span class="kw">in</span> results <span class="kw">if</span> r.winner == <span class="str">"A"</span>)</code></pre>
+
+<h2 id="eval-regression">Regression Detection</h2>
+<pre class="code-block"><code>regression = evaluator.detect_regression(new_result, baseline)
+<span class="kw">if</span> regression.regressed > <span class="val">0</span>:
+    print(<span class="str">f"Regressed: {regression.regressed_cases}"</span>)</code></pre>
+
+<h2 id="eval-human">Human Annotations</h2>
+<pre class="code-block"><code>evaluator.add_annotation(<span class="str">"case-1"</span>, annotator=<span class="str">"alice"</span>, score=<span class="val">0.9</span>, label=<span class="str">"good"</span>)
+print(evaluator.annotation_agreement())</code></pre>
+
+<h2 id="eval-experiments">Experiment Tracking</h2>
+<pre class="code-block"><code>experiments = evaluator.list_experiments()
+comparison = evaluator.compare_experiments(exp_a_id, exp_b_id)</code></pre>
+</div>
+
+<!-- ══ Templates ══ -->
+<div id="page-templates" class="page">
+<h1>Enterprise Agent Templates</h1>
+<p class="lead">14 production-ready agents with domain-specific tools, guardrails, and system prompts.</p>
+
+<h2 id="tmpl-list">Available Templates</h2>
+<pre class="code-block"><code><span class="kw">from</span> duxx_ai.templates <span class="kw">import</span> TEMPLATES
+<span class="kw">for</span> name, cls <span class="kw">in</span> TEMPLATES.items():
+    info = cls.info()
+    print(<span class="str">f"  {name:25s} [{info['category']}]"</span>)</code></pre>
+<p><strong>Templates:</strong> EmailAgent, CallCenterAgent, MarketingAgent, InvestmentBankerAgent, PortfolioManagerAgent, DeepResearcherAgent, CodeBuilderAgent, SecurityAgent, DevOpsAgent, ComplianceAgent, FinanceManagerAgent, VirtualCFO, VirtualCMO, VirtualCHRO</p>
+
+<h2 id="tmpl-use">Create and Use</h2>
+<pre class="code-block"><code><span class="kw">from</span> duxx_ai.templates <span class="kw">import</span> DeepResearcherAgent
+researcher = DeepResearcherAgent.create()
+result = <span class="kw">await</span> researcher.run(<span class="str">"Analyze AI market trends"</span>)</code></pre>
+</div>
+
+<!-- ══ REST API ══ -->
+<div id="page-rest-api" class="page">
+<h1>REST API Reference (43 Endpoints)</h1>
+<p class="lead">Programmatic access to all Duxx AI features via HTTP.</p>
+
+<h2 id="rest-chat">Chat &amp; Agents</h2>
+<pre class="code-block"><code>POST /api/chat              <span class="cm"># Send message to agent</span>
+GET  /api/tools             <span class="cm"># List all tools</span>
+GET  /api/agents            <span class="cm"># List agents</span>
+GET  /api/templates         <span class="cm"># List 14 templates</span></code></pre>
+
+<h2 id="rest-finetune">Fine-Tuning</h2>
+<pre class="code-block"><code>GET  /api/finetune/models        <span class="cm"># 12 local models</span>
+POST /api/finetune/jobs          <span class="cm"># Create training job</span>
+GET  /api/finetune/jobs          <span class="cm"># List jobs</span>
+GET  /api/finetune/quant-methods <span class="cm"># 14 GGUF methods</span></code></pre>
+
+<h2 id="rest-datasets">Datasets</h2>
+<pre class="code-block"><code>GET  /api/datasets/popular       <span class="cm"># 26 HuggingFace datasets</span>
+POST /api/datasets/load-hf      <span class="cm"># Load from HuggingFace</span>
+POST /api/datasets/convert      <span class="cm"># Convert format</span>
+POST /api/datasets/connect      <span class="cm"># Test data source</span>
+POST /api/finetune/datasets      <span class="cm"># Create dataset</span>
+GET  /api/finetune/datasets/{id}/preview
+GET  /api/finetune/datasets/{id}/stats
+POST /api/finetune/datasets/{id}/validate
+POST /api/finetune/datasets/{id}/split</code></pre>
+
+
+<h2 id="rest-export">Model Export</h2>
+<pre class="code-block"><code>POST /api/models/export          <span class="cm"># Upload to S3/GCS/Azure/HF</span>
+GET  /api/models/storage         <span class="cm"># List stored models</span></code></pre>
+
+<h2 id="rest-governance">Governance &amp; Health</h2>
+<pre class="code-block"><code>GET  /api/governance             <span class="cm"># Guardrails + RBAC info</span>
+GET  /api/health                 <span class="cm"># {"status": "ok"}</span></code></pre>
+</div>
+
+</main>
+
+<!-- ── TOC (placeholder, populated by JS) ── -->
+<aside class="docs-toc" id="toc-panel">
+    <h4>On This Page</h4>
+</aside>
+
+</div>
+
+<script>
+// ── Hero Particles ──
+(function initParticles() {
+    const container = document.getElementById('hero-particles');
+    if (!container) return;
+    for (let i = 0; i < 20; i++) {
+        const p = document.createElement('div');
+        p.className = 'hero-particle';
+        p.style.left = Math.random() * 100 + '%';
+        p.style.top = Math.random() * 100 + '%';
+        p.style.setProperty('--dx', (Math.random() * 160 - 80) + 'px');
+        p.style.setProperty('--dy', (Math.random() * -200 - 40) + 'px');
+        p.style.setProperty('--duration', (6 + Math.random() * 10) + 's');
+        p.style.setProperty('--delay', (Math.random() * 8) + 's');
+        p.style.width = (2 + Math.random() * 4) + 'px';
+        p.style.height = p.style.width;
+        p.style.background = Math.random() > 0.5 ? 'rgba(255,255,255,0.25)' : 'rgba(214,51,108,0.3)';
+        container.appendChild(p);
+    }
+})();
+
+// ── SPA Navigation ──
+function navigateTo(pageId) {
+    document.querySelectorAll('.page').forEach(p => {
+        p.classList.remove('active');
+        p.style.animation = '';
+    });
+    document.querySelectorAll('.sidebar-link').forEach(l => l.classList.remove('active'));
+
+    const page = document.getElementById('page-' + pageId);
+    if (page) {
+        page.classList.add('active');
+        page.style.animation = 'fade-in-up 0.35s ease both';
+        window.scrollTo(0, 0);
+    }
+
+    // Activate sidebar link
+    document.querySelectorAll('.sidebar-link').forEach(l => {
+        if (l.getAttribute('onclick') && l.getAttribute('onclick').includes(pageId)) {
+            l.classList.add('active');
+        }
+    });
+
+    // Update TOC
+    updateTOC(pageId);
+
+    // Update URL
+    history.pushState(null, '', '/docs#' + pageId);
+}
+
+function updateTOC(pageId) {
+    const page = document.getElementById('page-' + pageId);
+    const toc = document.getElementById('toc-panel');
+    if (!page || !toc) return;
+
+    const headings = page.querySelectorAll('h2[id], h3[id]');
+    let html = '<h4>On This Page</h4>';
+    headings.forEach(h => {
+        html += '<a href="#' + h.id + '" onclick="event.preventDefault(); document.getElementById(\\'' + h.id + '\\').scrollIntoView({behavior:\\'smooth\\'})">' + h.textContent + '</a>';
+    });
+    toc.innerHTML = html;
+}
+
+// Handle initial hash
+window.addEventListener('DOMContentLoaded', () => {
+    const hash = window.location.hash.replace('#', '');
+    if (hash) navigateTo(hash);
+    else updateTOC('overview');
+});
+
+window.addEventListener('hashchange', () => {
+    const hash = window.location.hash.replace('#', '');
+    if (hash) navigateTo(hash);
+});
+</script>
+
+</body>
+</html>"""

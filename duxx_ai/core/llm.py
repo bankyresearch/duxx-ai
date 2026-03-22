@@ -1,0 +1,526 @@
+"""LLM provider abstraction — supports OpenAI, Anthropic, local models, and custom endpoints."""
+
+from __future__ import annotations
+
+import json
+from abc import ABC, abstractmethod
+from typing import Any, AsyncIterator
+
+import httpx
+from pydantic import BaseModel, Field
+
+from duxx_ai.core.message import Conversation, Message, Role, ToolCall
+from duxx_ai.core.tool import Tool
+
+
+class LLMConfig(BaseModel):
+    provider: str = "openai"
+    model: str = "gpt-4o"
+    api_key: str = ""
+    base_url: str | None = None
+    temperature: float = 0.7
+    max_tokens: int = 4096
+    extra: dict[str, Any] = Field(default_factory=dict)
+
+    def get_api_key(self) -> str:
+        """Return the API key, falling back to environment variables."""
+        import os
+        if self.api_key:
+            return self.api_key
+        env_map = {
+            "openai": "OPENAI_API_KEY",
+            "anthropic": "ANTHROPIC_API_KEY",
+            "local": "",
+        }
+        env_var = env_map.get(self.provider, "")
+        return os.environ.get(env_var, "") if env_var else ""
+
+
+class LLMResponse(BaseModel):
+    content: str = ""
+    tool_calls: list[ToolCall] = Field(default_factory=list)
+    usage: dict[str, int] = Field(default_factory=dict)
+    model: str = ""
+    finish_reason: str = ""
+
+
+class LLMProvider(ABC):
+    def __init__(self, config: LLMConfig) -> None:
+        self.config = config
+
+    @abstractmethod
+    async def complete(
+        self,
+        conversation: Conversation,
+        tools: list[Tool] | None = None,
+        system_prompt: str | None = None,
+    ) -> LLMResponse: ...
+
+    @abstractmethod
+    async def stream(
+        self,
+        conversation: Conversation,
+        tools: list[Tool] | None = None,
+        system_prompt: str | None = None,
+    ) -> AsyncIterator[str]: ...
+
+
+class OpenAIProvider(LLMProvider):
+    async def complete(
+        self,
+        conversation: Conversation,
+        tools: list[Tool] | None = None,
+        system_prompt: str | None = None,
+    ) -> LLMResponse:
+        messages: list[dict[str, Any]] = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.extend(conversation.to_dicts(provider="openai"))
+
+        body: dict[str, Any] = {
+            "model": self.config.model,
+            "messages": messages,
+            "temperature": self.config.temperature,
+            "max_tokens": self.config.max_tokens,
+        }
+        if tools:
+            body["tools"] = [t.to_schema() for t in tools]
+
+        api_key = self.config.get_api_key()
+        base = self.config.base_url or "https://api.openai.com/v1"
+        async with httpx.AsyncClient(timeout=120) as client:
+            resp = await client.post(
+                f"{base}/chat/completions",
+                headers={"Authorization": f"Bearer {api_key}"},
+                json=body,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+
+        choice = data["choices"][0]
+        msg = choice["message"]
+
+        tool_calls = []
+        if msg.get("tool_calls"):
+            for tc in msg["tool_calls"]:
+                tool_calls.append(
+                    ToolCall(
+                        id=tc["id"],
+                        name=tc["function"]["name"],
+                        arguments=json.loads(tc["function"]["arguments"]),
+                    )
+                )
+
+        return LLMResponse(
+            content=msg.get("content", "") or "",
+            tool_calls=tool_calls,
+            usage=data.get("usage", {}),
+            model=data.get("model", self.config.model),
+            finish_reason=choice.get("finish_reason", ""),
+        )
+
+    async def stream(
+        self,
+        conversation: Conversation,
+        tools: list[Tool] | None = None,
+        system_prompt: str | None = None,
+    ) -> AsyncIterator[str]:
+        messages: list[dict[str, Any]] = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.extend(conversation.to_dicts(provider="openai"))
+
+        body: dict[str, Any] = {
+            "model": self.config.model,
+            "messages": messages,
+            "temperature": self.config.temperature,
+            "max_tokens": self.config.max_tokens,
+            "stream": True,
+        }
+
+        api_key = self.config.get_api_key()
+        base = self.config.base_url or "https://api.openai.com/v1"
+        async with httpx.AsyncClient(timeout=120) as client:
+            async with client.stream(
+                "POST",
+                f"{base}/chat/completions",
+                headers={"Authorization": f"Bearer {api_key}"},
+                json=body,
+            ) as resp:
+                async for line in resp.aiter_lines():
+                    if line.startswith("data: ") and line != "data: [DONE]":
+                        chunk = json.loads(line[6:])
+                        delta = chunk["choices"][0].get("delta", {})
+                        if delta.get("content"):
+                            yield delta["content"]
+
+
+class AnthropicProvider(LLMProvider):
+    async def complete(
+        self,
+        conversation: Conversation,
+        tools: list[Tool] | None = None,
+        system_prompt: str | None = None,
+    ) -> LLMResponse:
+        messages = conversation.to_dicts(provider="anthropic")
+
+        body: dict[str, Any] = {
+            "model": self.config.model,
+            "messages": messages,
+            "max_tokens": self.config.max_tokens,
+            "temperature": self.config.temperature,
+        }
+        if system_prompt:
+            body["system"] = system_prompt
+        if tools:
+            body["tools"] = [
+                {
+                    "name": t.name,
+                    "description": t.description,
+                    "input_schema": t.to_schema()["function"]["parameters"],
+                }
+                for t in tools
+            ]
+
+        api_key = self.config.get_api_key()
+        base = self.config.base_url or "https://api.anthropic.com/v1"
+        async with httpx.AsyncClient(timeout=120) as client:
+            resp = await client.post(
+                f"{base}/messages",
+                headers={
+                    "x-api-key": api_key,
+                    "anthropic-version": "2023-06-01",
+                    "content-type": "application/json",
+                },
+                json=body,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+
+        content = ""
+        tool_calls = []
+        for block in data.get("content", []):
+            if block["type"] == "text":
+                content += block["text"]
+            elif block["type"] == "tool_use":
+                tool_calls.append(
+                    ToolCall(id=block["id"], name=block["name"], arguments=block["input"])
+                )
+
+        return LLMResponse(
+            content=content,
+            tool_calls=tool_calls,
+            usage=data.get("usage", {}),
+            model=data.get("model", self.config.model),
+            finish_reason=data.get("stop_reason", ""),
+        )
+
+    async def stream(
+        self,
+        conversation: Conversation,
+        tools: list[Tool] | None = None,
+        system_prompt: str | None = None,
+    ) -> AsyncIterator[str]:
+        messages = conversation.to_dicts(provider="anthropic")
+        body: dict[str, Any] = {
+            "model": self.config.model,
+            "messages": messages,
+            "max_tokens": self.config.max_tokens,
+            "stream": True,
+        }
+        if system_prompt:
+            body["system"] = system_prompt
+
+        api_key = self.config.get_api_key()
+        base = self.config.base_url or "https://api.anthropic.com/v1"
+        async with httpx.AsyncClient(timeout=120) as client:
+            async with client.stream(
+                "POST",
+                f"{base}/messages",
+                headers={
+                    "x-api-key": api_key,
+                    "anthropic-version": "2023-06-01",
+                    "content-type": "application/json",
+                },
+                json=body,
+            ) as resp:
+                async for line in resp.aiter_lines():
+                    if line.startswith("data: "):
+                        try:
+                            event = json.loads(line[6:])
+                            if event.get("type") == "content_block_delta":
+                                delta = event.get("delta", {})
+                                if delta.get("type") == "text_delta":
+                                    yield delta.get("text", "")
+                        except json.JSONDecodeError:
+                            continue
+
+
+class LocalProvider(LLMProvider):
+    """Provider for local models served via OpenAI-compatible API (vLLM, llama.cpp, Ollama)."""
+
+    async def complete(
+        self,
+        conversation: Conversation,
+        tools: list[Tool] | None = None,
+        system_prompt: str | None = None,
+    ) -> LLMResponse:
+        # Reuse OpenAI provider with custom base_url
+        openai = OpenAIProvider(self.config)
+        return await openai.complete(conversation, tools, system_prompt)
+
+    async def stream(
+        self,
+        conversation: Conversation,
+        tools: list[Tool] | None = None,
+        system_prompt: str | None = None,
+    ) -> AsyncIterator[str]:
+        openai = OpenAIProvider(self.config)
+        async for chunk in openai.stream(conversation, tools, system_prompt):
+            yield chunk
+
+
+PROVIDERS: dict[str, type[LLMProvider]] = {
+    "openai": OpenAIProvider,
+    "anthropic": AnthropicProvider,
+    "local": LocalProvider,
+}
+
+
+def create_provider(config: LLMConfig) -> LLMProvider:
+    cls = PROVIDERS.get(config.provider)
+    if cls is None:
+        raise ValueError(f"Unknown provider: {config.provider}. Available: {list(PROVIDERS)}")
+    return cls(config)
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#  LLM Response Cache
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+import hashlib
+import time
+
+
+class LLMCache:
+    """In-memory LLM response cache with TTL.
+
+    Usage:
+        cache = LLMCache(ttl_seconds=300)
+        cached = cache.get(conversation, tools, system_prompt)
+        if cached:
+            return cached
+        response = await provider.complete(...)
+        cache.set(conversation, tools, system_prompt, response)
+    """
+
+    def __init__(self, ttl_seconds: int = 300, max_entries: int = 1000) -> None:
+        self.ttl = ttl_seconds
+        self.max_entries = max_entries
+        self._store: dict[str, tuple[float, LLMResponse]] = {}
+        self.hits = 0
+        self.misses = 0
+
+    def _make_key(self, conversation: Conversation, tools: list[Any] | None, system_prompt: str) -> str:
+        parts = [system_prompt]
+        for msg in conversation.messages[-10:]:  # Last 10 messages for key
+            parts.append(f"{msg.role}:{msg.content or ''}")
+        if tools:
+            parts.append(str(sorted(t.name for t in tools if hasattr(t, "name"))))
+        raw = "|".join(parts)
+        return hashlib.sha256(raw.encode()).hexdigest()
+
+    def get(self, conversation: Conversation, tools: list[Any] | None = None, system_prompt: str = "") -> LLMResponse | None:
+        key = self._make_key(conversation, tools, system_prompt)
+        entry = self._store.get(key)
+        if entry:
+            ts, response = entry
+            if time.time() - ts < self.ttl:
+                self.hits += 1
+                return response
+            del self._store[key]
+        self.misses += 1
+        return None
+
+    def set(self, conversation: Conversation, tools: list[Any] | None, system_prompt: str, response: LLMResponse) -> None:
+        key = self._make_key(conversation, tools, system_prompt)
+        if len(self._store) >= self.max_entries:
+            # Evict oldest
+            oldest = min(self._store, key=lambda k: self._store[k][0])
+            del self._store[oldest]
+        self._store[key] = (time.time(), response)
+
+    def clear(self) -> None:
+        self._store.clear()
+
+    @property
+    def stats(self) -> dict[str, int]:
+        return {"hits": self.hits, "misses": self.misses, "entries": len(self._store)}
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#  Rate Limiter
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+import asyncio as _asyncio
+
+
+class RateLimiter:
+    """Token-bucket rate limiter for LLM API calls.
+
+    Usage:
+        limiter = RateLimiter(max_requests_per_minute=60)
+        await limiter.acquire()  # blocks if rate exceeded
+        response = await provider.complete(...)
+    """
+
+    def __init__(self, max_requests_per_minute: int = 60) -> None:
+        self.max_rpm = max_requests_per_minute
+        self._tokens = float(max_requests_per_minute)
+        self._max_tokens = float(max_requests_per_minute)
+        self._refill_rate = max_requests_per_minute / 60.0  # tokens per second
+        self._last_refill = time.time()
+        self._lock = _asyncio.Lock()
+        self.total_requests = 0
+        self.total_waits = 0
+
+    async def acquire(self) -> None:
+        """Acquire a rate limit token. Blocks if rate exceeded."""
+        async with self._lock:
+            self._refill()
+            if self._tokens < 1.0:
+                wait_time = (1.0 - self._tokens) / self._refill_rate
+                self.total_waits += 1
+                await _asyncio.sleep(wait_time)
+                self._refill()
+            self._tokens -= 1.0
+            self.total_requests += 1
+
+    def _refill(self) -> None:
+        now = time.time()
+        elapsed = now - self._last_refill
+        self._tokens = min(self._max_tokens, self._tokens + elapsed * self._refill_rate)
+        self._last_refill = now
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#  Cached + Rate-Limited Provider Wrapper
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+class CachedProvider(LLMProvider):
+    """Wraps any LLMProvider with caching and rate limiting.
+
+    Usage:
+        base = create_provider(config)
+        provider = CachedProvider(base, cache_ttl=300, rate_limit_rpm=60)
+        response = await provider.complete(conversation)
+    """
+
+    def __init__(
+        self,
+        provider: LLMProvider,
+        cache_ttl: int = 300,
+        rate_limit_rpm: int = 0,
+    ) -> None:
+        self._provider = provider
+        self.config = provider.config
+        self.cache = LLMCache(ttl_seconds=cache_ttl) if cache_ttl > 0 else None
+        self.limiter = RateLimiter(rate_limit_rpm) if rate_limit_rpm > 0 else None
+
+    async def complete(
+        self,
+        conversation: Conversation,
+        tools: list[Any] | None = None,
+        system_prompt: str = "",
+    ) -> LLMResponse:
+        # Check cache first
+        if self.cache:
+            cached = self.cache.get(conversation, tools, system_prompt)
+            if cached:
+                return cached
+
+        # Rate limit
+        if self.limiter:
+            await self.limiter.acquire()
+
+        response = await self._provider.complete(conversation, tools, system_prompt)
+
+        # Cache the response
+        if self.cache:
+            self.cache.set(conversation, tools, system_prompt, response)
+
+        return response
+
+    async def stream(
+        self,
+        conversation: Conversation,
+        tools: list[Any] | None = None,
+        system_prompt: str = "",
+    ) -> AsyncIterator[str]:
+        if self.limiter:
+            await self.limiter.acquire()
+        async for token in self._provider.stream(conversation, tools, system_prompt):
+            yield token
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#  Structured Output Helper
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+from pydantic import BaseModel as _PydanticModel
+
+
+def with_structured_output(
+    provider: LLMProvider,
+    schema: type[_PydanticModel],
+    conversation: Conversation,
+    system_prompt: str = "",
+    max_retries: int = 2,
+) -> _PydanticModel:
+    """Call LLM with schema enforcement and parse into a Pydantic model.
+
+    Injects the schema into the prompt and parses the response.
+    Retries on parse failure with error feedback.
+
+    Usage:
+        class Analysis(BaseModel):
+            sentiment: str
+            score: float
+
+        result = await with_structured_output(provider, Analysis, conversation)
+        print(result.sentiment, result.score)
+    """
+    # This is a sync helper that returns a coroutine — use with await
+    raise NotImplementedError("Use with_structured_output_async instead")
+
+
+async def with_structured_output_async(
+    provider: LLMProvider,
+    schema: type[_PydanticModel],
+    conversation: Conversation,
+    system_prompt: str = "",
+    max_retries: int = 2,
+) -> _PydanticModel:
+    """Async version of with_structured_output."""
+    from duxx_ai.core.parsers import PydanticOutputParser
+
+    parser = PydanticOutputParser(schema)
+    instructions = parser.get_format_instructions()
+
+    # Inject schema instructions into system prompt
+    enhanced_prompt = f"{system_prompt}\n\n{instructions}" if system_prompt else instructions
+
+    last_error = ""
+    for attempt in range(max_retries + 1):
+        prompt = enhanced_prompt
+        if last_error and attempt > 0:
+            prompt += f"\n\nPrevious attempt failed: {last_error}. Please fix the JSON format."
+
+        response = await provider.complete(conversation, system_prompt=prompt)
+
+        try:
+            return parser.parse(response.content or "")
+        except Exception as e:
+            last_error = str(e)
+
+    raise ValueError(f"Failed to parse structured output after {max_retries + 1} attempts: {last_error}")

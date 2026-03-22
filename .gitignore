@@ -1,0 +1,67 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+*.egg
+.eggs/
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+*.env
+
+# Credentials & secrets
+credentials.json
+waitlist.json
+*.pem
+*.key
+
+# Node (frontend build)
+node_modules/
+duxx_ai/studio/frontend/node_modules/
+duxx_ai/studio/frontend/dist/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+
+# Build artifacts
+*.whl
+*.tar.gz
+
+# Claude
+.claude/
+
+# Old package (pre-rename)
+bankyai/
+
+# Enterprise-only (not open source)
+duxx_ai/cloud/
+duxx_ai/finetune/tinker.py
+duxx_ai/finetune/storage.py
+duxx_ai/credentials.py
+duxx_ai/TIER_SPLIT.py
+duxx_ai/studio/website.py
+duxx_ai/studio/frontend/
