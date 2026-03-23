@@ -3,7 +3,7 @@
 Build, fine-tune, orchestrate, and govern AI agents at scale.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 from duxx_ai.core.agent import Agent, AgentConfig
 from duxx_ai.core.tool import Tool, tool
