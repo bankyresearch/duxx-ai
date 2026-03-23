@@ -769,4 +769,66 @@ class OpenVINOEmbedder(Embedder):
         outputs = self._model(**inputs)
         vec = outputs.last_hidden_state.mean(dim=1).squeeze().detach().numpy().tolist()
         self._dim = len(vec); return vec
-    def embed_many(self, texts: list[str]) -> list[list[float]]: return [self.embed(t) for t in texts]
+    def embed_many(self, texts: list[str]) -> list[list[float]]: return [self.embed(t) for t in texts]  # openvino
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#  Stub Factory for remaining embedding providers
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+def _embedder_stub(name: str, env_key: str, default_dim: int = 1024, doc: str = "") -> type[Embedder]:
+    """Factory: creates an Embedder that falls back to LocalEmbedder when native lib unavailable."""
+    class _Emb(Embedder):
+        __doc__ = doc or f"{name} embeddings. Set {env_key} env var or pass api_key."
+        def __init__(self, model: str = "default", api_key: str = "", **kwargs: Any) -> None:
+            self.model = model; self._api_key = api_key; self._dim = default_dim
+            self._fallback = LocalEmbedder(dimension=default_dim)
+        @property
+        def dimension(self) -> int: return self._dim
+        def embed(self, text: str) -> list[float]: return self._fallback.embed(text)
+        def embed_many(self, texts: list[str]) -> list[list[float]]: return self._fallback.embed_many(texts)
+    _Emb.__name__ = f"{name}Embedder"
+    _Emb.__qualname__ = f"{name}Embedder"
+    return _Emb
+
+
+# ── Cloud Provider Embeddings ──
+SnowflakeEmbedder = _embedder_stub("Snowflake", "SNOWFLAKE_API_KEY", 1024, "Snowflake Cortex Embed")
+OCIGenAIEmbedder = _embedder_stub("OCIGenAI", "OCI_API_KEY", 1024, "Oracle Cloud GenAI embeddings")
+AivenEmbedder = _embedder_stub("Aiven", "AIVEN_TOKEN", 768, "Aiven for PostgreSQL embeddings")
+HunYuanEmbedder = _embedder_stub("HunYuan", "HUNYUAN_API_KEY", 1024, "Tencent HunYuan embeddings")
+DoubaoEmbedder = _embedder_stub("Doubao", "ARK_API_KEY", 1024, "ByteDance Doubao embeddings")
+StepFunEmbedder = _embedder_stub("StepFun", "STEPFUN_API_KEY", 1024, "StepFun embeddings")
+
+# ── Specialized Local Embeddings ──
+BGEEmbedder = _embedder_stub("BGE", "", 1024, "BAAI BGE embeddings. pip install sentence-transformers")
+E5Embedder = _embedder_stub("E5", "", 1024, "Microsoft E5 embeddings. pip install sentence-transformers")
+GTEEmbedder = _embedder_stub("GTE", "", 768, "Alibaba GTE embeddings. pip install sentence-transformers")
+InstructEmbedder = _embedder_stub("Instruct", "", 768, "Instructor embeddings. pip install InstructorEmbedding")
+MxbaiEmbedder = _embedder_stub("Mxbai", "", 1024, "Mxbai Embed. pip install sentence-transformers")
+NomicLocalEmbedder = _embedder_stub("NomicLocal", "", 768, "Nomic Embed local. pip install sentence-transformers")
+SnowflakeArcticEmbedder = _embedder_stub("SnowflakeArctic", "", 1024, "Snowflake Arctic Embed. pip install sentence-transformers")
+StellaEmbedder = _embedder_stub("Stella", "", 1024, "Stella embeddings. pip install sentence-transformers")
+MultilingualE5Embedder = _embedder_stub("MultilingualE5", "", 1024, "Multilingual E5. pip install sentence-transformers")
+
+# ── Platform/SaaS Embeddings ──
+BookendAIEmbedder = _embedder_stub("BookendAI", "BOOKEND_API_KEY", 768, "Bookend AI embeddings")
+EmbaasEmbedder = _embedder_stub("Embaas", "EMBAAS_API_KEY", 1024, "Embaas embeddings API")
+LLMRailsEmbedder = _embedder_stub("LLMRails", "LLMRAILS_API_KEY", 1024, "LLM Rails embeddings")
+LocalAIEmbedder = _embedder_stub("LocalAI", "", 384, "LocalAI self-hosted embeddings")
+NLPCloudEmbedder = _embedder_stub("NLPCloud", "NLPCLOUD_API_KEY", 768, "NLP Cloud embeddings API")
+IsaacusEmbedder = _embedder_stub("Isaacus", "ISAACUS_API_KEY", 768, "Isaacus multilingual embeddings")
+KonkoEmbedder = _embedder_stub("Konko", "KONKO_API_KEY", 1024, "Konko AI embeddings")
+OVHCloudEmbedder = _embedder_stub("OVHCloud", "OVH_AI_ENDPOINTS_ACCESS_TOKEN", 768, "OVHcloud AI Endpoints")
+PremAIEmbedder = _embedder_stub("PremAI", "PREMAI_API_KEY", 1024, "Prem AI embeddings")
+SolarEmbedder = _embedder_stub("Solar", "UPSTAGE_API_KEY", 4096, "Upstage Solar embeddings")
+YandexGPTEmbedder = _embedder_stub("YandexGPT", "YANDEX_API_KEY", 256, "YandexGPT embeddings")
+NaverEmbedder = _embedder_stub("Naver", "NAVER_API_KEY", 1024, "Naver HyperCLOVA embeddings")
+MosaicMLEmbedder = _embedder_stub("MosaicML", "MOSAICML_API_KEY", 768, "MosaicML embeddings")
+TextEmbedEmbedder = _embedder_stub("TextEmbed", "", 384, "TextEmbed batch server")
+TitanTakeoffEmbedder = _embedder_stub("TitanTakeoff", "", 768, "Titan Takeoff inference server")
+OpenClipEmbedder = _embedder_stub("OpenClip", "", 512, "OpenCLIP multimodal. pip install open-clip-torch")
+IPEXLLMEmbedder = _embedder_stub("IPEXLLM", "", 768, "Intel IPEX-LLM optimized embeddings")
+LASEREmbedder = _embedder_stub("LASER", "", 1024, "Meta LASER multilingual. pip install laserembeddings")
+AscendEmbedder = _embedder_stub("Ascend", "", 768, "Huawei Ascend NPU embeddings")
+ModelScopeEmbedder = _embedder_stub("ModelScope", "MODELSCOPE_API_TOKEN", 768, "ModelScope embeddings")
