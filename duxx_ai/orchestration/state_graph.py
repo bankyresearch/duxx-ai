@@ -111,6 +111,7 @@ class EventMode(str, Enum):
     MESSAGES = "messages"
     DEBUG = "debug"
     TASKS = "tasks"
+    CUSTOM = "custom"
 
 
 @dataclass
@@ -545,6 +546,17 @@ class FlowGraph:
         })
         return self
 
+    def add_sequence(self, node_ids: list[str]) -> FlowGraph:
+        """Add a linear chain of nodes. Shorthand for multiple add_edge() calls.
+
+        Usage:
+            graph.add_sequence(["a", "b", "c"])
+            # Equivalent to: add_edge("a","b"), add_edge("b","c")
+        """
+        for i in range(len(node_ids) - 1):
+            self._edges.append((node_ids[i], node_ids[i + 1]))
+        return self
+
     def set_entry_point(self, node_id: str) -> FlowGraph:
         """Set the entry point (equivalent to add_edge(ENTRY, node_id))."""
         self._entry_points.append(node_id)
@@ -936,6 +948,25 @@ class CompiledFlow:
 
     # ── Time-Travel ──
 
+    def get_graph(self, xray: bool = False) -> GraphView:
+        """Get a visual representation of the graph for introspection.
+
+        Usage:
+            view = compiled.get_graph()
+            print(view.to_ascii())
+            print(view.to_mermaid())
+        """
+        nodes = [{"id": nid, "has_handler": cfg.get("handler") is not None, "retry": cfg.get("retry") is not None, "cache": cfg.get("cache") is not None, **cfg.get("metadata", {})} for nid, cfg in self.graph._nodes.items()]
+        edges = [{"source": s, "target": t} for s, t in self.graph._edges]
+        for source, conds in self.graph._conditional_edges.items():
+            for c in conds:
+                if c.get("path_map"):
+                    for label, target in c["path_map"].items():
+                        edges.append({"source": source, "target": target, "label": label})
+                else:
+                    edges.append({"source": source, "target": "?", "label": "conditional"})
+        return GraphView(nodes=nodes, edges=edges, entry_points=list(self.graph._entry_points), metadata={"name": self.graph.name})
+
     async def get_state_history(self, limit: int = 100) -> list[FlowSnapshot]:
         """Get all checkpointed states for time-travel debugging."""
         return await self.checkpointer.list(limit)
@@ -1075,3 +1106,235 @@ def step(
         wrapper.__wrapped__ = fn
         return wrapper
     return decorator
+
+
+# ── StreamWriter ──
+
+class StreamWriter:
+    """Write custom events to the stream from inside node code.
+
+    Usage:
+        def my_node(state, *, writer: StreamWriter):
+            writer({"progress": 0.5, "message": "Halfway done"})
+            return {"result": "done"}
+    """
+
+    def __init__(self) -> None:
+        self._buffer: list[Any] = []
+
+    def __call__(self, data: Any) -> None:
+        self._buffer.append(data)
+
+    def flush(self) -> list[Any]:
+        items = list(self._buffer)
+        self._buffer.clear()
+        return items
+
+
+# ── Store (Namespaced KV Persistence) ──
+
+class Store:
+    """Namespaced key-value store accessible from nodes at runtime.
+
+    Usage:
+        store = Store()
+        store.put("user:123", "preferences", {"theme": "dark"})
+        prefs = store.get("user:123", "preferences")
+        results = store.search("user:123", query="theme")
+    """
+
+    def __init__(self) -> None:
+        self._data: dict[str, dict[str, Any]] = {}
+
+    def put(self, namespace: str, key: str, value: Any) -> None:
+        if namespace not in self._data:
+            self._data[namespace] = {}
+        self._data[namespace][key] = {"value": value, "updated_at": time.time()}
+
+    def get(self, namespace: str, key: str) -> Any | None:
+        ns = self._data.get(namespace, {})
+        entry = ns.get(key)
+        return entry["value"] if entry else None
+
+    def delete(self, namespace: str, key: str) -> bool:
+        ns = self._data.get(namespace, {})
+        if key in ns:
+            del ns[key]
+            return True
+        return False
+
+    def list_keys(self, namespace: str) -> list[str]:
+        return list(self._data.get(namespace, {}).keys())
+
+    def list_namespaces(self) -> list[str]:
+        return list(self._data.keys())
+
+    def search(self, namespace: str, query: str = "", limit: int = 10) -> list[dict[str, Any]]:
+        ns = self._data.get(namespace, {})
+        results = []
+        for key, entry in ns.items():
+            if not query or query.lower() in str(entry["value"]).lower() or query.lower() in key.lower():
+                results.append({"key": key, **entry})
+        return results[:limit]
+
+    def clear(self, namespace: str | None = None) -> None:
+        if namespace:
+            self._data.pop(namespace, None)
+        else:
+            self._data.clear()
+
+
+# ── UIMessage System ──
+
+@dataclass
+class UIMessage:
+    """UI component message for interactive agents."""
+    name: str
+    props: dict[str, Any] = field(default_factory=dict)
+    id: str = field(default_factory=lambda: uuid.uuid4().hex[:8])
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class RemoveUIMessage:
+    """Remove a UI component by ID."""
+    id: str
+
+
+def push_ui_message(name: str, props: dict[str, Any] | None = None, id: str | None = None) -> UIMessage:
+    return UIMessage(name=name, props=props or {}, id=id or uuid.uuid4().hex[:8])
+
+
+def delete_ui_message(id: str) -> RemoveUIMessage:
+    return RemoveUIMessage(id=id)
+
+
+# ── RemoveMessage ──
+
+@dataclass
+class RemoveMessage:
+    """Remove a message by ID from messages state."""
+    id: str
+
+
+REMOVE_ALL_MESSAGES = "__remove_all__"
+
+
+# ── Graph Validation ──
+
+def validate_graph(graph: FlowGraph) -> list[str]:
+    """Validate a FlowGraph for common errors. Returns list of errors (empty = valid)."""
+    errors: list[str] = []
+    if not graph._nodes:
+        errors.append("Graph has no nodes")
+    all_ids = set(graph._nodes.keys()) | {ENTRY, EXIT}
+    for s, t in graph._edges:
+        if s not in all_ids and s != ENTRY:
+            errors.append(f"Edge source '{s}' not found")
+        if t not in all_ids and t != EXIT:
+            errors.append(f"Edge target '{t}' not found")
+    targets = {t for _, t in graph._edges} | set(graph._entry_points)
+    for nid in graph._nodes:
+        if nid not in targets:
+            cond_tgts = set()
+            for conds in graph._conditional_edges.values():
+                for c in conds:
+                    if c.get("path_map"):
+                        cond_tgts.update(c["path_map"].values())
+            if nid not in cond_tgts:
+                errors.append(f"Node '{nid}' has no incoming edges")
+    for nid, cfg in graph._nodes.items():
+        if cfg.get("handler") is None:
+            errors.append(f"Node '{nid}' has no handler")
+    if not graph._entry_points and not any(s == ENTRY for s, _ in graph._edges):
+        errors.append("No entry point defined")
+    return errors
+
+
+# ── Graph Introspection ──
+
+@dataclass
+class GraphView:
+    """Visual representation of a compiled graph."""
+    nodes: list[dict[str, Any]]
+    edges: list[dict[str, str]]
+    entry_points: list[str]
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+    def to_ascii(self) -> str:
+        lines = [f"Graph: {self.metadata.get('name', 'unnamed')}", "=" * 40]
+        for ep in self.entry_points:
+            lines.append(f"  [ENTRY] --> [{ep}]")
+        for edge in self.edges:
+            label = f" ({edge.get('label', '')})" if edge.get("label") else ""
+            lines.append(f"  [{edge['source']}] --> [{edge['target']}]{label}")
+        lines.append("=" * 40)
+        lines.append(f"Nodes: {len(self.nodes)} | Edges: {len(self.edges)}")
+        return "\n".join(lines)
+
+    def to_mermaid(self) -> str:
+        lines = ["graph TD"]
+        for ep in self.entry_points:
+            lines.append(f"    START([Start]) --> {ep}")
+        for edge in self.edges:
+            s, t = edge["source"], edge["target"]
+            if t == EXIT:
+                t = "EXIT_NODE([End])"
+            label = edge.get("label", "")
+            lines.append(f"    {s} -->|{label}| {t}" if label else f"    {s} --> {t}")
+        return "\n".join(lines)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"nodes": self.nodes, "edges": self.edges, "entry_points": self.entry_points, "metadata": self.metadata}
+
+
+# ── create_react_agent ──
+
+def create_react_agent(
+    model_config: Any = None,
+    tools: list[Any] | None = None,
+    system_prompt: str = "You are a helpful AI assistant.",
+    max_iterations: int = 10,
+    checkpointer: SnapshotStore | None = None,
+) -> CompiledFlow:
+    """Create a pre-built ReAct agent as a compiled FlowGraph.
+
+    Usage:
+        agent = create_react_agent(model_config=LLMConfig(...), tools=[...])
+        result = await agent.invoke({"messages": [{"role": "user", "content": "Hello"}]})
+    """
+
+    async def reasoning_node(state: dict) -> dict:
+        iteration = state.get("__iteration__", 0) + 1
+        return {"__iteration__": iteration, "__needs_tool__": True}
+
+    async def tool_node(state: dict) -> dict:
+        tool_calls = state.get("__pending_tools__", [])
+        results = []
+        for tc in tool_calls:
+            for t in (tools or []):
+                if t.name == tc.get("name", ""):
+                    try:
+                        result = await t.execute(tc)
+                        results.append({"tool": t.name, "result": str(getattr(result, 'result', result))})
+                    except Exception as e:
+                        results.append({"tool": t.name, "error": str(e)})
+        return {"__tool_results__": results, "__needs_tool__": False}
+
+    def should_continue(state: dict) -> str:
+        if state.get("__iteration__", 0) >= max_iterations:
+            return EXIT
+        if state.get("__needs_tool__") and state.get("__pending_tools__"):
+            return "tools"
+        return EXIT
+
+    graph = FlowGraph(ChatState, name="react_agent")
+    graph.add_node("reason", reasoning_node)
+    graph.add_node("tools", tool_node)
+    graph.add_edge(ENTRY, "reason")
+    graph.add_conditional_edges("reason", should_continue, {"tools": "tools", EXIT: EXIT})
+    graph.add_edge("tools", "reason")
+
+    compiled = graph.compile(checkpointer=checkpointer or MemorySnapshotStore())
+    compiled.max_iterations = max_iterations * 2 + 5
+    return compiled
