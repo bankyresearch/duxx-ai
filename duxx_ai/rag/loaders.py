@@ -965,6 +965,209 @@ class ApifyLoader(DocumentLoader):
         return docs
 
 
+class FacebookChatLoader(DocumentLoader):
+    """Facebook Messenger chat export loader (JSON)."""
+    def __init__(self, path: str) -> None: self.path = Path(path)
+    def load(self) -> list[Document]:
+        data = json.loads(self.path.read_text(encoding="utf-8")); docs = []
+        for msg in data.get("messages", []):
+            content = msg.get("content", "")
+            if content:
+                docs.append(Document(content=content, source="facebook_chat", metadata={"type": "facebook_chat", "sender": msg.get("sender_name", ""), "timestamp_ms": msg.get("timestamp_ms", 0)}))
+        return docs
+
+
+class MastodonLoader(DocumentLoader):
+    """Mastodon toots loader."""
+    def __init__(self, instance_url: str, account_id: str = "", access_token: str = "", limit: int = 40) -> None:
+        import os; self._url = instance_url; self._account = account_id; self.limit = limit
+        self._token = access_token or os.environ.get("MASTODON_ACCESS_TOKEN", "")
+    def load(self) -> list[Document]:
+        import httpx, re; docs = []; headers = {"Authorization": f"Bearer {self._token}"} if self._token else {}
+        url = f"{self._url}/api/v1/accounts/{self._account}/statuses" if self._account else f"{self._url}/api/v1/timelines/public"
+        resp = httpx.get(url, headers=headers, params={"limit": self.limit}, timeout=15)
+        if resp.status_code == 200:
+            for toot in resp.json():
+                text = re.sub(r"<[^>]+>", "", toot.get("content", "")).strip()
+                if text: docs.append(Document(content=text, source=toot.get("url", ""), metadata={"type": "mastodon", "account": toot.get("account", {}).get("username", ""), "created_at": toot.get("created_at", "")}))
+        return docs
+
+
+class RoamLoader(DocumentLoader):
+    """Roam Research export loader (JSON)."""
+    def __init__(self, path: str) -> None: self.path = Path(path)
+    def load(self) -> list[Document]:
+        data = json.loads(self.path.read_text(encoding="utf-8")); docs = []
+        for page in data if isinstance(data, list) else [data]:
+            title = page.get("title", "")
+            children = page.get("children", [])
+            texts = [title] if title else []
+            def extract(nodes: list) -> None:
+                for n in nodes:
+                    s = n.get("string", "")
+                    if s: texts.append(s)
+                    extract(n.get("children", []))
+            extract(children)
+            if texts: docs.append(Document(content="\n".join(texts), source=f"roam://{title}", metadata={"type": "roam", "title": title}))
+        return docs
+
+
+class QuipLoader(DocumentLoader):
+    """Quip document loader. Requires: QUIP_ACCESS_TOKEN."""
+    def __init__(self, document_ids: list[str], token: str = "") -> None:
+        import os; self.document_ids = document_ids; self._token = token or os.environ.get("QUIP_ACCESS_TOKEN", "")
+    def load(self) -> list[Document]:
+        import httpx, re; docs = []
+        for did in self.document_ids:
+            resp = httpx.get(f"https://platform.quip.com/1/threads/{did}", headers={"Authorization": f"Bearer {self._token}"}, timeout=15)
+            if resp.status_code == 200:
+                data = resp.json(); html = data.get("html", "")
+                text = re.sub(r"<[^>]+>", " ", html); text = re.sub(r"\s+", " ", text).strip()
+                docs.append(Document(content=text, source=f"quip://{did}", metadata={"type": "quip", "title": data.get("thread", {}).get("title", "")}))
+        return docs
+
+
+class DoclingLoader(DocumentLoader):
+    """Docling document intelligence loader. Requires: pip install docling"""
+    def __init__(self, path: str) -> None: self.path = Path(path)
+    def load(self) -> list[Document]:
+        try: from docling.document_converter import DocumentConverter
+        except ImportError: raise ImportError("docling required: pip install docling")
+        converter = DocumentConverter(); result = converter.convert(str(self.path))
+        text = result.document.export_to_text()
+        return [Document(content=text, source=str(self.path), metadata={"type": "docling"})]
+
+
+class AmazonTextractLoader(DocumentLoader):
+    """Amazon Textract OCR loader. Requires: pip install boto3"""
+    def __init__(self, path: str, region: str = "us-east-1") -> None:
+        self.path = Path(path); self.region = region
+    def load(self) -> list[Document]:
+        try: import boto3
+        except ImportError: raise ImportError("boto3 required: pip install boto3")
+        client = boto3.client("textract", region_name=self.region)
+        with open(self.path, "rb") as f: img_bytes = f.read()
+        resp = client.detect_document_text(Document={"Bytes": img_bytes})
+        texts = [b["Text"] for b in resp.get("Blocks", []) if b["BlockType"] == "LINE"]
+        return [Document(content="\n".join(texts), source=str(self.path), metadata={"type": "textract", "pages": 1})]
+
+
+class MathPixLoader(DocumentLoader):
+    """Mathpix OCR loader (PDF/images with math). Requires: MATHPIX_APP_ID + MATHPIX_APP_KEY."""
+    def __init__(self, path: str) -> None:
+        import os; self.path = Path(path)
+        self._app_id = os.environ.get("MATHPIX_APP_ID", ""); self._app_key = os.environ.get("MATHPIX_APP_KEY", "")
+    def load(self) -> list[Document]:
+        import httpx
+        with open(self.path, "rb") as f:
+            resp = httpx.post("https://api.mathpix.com/v3/text", headers={"app_id": self._app_id, "app_key": self._app_key}, files={"file": f}, data={"options_json": '{"math_inline_delimiters": ["$", "$"]}'}, timeout=60)
+        if resp.status_code == 200:
+            text = resp.json().get("text", "")
+            return [Document(content=text, source=str(self.path), metadata={"type": "mathpix"})]
+        return []
+
+
+class HuaweiOBSLoader(DocumentLoader):
+    """Huawei OBS (Object Storage) loader."""
+    def __init__(self, bucket: str, prefix: str = "", ak: str = "", sk: str = "", endpoint: str = "") -> None:
+        import os; self.bucket = bucket; self.prefix = prefix
+        self._ak = ak or os.environ.get("HUAWEI_OBS_AK", ""); self._sk = sk or os.environ.get("HUAWEI_OBS_SK", "")
+        self._endpoint = endpoint or os.environ.get("HUAWEI_OBS_ENDPOINT", "")
+    def load(self) -> list[Document]:
+        try: from obs import ObsClient
+        except ImportError: raise ImportError("esdk-obs-python required: pip install esdk-obs-python")
+        client = ObsClient(access_key_id=self._ak, secret_access_key=self._sk, server=self._endpoint)
+        resp = client.listObjects(self.bucket, prefix=self.prefix); docs = []
+        for obj in resp.body.contents:
+            r = client.getObject(self.bucket, obj.key); content = r.body.response.read().decode("utf-8", errors="replace")
+            docs.append(Document(content=content, source=f"obs://{self.bucket}/{obj.key}", metadata={"type": "huawei_obs"}))
+        return docs
+
+
+class TencentCOSLoader(DocumentLoader):
+    """Tencent Cloud COS loader. Requires: pip install cos-python-sdk-v5"""
+    def __init__(self, bucket: str, prefix: str = "", region: str = "", secret_id: str = "", secret_key: str = "") -> None:
+        import os; self.bucket = bucket; self.prefix = prefix
+        self._region = region or os.environ.get("COS_REGION", ""); self._id = secret_id or os.environ.get("COS_SECRET_ID", "")
+        self._key = secret_key or os.environ.get("COS_SECRET_KEY", "")
+    def load(self) -> list[Document]:
+        try: from qcloud_cos import CosConfig, CosS3Client
+        except ImportError: raise ImportError("cos-python-sdk-v5 required: pip install cos-python-sdk-v5")
+        config = CosConfig(Region=self._region, SecretId=self._id, SecretKey=self._key)
+        client = CosS3Client(config); resp = client.list_objects(Bucket=self.bucket, Prefix=self.prefix); docs = []
+        for obj in resp.get("Contents", []):
+            r = client.get_object(Bucket=self.bucket, Key=obj["Key"])
+            content = r["Body"].get_raw_stream().read().decode("utf-8", errors="replace")
+            docs.append(Document(content=content, source=f"cos://{self.bucket}/{obj['Key']}", metadata={"type": "tencent_cos"}))
+        return docs
+
+
+class HyperBrowserLoader(DocumentLoader):
+    """HyperBrowser web scraping loader. Requires: HYPERBROWSER_API_KEY."""
+    def __init__(self, url: str, api_key: str = "") -> None:
+        import os; self.url = url; self._key = api_key or os.environ.get("HYPERBROWSER_API_KEY", "")
+    def load(self) -> list[Document]:
+        import httpx
+        resp = httpx.post("https://api.hyperbrowser.ai/v1/scrape", headers={"Authorization": f"Bearer {self._key}"}, json={"url": self.url}, timeout=30)
+        resp.raise_for_status(); data = resp.json().get("data", {})
+        return [Document(content=data.get("markdown", "") or data.get("text", ""), source=self.url, metadata={"type": "hyperbrowser", "title": data.get("metadata", {}).get("title", "")})]
+
+
+class AgentQLLoader(DocumentLoader):
+    """AgentQL structured web extraction. Requires: AGENTQL_API_KEY."""
+    def __init__(self, url: str, query: str = "", api_key: str = "") -> None:
+        import os; self.url = url; self.query = query; self._key = api_key or os.environ.get("AGENTQL_API_KEY", "")
+    def load(self) -> list[Document]:
+        import httpx
+        resp = httpx.post("https://api.agentql.com/v1/query-data", headers={"X-API-Key": self._key}, json={"url": self.url, "query": self.query or "{ content }"}, timeout=30)
+        resp.raise_for_status()
+        return [Document(content=json.dumps(resp.json().get("data", {})), source=self.url, metadata={"type": "agentql"})]
+
+
+class AsanaLoader(DocumentLoader):
+    """Asana tasks loader. Requires: ASANA_ACCESS_TOKEN."""
+    def __init__(self, project_gid: str, token: str = "") -> None:
+        import os; self.project_gid = project_gid; self._token = token or os.environ.get("ASANA_ACCESS_TOKEN", "")
+    def load(self) -> list[Document]:
+        import httpx; docs = []
+        resp = httpx.get(f"https://app.asana.com/api/1.0/projects/{self.project_gid}/tasks", headers={"Authorization": f"Bearer {self._token}"}, params={"opt_fields": "name,notes,completed,assignee.name"}, timeout=15)
+        if resp.status_code == 200:
+            for task in resp.json().get("data", []):
+                content = f"{task.get('name', '')}\n\n{task.get('notes', '')}"
+                docs.append(Document(content=content, source=f"asana://{task['gid']}", metadata={"type": "asana", "completed": task.get("completed", False)}))
+        return docs
+
+
+class MondayLoader(DocumentLoader):
+    """Monday.com board loader. Requires: MONDAY_API_KEY."""
+    def __init__(self, board_id: str, api_key: str = "") -> None:
+        import os; self.board_id = board_id; self._key = api_key or os.environ.get("MONDAY_API_KEY", "")
+    def load(self) -> list[Document]:
+        import httpx; docs = []
+        query = f'{{"query": "{{ boards(ids: {self.board_id}) {{ items_page {{ items {{ name column_values {{ text }} }} }} }} }}"}}'
+        resp = httpx.post("https://api.monday.com/v2", headers={"Authorization": self._key, "Content-Type": "application/json"}, content=query, timeout=15)
+        if resp.status_code == 200:
+            for board in resp.json().get("data", {}).get("boards", []):
+                for item in board.get("items_page", {}).get("items", []):
+                    vals = " | ".join(cv.get("text", "") for cv in item.get("column_values", []) if cv.get("text"))
+                    docs.append(Document(content=f"{item.get('name', '')}\n{vals}", source=f"monday://{self.board_id}", metadata={"type": "monday"}))
+        return docs
+
+
+class ClickUpLoader(DocumentLoader):
+    """ClickUp tasks loader. Requires: CLICKUP_API_KEY."""
+    def __init__(self, list_id: str, api_key: str = "") -> None:
+        import os; self.list_id = list_id; self._key = api_key or os.environ.get("CLICKUP_API_KEY", "")
+    def load(self) -> list[Document]:
+        import httpx; docs = []
+        resp = httpx.get(f"https://api.clickup.com/api/v2/list/{self.list_id}/task", headers={"Authorization": self._key}, timeout=15)
+        if resp.status_code == 200:
+            for task in resp.json().get("tasks", []):
+                content = f"{task.get('name', '')}\n\n{task.get('description', '') or ''}"
+                docs.append(Document(content=content, source=f"clickup://{task['id']}", metadata={"type": "clickup", "status": task.get("status", {}).get("status", "")}))
+        return docs
+
+
 class SpiderLoader(DocumentLoader):
     """Spider web crawler. Requires: SPIDER_API_KEY."""
     def __init__(self, url: str, api_key: str = "", limit: int = 10) -> None:
