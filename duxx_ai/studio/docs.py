@@ -2141,27 +2141,216 @@ tools = planner.as_tools()  <span class="cm"># [plan_create, plan_update, plan_s
 </div>
 
 <div id="page-graph-analytics" class="page">
-<h1>Graph Analytics</h1>
-<p>Graph-theoretic analysis for agent orchestration — centrality, critical path, bottleneck detection.</p>
-<pre class="code-block"><code><span class="kw">from</span> duxx_ai.core.deep_agent <span class="kw">import</span> GraphAnalytics
-<span class="kw">from</span> duxx_ai.orchestration <span class="kw">import</span> Graph
+<h1>Graph Analytics — 35+ NetworkX Algorithms</h1>
+<p>Deep analysis of agent workflow graphs powered by NetworkX. Optimize workflows, detect bottlenecks, rank agents, predict connections, and export to any format.</p>
+<p><code>pip install networkx</code> (optional — basic analysis works without it)</p>
 
-graph = Graph(<span class="string">"pipeline"</span>)
-graph.add_node(<span class="string">"gather"</span>, gather_fn)
-graph.add_node(<span class="string">"analyze"</span>, analyze_fn)
-graph.add_node(<span class="string">"review"</span>, review_fn)
-graph.add_node(<span class="string">"publish"</span>, publish_fn)
-graph.add_edge(<span class="string">"gather"</span>, <span class="string">"analyze"</span>)
-graph.add_edge(<span class="string">"gather"</span>, <span class="string">"review"</span>)
-graph.add_edge(<span class="string">"analyze"</span>, <span class="string">"publish"</span>)
-graph.add_edge(<span class="string">"review"</span>, <span class="string">"publish"</span>)
+<h2 id="ga-setup">Setup &amp; Basic Usage</h2>
+<pre class="code-block"><code><span class="kw">from</span> duxx_ai.orchestration.analytics <span class="kw">import</span> WorkflowAnalyzer
 
-analytics = GraphAnalytics(graph)
-<span class="kw">print</span>(analytics.critical_path())        <span class="cm"># ['gather', 'analyze', 'publish']</span>
-<span class="kw">print</span>(analytics.centrality())            <span class="cm"># {'publish': 0.33, 'gather': 0.33, ...}</span>
-<span class="kw">print</span>(analytics.bottlenecks())           <span class="cm"># [{'node': 'publish', 'risk': 'HIGH'}]</span>
-<span class="kw">print</span>(analytics.parallel_groups())       <span class="cm"># [['gather'], ['analyze', 'review'], ['publish']]</span>
-<span class="kw">print</span>(analytics.summary())</code></pre>
+<span class="cm"># From raw nodes and edges</span>
+analyzer = WorkflowAnalyzer(
+    nodes=[<span class="string">"fetch"</span>, <span class="string">"process_a"</span>, <span class="string">"process_b"</span>, <span class="string">"merge"</span>, <span class="string">"output"</span>],
+    edges=[(<span class="string">"fetch"</span>, <span class="string">"process_a"</span>), (<span class="string">"fetch"</span>, <span class="string">"process_b"</span>),
+           (<span class="string">"process_a"</span>, <span class="string">"merge"</span>), (<span class="string">"process_b"</span>, <span class="string">"merge"</span>),
+           (<span class="string">"merge"</span>, <span class="string">"output"</span>)],
+)
+
+<span class="cm"># Or from a compiled FlowGraph</span>
+analyzer = WorkflowAnalyzer.from_flow_graph(compiled_flow)
+
+<span class="cm"># Full report</span>
+report = analyzer.full_report()
+<span class="kw">print</span>(report.summary())</code></pre>
+
+<h2 id="ga-critical">Critical Path &amp; Bottlenecks</h2>
+<pre class="code-block"><code>report = analyzer.full_report()
+
+<span class="cm"># Critical path — longest execution chain</span>
+<span class="kw">print</span>(report.critical_path)           <span class="cm"># ['fetch', 'process_a', 'merge', 'output']</span>
+<span class="kw">print</span>(report.critical_path_length)     <span class="cm"># 4</span>
+
+<span class="cm"># Bottlenecks — nodes everything flows through</span>
+<span class="kw">print</span>(report.bottlenecks)              <span class="cm"># ['merge']</span>
+
+<span class="cm"># Single points of failure — removal disconnects graph</span>
+<span class="kw">print</span>(report.single_points_of_failure) <span class="cm"># ['merge']</span>
+
+<span class="cm"># Articulation points &amp; bridges</span>
+<span class="kw">print</span>(analyzer.articulation_points())  <span class="cm"># ['merge'] — critical nodes</span>
+<span class="kw">print</span>(analyzer.bridges())              <span class="cm"># [('merge','output')] — critical edges</span></code></pre>
+
+<h2 id="ga-parallel">Parallel Scheduling</h2>
+<pre class="code-block"><code><span class="cm"># Find groups that can run in parallel</span>
+<span class="kw">print</span>(report.parallel_opportunities)   <span class="cm"># [['process_a', 'process_b']]</span>
+
+<span class="cm"># Topological generations — execute level by level</span>
+gens = analyzer.topological_generations()
+<span class="kw">for</span> i, level <span class="kw">in</span> <span class="kw">enumerate</span>(gens):
+    <span class="kw">print</span>(f<span class="string">"Level {i}: {level} (run in parallel)"</span>)
+<span class="cm"># Level 0: ['fetch'] (run in parallel)</span>
+<span class="cm"># Level 1: ['process_a', 'process_b'] (run in parallel)</span>
+<span class="cm"># Level 2: ['merge'] (run in parallel)</span>
+<span class="cm"># Level 3: ['output'] (run in parallel)</span>
+
+<span class="cm"># Graph width — maximum parallelism possible</span>
+<span class="kw">print</span>(report.width)                    <span class="cm"># 2</span></code></pre>
+
+<h2 id="ga-ranking">Node Importance Ranking</h2>
+<pre class="code-block"><code><span class="cm"># PageRank — Google's algorithm applied to agents</span>
+<span class="kw">print</span>(report.pagerank)
+<span class="cm"># {'merge': 0.28, 'fetch': 0.22, 'output': 0.20, ...}</span>
+
+<span class="cm"># Top nodes by importance</span>
+<span class="kw">print</span>(report.most_important_nodes[:3])
+<span class="cm"># [('merge', 0.28), ('fetch', 0.22), ('output', 0.20)]</span>
+
+<span class="cm"># HITS — Hub/Authority scores</span>
+hubs, authorities = analyzer.hits()
+<span class="cm"># Hubs = nodes routing to many others (orchestrators)</span>
+<span class="cm"># Authorities = nodes many route to (workers)</span>
+
+<span class="cm"># Detailed per-node metrics</span>
+<span class="kw">for</span> node_id, m <span class="kw">in</span> report.node_metrics.items():
+    <span class="kw">print</span>(f<span class="string">"{node_id}: degree={m.degree_centrality:.2f}, betweenness={m.betweenness_centrality:.2f}"</span>)</code></pre>
+
+<h2 id="ga-dag">DAG Analysis &amp; Dependencies</h2>
+<pre class="code-block"><code><span class="cm"># Ancestors — all upstream nodes</span>
+<span class="kw">print</span>(analyzer.ancestors(<span class="string">"merge"</span>))     <span class="cm"># {'fetch', 'process_a', 'process_b'}</span>
+
+<span class="cm"># Descendants — all downstream nodes</span>
+<span class="kw">print</span>(analyzer.descendants(<span class="string">"fetch"</span>))  <span class="cm"># {'process_a', 'process_b', 'merge', 'output'}</span>
+
+<span class="cm"># Transitive reduction — remove redundant edges</span>
+<span class="kw">print</span>(analyzer.transitive_reduction())
+<span class="cm"># Only essential edges, redundant shortcuts removed</span>
+
+<span class="cm"># Transitive closure — all reachable pairs</span>
+<span class="kw">print</span>(analyzer.transitive_closure())
+
+<span class="cm"># Cycle detection</span>
+<span class="kw">print</span>(analyzer.find_cycles())          <span class="cm"># [] if DAG, or list of cycles</span>
+<span class="kw">print</span>(report.is_dag)                   <span class="cm"># True</span></code></pre>
+
+<h2 id="ga-flow">Flow &amp; Capacity</h2>
+<pre class="code-block"><code><span class="cm"># Add edge weights for capacity</span>
+analyzer = WorkflowAnalyzer(
+    nodes=[<span class="string">"source"</span>, <span class="string">"a"</span>, <span class="string">"b"</span>, <span class="string">"sink"</span>],
+    edges=[(<span class="string">"source"</span>,<span class="string">"a"</span>), (<span class="string">"source"</span>,<span class="string">"b"</span>), (<span class="string">"a"</span>,<span class="string">"sink"</span>), (<span class="string">"b"</span>,<span class="string">"sink"</span>)],
+    edge_weights={(<span class="string">"source"</span>,<span class="string">"a"</span>): 10, (<span class="string">"source"</span>,<span class="string">"b"</span>): 5, (<span class="string">"a"</span>,<span class="string">"sink"</span>): 8, (<span class="string">"b"</span>,<span class="string">"sink"</span>): 7},
+)
+
+<span class="cm"># Maximum flow — how much throughput possible?</span>
+flow_value, flow_dict = analyzer.max_flow(<span class="string">"source"</span>, <span class="string">"sink"</span>)
+<span class="kw">print</span>(f<span class="string">"Max throughput: {flow_value}"</span>)  <span class="cm"># 15</span>
+
+<span class="cm"># Minimum cut — weakest link</span>
+cut_value, (set_a, set_b) = analyzer.min_cut(<span class="string">"source"</span>, <span class="string">"sink"</span>)
+<span class="kw">print</span>(f<span class="string">"Min cut: {cut_value}, partition: {set_a} | {set_b}"</span>)</code></pre>
+
+<h2 id="ga-optimization">Optimization Algorithms</h2>
+<pre class="code-block"><code><span class="cm"># Graph coloring — assign resources without conflicts</span>
+colors = analyzer.graph_coloring()
+<span class="kw">print</span>(colors)  <span class="cm"># {'a': 0, 'b': 1, 'c': 1, 'd': 0} — same color = can share resources</span>
+
+<span class="cm"># Dominating set — minimum nodes to monitor all others</span>
+dom = analyzer.dominating_set()
+<span class="kw">print</span>(dom)  <span class="cm"># {'fetch', 'merge'} — monitoring these covers everything</span>
+
+<span class="cm"># Minimum spanning tree — most efficient connection</span>
+mst = analyzer.minimum_spanning_tree()
+<span class="kw">print</span>(mst)  <span class="cm"># Essential edges only</span></code></pre>
+
+<h2 id="ga-community">Community Detection &amp; Structure</h2>
+<pre class="code-block"><code><span class="cm"># Communities — group related agents</span>
+<span class="kw">print</span>(report.communities)
+<span class="cm"># [['fetch', 'process_a'], ['process_b', 'merge', 'output']]</span>
+
+<span class="cm"># Strongly connected components</span>
+<span class="kw">print</span>(analyzer.strongly_connected_components())
+
+<span class="cm"># Structural holes — brokerage opportunities</span>
+<span class="kw">print</span>(analyzer.structural_holes())
+<span class="cm"># Lower constraint = more brokerage power between groups</span>
+
+<span class="cm"># Clustering coefficient — how tightly connected neighborhoods are</span>
+<span class="kw">print</span>(analyzer.clustering_coefficient())</code></pre>
+
+<h2 id="ga-prediction">Link Prediction &amp; Classification</h2>
+<pre class="code-block"><code><span class="cm"># Predict likely new connections between agents</span>
+predictions = analyzer.link_prediction(method=<span class="string">"jaccard"</span>)
+<span class="kw">for</span> u, v, score <span class="kw">in</span> predictions[:5]:
+    <span class="kw">print</span>(f<span class="string">"Likely connection: {u} -> {v} (score: {score:.3f})"</span>)
+
+<span class="cm"># Methods: "jaccard", "adamic_adar", "preferential"</span>
+
+<span class="cm"># Node classification — propagate roles through workflow</span>
+labeled = {<span class="string">"fetch"</span>: <span class="string">"data"</span>, <span class="string">"output"</span>: <span class="string">"action"</span>}
+all_labels = analyzer.node_classification(labeled)
+<span class="kw">print</span>(all_labels)
+<span class="cm"># {'fetch': 'data', 'process_a': 'data', 'process_b': 'data',</span>
+<span class="cm">#  'merge': 'data', 'output': 'action'}</span></code></pre>
+
+<h2 id="ga-routing">Routing Algorithms</h2>
+<pre class="code-block"><code><span class="cm"># Shortest path between nodes</span>
+path = analyzer.shortest_path(<span class="string">"fetch"</span>, <span class="string">"output"</span>)
+<span class="kw">print</span>(path)  <span class="cm"># ['fetch', 'process_a', 'merge', 'output']</span>
+
+<span class="cm"># All possible paths</span>
+all_p = analyzer.all_paths(<span class="string">"fetch"</span>, <span class="string">"output"</span>)
+<span class="kw">print</span>(all_p)
+<span class="cm"># [['fetch','process_a','merge','output'], ['fetch','process_b','merge','output']]</span>
+
+<span class="cm"># Optimal (minimum weight) route</span>
+optimal = analyzer.optimal_route(<span class="string">"fetch"</span>, <span class="string">"output"</span>)</code></pre>
+
+<h2 id="ga-metrics">Graph Metrics</h2>
+<pre class="code-block"><code><span class="cm"># Quality scores</span>
+<span class="kw">print</span>(f<span class="string">"Connectivity: {report.connectivity_score:.2f}"</span>)  <span class="cm"># 0-1</span>
+<span class="kw">print</span>(f<span class="string">"Balance: {report.balance_score:.2f}"</span>)          <span class="cm"># 0-1 (workload distribution)</span>
+<span class="kw">print</span>(f<span class="string">"Complexity: {report.complexity_score:.2f}"</span>)      <span class="cm"># 0-1 (McCabe-like)</span>
+
+<span class="cm"># Structural metrics</span>
+<span class="kw">print</span>(f<span class="string">"Density: {analyzer.density():.3f}"</span>)
+<span class="kw">print</span>(f<span class="string">"Diameter: {analyzer.diameter()}"</span>)
+<span class="kw">print</span>(f<span class="string">"Radius: {analyzer.radius()}"</span>)
+<span class="kw">print</span>(f<span class="string">"Center nodes: {analyzer.center_nodes()}"</span>)
+<span class="kw">print</span>(f<span class="string">"Periphery: {analyzer.periphery_nodes()}"</span>)
+<span class="kw">print</span>(f<span class="string">"Avg clustering: {analyzer.average_clustering():.3f}"</span>)
+<span class="kw">print</span>(f<span class="string">"Is bipartite: {analyzer.is_bipartite()}"</span>)
+
+<span class="cm"># Efficiency</span>
+eff = analyzer.efficiency()
+<span class="kw">print</span>(f<span class="string">"Local efficiency: {eff['local']:.3f}"</span>)
+<span class="kw">print</span>(f<span class="string">"Global efficiency: {eff['global']:.3f}"</span>)</code></pre>
+
+<h2 id="ga-export">Export Formats</h2>
+<pre class="code-block"><code><span class="cm"># ASCII art</span>
+<span class="kw">print</span>(analyzer.full_report().summary())
+
+<span class="cm"># Mermaid diagram (paste into GitHub markdown)</span>
+<span class="kw">print</span>(analyzer.to_mermaid())
+<span class="cm"># graph LR</span>
+<span class="cm">#     fetch --> process_a</span>
+<span class="cm">#     fetch --> process_b</span>
+<span class="cm">#     ...</span>
+
+<span class="cm"># DOT format (GraphViz)</span>
+<span class="kw">print</span>(analyzer.to_dot())
+
+<span class="cm"># Standard graph formats</span>
+graphml = analyzer.to_graphml()  <span class="cm"># GraphML XML</span>
+gml = analyzer.to_gml()          <span class="cm"># Graph Modelling Language</span>
+gexf = analyzer.to_gexf()        <span class="cm"># Gephi format</span>
+
+<span class="cm"># JSON (for web visualization)</span>
+data = analyzer.to_json()
+
+<span class="cm"># Adjacency matrix</span>
+matrix = analyzer.to_adjacency_matrix()
+
+<span class="cm"># Get raw NetworkX graph for custom analysis</span>
+G = analyzer.to_networkx()  <span class="cm"># nx.DiGraph object</span></code></pre>
 </div>
 
 <div id="page-a2a" class="page">
