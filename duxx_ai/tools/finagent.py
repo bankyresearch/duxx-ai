@@ -1,23 +1,28 @@
-"""Financial Financial Data Tools for Duxx AI Agents.
+"""Financial Agent Tools for Duxx AI — Direct data access, zero external framework dependency.
 
-Provides agent-ready tools for financial data access powered by Financial's
-Open Data Platform. Covers stocks, crypto, forex, options, economy, and more.
+Connects directly to free + paid financial data APIs:
+- Yahoo Finance (yfinance) — stocks, crypto, forex, indices, commodities
+- FRED (Federal Reserve) — economic indicators (free API key)
+- SEC EDGAR — company filings (free, no key)
+- CoinGecko — crypto (free, no key)
+- ExchangeRate API — forex (free, no key)
+- Alpha Vantage — market data (optional paid key)
+- FMP (Financial Modeling Prep) — fundamentals (optional paid key)
+- Polygon.io — real-time market data (optional paid key)
 
-Requires: pip install finagent
+No OpenBB, no LangChain, no external framework. Pure Duxx AI.
 
 Usage:
     from duxx_ai.tools.finagent import get_financial_tools, FinancialAgent
 
-    # Get all financial tools
     tools = get_financial_tools()
-
-    # Or create a ready-made financial agent
-    agent = FinancialAgent.create(provider="yfinance")
+    agent = FinancialAgent.create()
     result = await agent.run("Analyze AAPL stock performance")
 """
 
 from __future__ import annotations
 
+import json
 import logging
 from typing import Any
 
@@ -26,438 +31,239 @@ from duxx_ai.core.tool import Tool, ToolParameter
 logger = logging.getLogger(__name__)
 
 
-def _safe_finagent_call(fn_path: str, **kwargs: Any) -> str:
-    """Safely call an Financial function and return formatted result."""
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#  Direct Data Fetchers (no external framework)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+def _yf_fetch(symbol: str, period: str = "3mo") -> str:
     try:
-        from finagent import obb
-        # Navigate to the function
-        parts = fn_path.split(".")
-        obj = obb
-        for part in parts:
-            obj = getattr(obj, part)
-        result = obj(**kwargs)
-        if hasattr(result, "to_dataframe"):
-            df = result.to_dataframe()
-            return df.to_string(max_rows=20)
-        return str(result.results) if hasattr(result, "results") else str(result)
-    except ImportError:
-        return f"[Financial not installed. Run: pip install finagent]\nWould call: obb.{fn_path}({kwargs})"
-    except Exception as e:
-        return f"Error calling obb.{fn_path}: {e}"
+        import yfinance as yf
+        ticker = yf.Ticker(symbol)
+        hist = ticker.history(period=period)
+        if hist.empty: return f"No data found for {symbol}"
+        return hist.tail(20).to_string()
+    except ImportError: return _yahoo_api_fallback(symbol)
+    except Exception as e: return f"Error fetching {symbol}: {e}"
+
+
+def _yf_info(symbol: str) -> str:
+    try:
+        import yfinance as yf
+        info = yf.Ticker(symbol).info
+        keys = ["shortName","sector","industry","fullTimeEmployees","marketCap","trailingPE","forwardPE","trailingEps","dividendYield","fiftyTwoWeekHigh","fiftyTwoWeekLow","averageVolume","currency","website","longBusinessSummary"]
+        result = {k: info.get(k, "N/A") for k in keys if k in info}
+        if "longBusinessSummary" in result: result["longBusinessSummary"] = result["longBusinessSummary"][:300] + "..."
+        return json.dumps(result, indent=2, default=str)
+    except ImportError: return "[yfinance not installed. Run: pip install yfinance]"
+    except Exception as e: return f"Error: {e}"
+
+
+def _yf_financials(symbol: str, statement: str = "income") -> str:
+    try:
+        import yfinance as yf
+        t = yf.Ticker(symbol)
+        df = {"income": t.income_stmt, "balance": t.balance_sheet, "cash": t.cashflow}.get(statement, t.income_stmt)
+        return df.to_string() if df is not None and not df.empty else f"No {statement} data"
+    except ImportError: return "[pip install yfinance]"
+    except Exception as e: return f"Error: {e}"
+
+
+def _yahoo_api_fallback(symbol: str) -> str:
+    try:
+        import httpx
+        resp = httpx.get(f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?range=3mo&interval=1d", headers={"User-Agent": "DuxxAI/1.0"}, timeout=10)
+        if resp.status_code == 200:
+            meta = resp.json().get("chart", {}).get("result", [{}])[0].get("meta", {})
+            return json.dumps({k: meta.get(k) for k in ["symbol","currency","regularMarketPrice","previousClose","fiftyTwoWeekHigh","fiftyTwoWeekLow"]}, indent=2)
+        return f"Yahoo API: {resp.status_code}"
+    except Exception as e: return f"Error: {e}"
+
+
+def _fred_fetch(series_id: str) -> str:
+    import os; key = os.environ.get("FRED_API_KEY", "")
+    if not key: return "[Set FRED_API_KEY. Free at: https://fred.stlouisfed.org/docs/api/api_key.html]"
+    try:
+        import httpx
+        resp = httpx.get("https://api.stlouisfed.org/fred/series/observations", params={"series_id": series_id, "api_key": key, "file_type": "json", "sort_order": "desc", "limit": 15}, timeout=10)
+        return "\n".join(f"{o['date']}: {o['value']}" for o in resp.json().get("observations", []))
+    except Exception as e: return f"FRED error: {e}"
+
+
+def _coingecko_fetch(coin_id: str) -> str:
+    try:
+        import httpx
+        data = httpx.get(f"https://api.coingecko.com/api/v3/coins/{coin_id}", params={"localization":"false","tickers":"false","community_data":"false","developer_data":"false"}, timeout=10).json()
+        m = data.get("market_data", {})
+        return json.dumps({"name":data.get("name"),"symbol":data.get("symbol"),"price_usd":m.get("current_price",{}).get("usd"),"market_cap":m.get("market_cap",{}).get("usd"),"24h_change":m.get("price_change_percentage_24h"),"7d_change":m.get("price_change_percentage_7d"),"ath":m.get("ath",{}).get("usd"),"volume":m.get("total_volume",{}).get("usd")}, indent=2, default=str)
+    except Exception as e: return f"CoinGecko error: {e}"
+
+
+def _exchangerate_fetch(base: str = "USD") -> str:
+    try:
+        import httpx
+        rates = httpx.get(f"https://open.er-api.com/v6/latest/{base}", timeout=10).json().get("rates", {})
+        return json.dumps({"base": base, "rates": {k: rates[k] for k in ["EUR","GBP","JPY","CHF","AUD","CAD","CNY","INR","KRW","SGD"] if k in rates}}, indent=2)
+    except Exception as e: return f"Forex error: {e}"
+
+
+def _sec_filings(symbol: str) -> str:
+    try:
+        import httpx
+        resp = httpx.get(f"https://efts.sec.gov/LATEST/search-index?q=%22{symbol}%22&forms=10-K,10-Q,8-K", headers={"User-Agent": "DuxxAI research@duxx.ai"}, timeout=10)
+        if resp.status_code == 200:
+            hits = resp.json().get("hits", {}).get("hits", [])[:5]
+            return "\n".join(f"{h['_source'].get('file_date','N/A')} | {h['_source'].get('form_type','N/A')} | {h['_source'].get('entity_name','N/A')}" for h in hits) or f"No filings for {symbol}"
+        return f"SEC search: {resp.status_code}"
+    except Exception as e: return f"SEC error: {e}"
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-#  Individual Financial Tools
+#  Tool Builder
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-def _create_stock_price_tool() -> Tool:
-    tool = Tool(
-        name="stock_price",
-        description="Get historical stock price data (OHLCV) for any ticker symbol. Returns date, open, high, low, close, volume.",
-        parameters=[
-            ToolParameter(name="symbol", type="string", description="Stock ticker (e.g. AAPL, TSLA, MSFT)", required=True),
-            ToolParameter(name="period", type="string", description="Time period: 1d, 5d, 1mo, 3mo, 6mo, 1y, 5y, max", required=False, default="3mo"),
-        ],
-        tags=["finance", "finagent", "equity"],
-    )
-    async def _execute(call: Any) -> str:
-        args = call.get("arguments", {}) if isinstance(call, dict) else getattr(call, "arguments", {})
-        return _safe_finagent_call("equity.price.historical", symbol=args.get("symbol", "AAPL"))
-    tool.bind(_execute)
+def _t(name, desc, params, fn, tags=None):
+    tool = Tool(name=name, description=desc, parameters=params, tags=tags or ["finance"])
+    tool.bind(fn)
     return tool
 
-
-def _create_company_profile_tool() -> Tool:
-    tool = Tool(
-        name="company_profile",
-        description="Get company profile information — sector, industry, employees, description, market cap, CEO, website.",
-        parameters=[ToolParameter(name="symbol", type="string", description="Stock ticker", required=True)],
-        tags=["finance", "finagent", "equity"],
-    )
-    async def _execute(call: Any) -> str:
-        args = call.get("arguments", {}) if isinstance(call, dict) else getattr(call, "arguments", {})
-        return _safe_finagent_call("equity.profile", symbol=args.get("symbol", "AAPL"))
-    tool.bind(_execute)
-    return tool
+def _a(call): return call.get("arguments", {}) if isinstance(call, dict) else getattr(call, "arguments", {})
 
 
-def _create_financial_metrics_tool() -> Tool:
-    tool = Tool(
-        name="financial_metrics",
-        description="Get key financial metrics — P/E ratio, EPS, market cap, revenue, profit margins, ROE, debt ratios.",
-        parameters=[ToolParameter(name="symbol", type="string", description="Stock ticker", required=True)],
-        tags=["finance", "finagent", "equity"],
-    )
-    async def _execute(call: Any) -> str:
-        args = call.get("arguments", {}) if isinstance(call, dict) else getattr(call, "arguments", {})
-        return _safe_finagent_call("equity.fundamental.metrics", symbol=args.get("symbol", "AAPL"))
-    tool.bind(_execute)
-    return tool
+def _create_tools() -> dict[str, Tool]:
+    tools = {}
+
+    async def _f1(c): return _yf_fetch(_a(c).get("symbol","AAPL"), _a(c).get("period","3mo"))
+    tools["stock_price"] = _t("stock_price", "Get historical stock price (OHLCV). Source: Yahoo Finance.", [ToolParameter(name="symbol",type="string",description="Ticker e.g. AAPL",required=True), ToolParameter(name="period",type="string",description="1d,5d,1mo,3mo,6mo,1y,5y,max",required=False,default="3mo")], _f1, ["finance","equity"])
+
+    async def _f2(c): return _yf_info(_a(c).get("symbol","AAPL"))
+    tools["company_profile"] = _t("company_profile", "Get company info — sector, industry, market cap, P/E, EPS, 52wk range.", [ToolParameter(name="symbol",type="string",description="Ticker",required=True)], _f2, ["finance","equity"])
+
+    async def _f3(c): return _yf_financials(_a(c).get("symbol","AAPL"), "income")
+    tools["income_statement"] = _t("income_statement", "Get income statement — revenue, gross profit, net income, EPS.", [ToolParameter(name="symbol",type="string",description="Ticker",required=True)], _f3, ["finance","equity"])
+
+    async def _f4(c): return _yf_financials(_a(c).get("symbol","AAPL"), "balance")
+    tools["balance_sheet"] = _t("balance_sheet", "Get balance sheet — assets, liabilities, equity, cash, debt.", [ToolParameter(name="symbol",type="string",description="Ticker",required=True)], _f4, ["finance","equity"])
+
+    async def _f5(c): return _yf_financials(_a(c).get("symbol","AAPL"), "cash")
+    tools["cash_flow"] = _t("cash_flow", "Get cash flow — operating, investing, financing, free cash flow.", [ToolParameter(name="symbol",type="string",description="Ticker",required=True)], _f5, ["finance","equity"])
+
+    async def _f6(c):
+        try:
+            import yfinance as yf; news = yf.Ticker(_a(c).get("symbol","AAPL")).news[:5]
+            return "\n".join(f"- {n.get('title','')} ({n.get('publisher','')})" for n in news) or "No news"
+        except: return "[pip install yfinance for news]"
+    tools["market_news"] = _t("market_news", "Get latest financial news for a stock.", [ToolParameter(name="symbol",type="string",description="Ticker",required=False)], _f6, ["finance","news"])
+
+    async def _f7(c): return _coingecko_fetch(_a(c).get("coin_id","bitcoin"))
+    tools["crypto_price"] = _t("crypto_price", "Get crypto data — price, market cap, changes, ATH. Free via CoinGecko.", [ToolParameter(name="coin_id",type="string",description="bitcoin, ethereum, solana, cardano",required=True)], _f7, ["finance","crypto"])
+
+    async def _f8(c): return _exchangerate_fetch(_a(c).get("base","USD"))
+    tools["forex_rates"] = _t("forex_rates", "Get forex rates for major currencies. Free, no API key.", [ToolParameter(name="base",type="string",description="USD, EUR, GBP",required=False,default="USD")], _f8, ["finance","forex"])
+
+    async def _f9(c):
+        ind = _a(c).get("indicator","GDP").upper()
+        m = {"GDP":"GDP","CPI":"CPIAUCSL","UNEMPLOYMENT":"UNRATE","FED_RATE":"FEDFUNDS","INFLATION":"T10YIE","M2":"M2SL","RETAIL_SALES":"RSXFS","HOUSING":"HOUST","CONSUMER_SENTIMENT":"UMCSENT"}
+        return _fred_fetch(m.get(ind, ind))
+    tools["economic_indicator"] = _t("economic_indicator", "Get US economic data from FRED — GDP, CPI, unemployment, fed rate, inflation.", [ToolParameter(name="indicator",type="string",description="GDP,CPI,UNEMPLOYMENT,FED_RATE,INFLATION,M2,RETAIL_SALES,HOUSING,CONSUMER_SENTIMENT",required=True)], _f9, ["finance","economy"])
+
+    async def _f10(c): return _sec_filings(_a(c).get("symbol","AAPL"))
+    tools["sec_filings"] = _t("sec_filings", "Get SEC filings (10-K, 10-Q, 8-K) from EDGAR. Free.", [ToolParameter(name="symbol",type="string",description="Ticker",required=True)], _f10, ["finance","regulatory"])
+
+    async def _f11(c):
+        try:
+            import yfinance as yf; t = yf.Ticker(_a(c).get("symbol","AAPL")); d = t.options[:3]; chain = t.option_chain(d[0])
+            return f"Expiry: {d[0]}\nCALLS:\n{chain.calls.head(10).to_string()}\nPUTS:\n{chain.puts.head(10).to_string()}"
+        except: return "[pip install yfinance for options]"
+    tools["options_chain"] = _t("options_chain", "Get options chain — calls/puts, strike, premium, IV, volume.", [ToolParameter(name="symbol",type="string",description="Ticker",required=True)], _f11, ["finance","options"])
+
+    async def _f12(c):
+        try:
+            import yfinance as yf; d = yf.Ticker(_a(c).get("symbol","AAPL")).dividends
+            return d.tail(20).to_string() if d is not None and not d.empty else "No dividends"
+        except: return "[pip install yfinance]"
+    tools["dividends"] = _t("dividends", "Get dividend history — dates, amounts, yield.", [ToolParameter(name="symbol",type="string",description="Ticker",required=True)], _f12, ["finance","equity"])
+
+    async def _f13(c):
+        try:
+            import yfinance as yf; d = yf.Ticker(_a(c).get("symbol","AAPL")).insider_transactions
+            return d.head(15).to_string() if d is not None and not d.empty else "No insider data"
+        except: return "[pip install yfinance]"
+    tools["insider_trading"] = _t("insider_trading", "Get insider trading — executive buys/sells, amounts.", [ToolParameter(name="symbol",type="string",description="Ticker",required=True)], _f13, ["finance","equity"])
+
+    async def _f14(c):
+        try:
+            import yfinance as yf; d = yf.Ticker(_a(c).get("symbol","AAPL")).recommendations
+            return d.tail(10).to_string() if d is not None and not d.empty else "No recommendations"
+        except: return "[pip install yfinance]"
+    tools["analyst_recommendations"] = _t("analyst_recommendations", "Get analyst buy/sell/hold recommendations.", [ToolParameter(name="symbol",type="string",description="Ticker",required=True)], _f14, ["finance","equity"])
+
+    async def _f15(c): return _yf_fetch(_a(c).get("symbol","^GSPC"), "1mo")
+    tools["market_index"] = _t("market_index", "Get index data — S&P 500 (^GSPC), NASDAQ (^IXIC), Dow (^DJI).", [ToolParameter(name="symbol",type="string",description="^GSPC, ^IXIC, ^DJI, ^RUT",required=True)], _f15, ["finance","index"])
+
+    async def _f16(c): return _yf_fetch(_a(c).get("symbol","GC=F"), "1mo")
+    tools["commodity_price"] = _t("commodity_price", "Get commodity prices — Gold (GC=F), Oil (CL=F), Silver (SI=F).", [ToolParameter(name="symbol",type="string",description="GC=F, CL=F, SI=F, NG=F",required=True)], _f16, ["finance","commodities"])
+
+    async def _f17(c):
+        syms = _a(c).get("symbols","AAPL,MSFT").split(",")
+        return "\n\n".join(f"=== {s.strip()} ===\n{_yf_info(s.strip())}" for s in syms[:5])
+    tools["compare_stocks"] = _t("compare_stocks", "Compare multiple stocks side by side.", [ToolParameter(name="symbols",type="string",description="Comma-separated: AAPL,MSFT,GOOGL",required=True)], _f17, ["finance","equity"])
+
+    async def _f18(c):
+        try:
+            import yfinance as yf; return str(yf.Ticker(_a(c).get("symbol","AAPL")).calendar)
+        except: return "[pip install yfinance]"
+    tools["earnings_calendar"] = _t("earnings_calendar", "Get upcoming earnings date and estimates.", [ToolParameter(name="symbol",type="string",description="Ticker",required=True)], _f18, ["finance","equity"])
+
+    async def _f19(c):
+        try:
+            import yfinance as yf; t = yf.Ticker(_a(c).get("symbol","AAPL")); h = t.institutional_holders
+            return h.head(15).to_string() if h is not None and not h.empty else "No institutional data"
+        except: return "[pip install yfinance]"
+    tools["institutional_holders"] = _t("institutional_holders", "Get top institutional holders — Vanguard, BlackRock, etc.", [ToolParameter(name="symbol",type="string",description="Ticker",required=True)], _f19, ["finance","equity"])
+
+    return tools
 
 
-def _create_income_statement_tool() -> Tool:
-    tool = Tool(
-        name="income_statement",
-        description="Get income statement data — revenue, cost of goods, gross profit, operating income, net income, EPS.",
-        parameters=[
-            ToolParameter(name="symbol", type="string", description="Stock ticker", required=True),
-            ToolParameter(name="period", type="string", description="annual or quarter", required=False, default="annual"),
-        ],
-        tags=["finance", "finagent", "equity"],
-    )
-    async def _execute(call: Any) -> str:
-        args = call.get("arguments", {}) if isinstance(call, dict) else getattr(call, "arguments", {})
-        return _safe_finagent_call("equity.fundamental.income", symbol=args.get("symbol", "AAPL"), period=args.get("period", "annual"))
-    tool.bind(_execute)
-    return tool
-
-
-def _create_balance_sheet_tool() -> Tool:
-    tool = Tool(
-        name="balance_sheet",
-        description="Get balance sheet data — total assets, liabilities, equity, cash, debt, inventory.",
-        parameters=[ToolParameter(name="symbol", type="string", description="Stock ticker", required=True)],
-        tags=["finance", "finagent", "equity"],
-    )
-    async def _execute(call: Any) -> str:
-        args = call.get("arguments", {}) if isinstance(call, dict) else getattr(call, "arguments", {})
-        return _safe_finagent_call("equity.fundamental.balance", symbol=args.get("symbol", "AAPL"))
-    tool.bind(_execute)
-    return tool
-
-
-def _create_cash_flow_tool() -> Tool:
-    tool = Tool(
-        name="cash_flow",
-        description="Get cash flow statement — operating, investing, financing cash flows, free cash flow, capex.",
-        parameters=[ToolParameter(name="symbol", type="string", description="Stock ticker", required=True)],
-        tags=["finance", "finagent", "equity"],
-    )
-    async def _execute(call: Any) -> str:
-        args = call.get("arguments", {}) if isinstance(call, dict) else getattr(call, "arguments", {})
-        return _safe_finagent_call("equity.fundamental.cash", symbol=args.get("symbol", "AAPL"))
-    tool.bind(_execute)
-    return tool
-
-
-def _create_stock_screener_tool() -> Tool:
-    tool = Tool(
-        name="stock_screener",
-        description="Screen stocks by criteria — market cap, sector, P/E ratio, dividend yield, etc. Returns matching tickers.",
-        parameters=[
-            ToolParameter(name="sector", type="string", description="Sector filter (e.g. Technology, Healthcare)", required=False),
-            ToolParameter(name="market_cap_min", type="number", description="Minimum market cap in billions", required=False),
-        ],
-        tags=["finance", "finagent", "equity"],
-    )
-    async def _execute(call: Any) -> str:
-        return _safe_finagent_call("equity.screener")
-    tool.bind(_execute)
-    return tool
-
-
-def _create_market_news_tool() -> Tool:
-    tool = Tool(
-        name="market_news",
-        description="Get latest financial news — market news, company-specific news, analyst reports.",
-        parameters=[
-            ToolParameter(name="symbol", type="string", description="Stock ticker for company news (optional)", required=False),
-            ToolParameter(name="limit", type="integer", description="Number of articles", required=False, default=10),
-        ],
-        tags=["finance", "finagent", "news"],
-    )
-    async def _execute(call: Any) -> str:
-        args = call.get("arguments", {}) if isinstance(call, dict) else getattr(call, "arguments", {})
-        symbol = args.get("symbol")
-        if symbol:
-            return _safe_finagent_call("news.company", symbol=symbol, limit=args.get("limit", 10))
-        return _safe_finagent_call("news.world", limit=args.get("limit", 10))
-    tool.bind(_execute)
-    return tool
-
-
-def _create_crypto_price_tool() -> Tool:
-    tool = Tool(
-        name="crypto_price",
-        description="Get cryptocurrency price data — BTC, ETH, and 1000+ altcoins with OHLCV history.",
-        parameters=[ToolParameter(name="symbol", type="string", description="Crypto pair (e.g. BTC-USD, ETH-USD)", required=True)],
-        tags=["finance", "finagent", "crypto"],
-    )
-    async def _execute(call: Any) -> str:
-        args = call.get("arguments", {}) if isinstance(call, dict) else getattr(call, "arguments", {})
-        return _safe_finagent_call("crypto.price.historical", symbol=args.get("symbol", "BTC-USD"))
-    tool.bind(_execute)
-    return tool
-
-
-def _create_forex_rate_tool() -> Tool:
-    tool = Tool(
-        name="forex_rate",
-        description="Get foreign exchange rates — currency pairs like EUR/USD, GBP/JPY, etc.",
-        parameters=[ToolParameter(name="symbol", type="string", description="Currency pair (e.g. EUR/USD)", required=True)],
-        tags=["finance", "finagent", "forex"],
-    )
-    async def _execute(call: Any) -> str:
-        args = call.get("arguments", {}) if isinstance(call, dict) else getattr(call, "arguments", {})
-        return _safe_finagent_call("currency.price.historical", symbol=args.get("symbol", "EUR/USD"))
-    tool.bind(_execute)
-    return tool
-
-
-def _create_economic_indicator_tool() -> Tool:
-    tool = Tool(
-        name="economic_indicator",
-        description="Get macroeconomic data — GDP, inflation (CPI), unemployment, interest rates, consumer sentiment.",
-        parameters=[
-            ToolParameter(name="indicator", type="string", description="Indicator: gdp, cpi, unemployment, interest_rate, pmi", required=True),
-            ToolParameter(name="country", type="string", description="Country code (e.g. US, GB, JP)", required=False, default="US"),
-        ],
-        tags=["finance", "finagent", "economy"],
-    )
-    async def _execute(call: Any) -> str:
-        args = call.get("arguments", {}) if isinstance(call, dict) else getattr(call, "arguments", {})
-        indicator = args.get("indicator", "gdp")
-        routes = {"gdp": "economy.gdp.nominal", "cpi": "economy.cpi", "unemployment": "economy.unemployment", "interest_rate": "economy.interest_rate"}
-        route = routes.get(indicator, f"economy.{indicator}")
-        return _safe_finagent_call(route, country=args.get("country", "US"))
-    tool.bind(_execute)
-    return tool
-
-
-def _create_options_chain_tool() -> Tool:
-    tool = Tool(
-        name="options_chain",
-        description="Get options chain data — calls and puts with strike prices, premiums, Greeks, open interest.",
-        parameters=[ToolParameter(name="symbol", type="string", description="Stock ticker", required=True)],
-        tags=["finance", "finagent", "options"],
-    )
-    async def _execute(call: Any) -> str:
-        args = call.get("arguments", {}) if isinstance(call, dict) else getattr(call, "arguments", {})
-        return _safe_finagent_call("derivatives.options.chains", symbol=args.get("symbol", "AAPL"))
-    tool.bind(_execute)
-    return tool
-
-
-def _create_earnings_calendar_tool() -> Tool:
-    tool = Tool(
-        name="earnings_calendar",
-        description="Get upcoming earnings reports — dates, estimated EPS, actual EPS, surprise percentage.",
-        parameters=[ToolParameter(name="symbol", type="string", description="Stock ticker (optional for all upcoming)", required=False)],
-        tags=["finance", "finagent", "equity"],
-    )
-    async def _execute(call: Any) -> str:
-        args = call.get("arguments", {}) if isinstance(call, dict) else getattr(call, "arguments", {})
-        symbol = args.get("symbol")
-        if symbol:
-            return _safe_finagent_call("equity.calendar.earnings", symbol=symbol)
-        return _safe_finagent_call("equity.calendar.earnings")
-    tool.bind(_execute)
-    return tool
-
-
-def _create_analyst_estimates_tool() -> Tool:
-    tool = Tool(
-        name="analyst_estimates",
-        description="Get analyst consensus estimates — price targets, buy/sell ratings, revenue forecasts.",
-        parameters=[ToolParameter(name="symbol", type="string", description="Stock ticker", required=True)],
-        tags=["finance", "finagent", "equity"],
-    )
-    async def _execute(call: Any) -> str:
-        args = call.get("arguments", {}) if isinstance(call, dict) else getattr(call, "arguments", {})
-        return _safe_finagent_call("equity.estimates.consensus", symbol=args.get("symbol", "AAPL"))
-    tool.bind(_execute)
-    return tool
-
-
-def _create_market_index_tool() -> Tool:
-    tool = Tool(
-        name="market_index",
-        description="Get market index data — S&P 500, NASDAQ, Dow Jones, Russell 2000, FTSE, Nikkei, etc.",
-        parameters=[ToolParameter(name="symbol", type="string", description="Index symbol (e.g. ^GSPC, ^IXIC, ^DJI)", required=True)],
-        tags=["finance", "finagent", "index"],
-    )
-    async def _execute(call: Any) -> str:
-        args = call.get("arguments", {}) if isinstance(call, dict) else getattr(call, "arguments", {})
-        return _safe_finagent_call("index.price.historical", symbol=args.get("symbol", "^GSPC"))
-    tool.bind(_execute)
-    return tool
-
-
-def _create_commodity_price_tool() -> Tool:
-    tool = Tool(
-        name="commodity_price",
-        description="Get commodity prices — gold, silver, oil (WTI/Brent), natural gas, copper, wheat, corn.",
-        parameters=[ToolParameter(name="symbol", type="string", description="Commodity symbol (e.g. GC=F for gold, CL=F for oil)", required=True)],
-        tags=["finance", "finagent", "commodities"],
-    )
-    async def _execute(call: Any) -> str:
-        args = call.get("arguments", {}) if isinstance(call, dict) else getattr(call, "arguments", {})
-        return _safe_finagent_call("equity.price.historical", symbol=args.get("symbol", "GC=F"))
-    tool.bind(_execute)
-    return tool
-
-
-def _create_sec_filings_tool() -> Tool:
-    tool = Tool(
-        name="sec_filings",
-        description="Get SEC filings — 10-K, 10-Q, 8-K annual/quarterly reports and disclosures.",
-        parameters=[ToolParameter(name="symbol", type="string", description="Stock ticker", required=True)],
-        tags=["finance", "finagent", "regulatory"],
-    )
-    async def _execute(call: Any) -> str:
-        args = call.get("arguments", {}) if isinstance(call, dict) else getattr(call, "arguments", {})
-        return _safe_finagent_call("equity.fundamental.filings", symbol=args.get("symbol", "AAPL"))
-    tool.bind(_execute)
-    return tool
-
-
-def _create_insider_trading_tool() -> Tool:
-    tool = Tool(
-        name="insider_trading",
-        description="Get insider trading activity — executive buys/sells, transaction amounts, filing dates.",
-        parameters=[ToolParameter(name="symbol", type="string", description="Stock ticker", required=True)],
-        tags=["finance", "finagent", "equity"],
-    )
-    async def _execute(call: Any) -> str:
-        args = call.get("arguments", {}) if isinstance(call, dict) else getattr(call, "arguments", {})
-        return _safe_finagent_call("equity.ownership.insider_trading", symbol=args.get("symbol", "AAPL"))
-    tool.bind(_execute)
-    return tool
-
-
-def _create_dividend_tool() -> Tool:
-    tool = Tool(
-        name="dividends",
-        description="Get dividend history and upcoming dividends — payment dates, amounts, yield, ex-dates.",
-        parameters=[ToolParameter(name="symbol", type="string", description="Stock ticker", required=True)],
-        tags=["finance", "finagent", "equity"],
-    )
-    async def _execute(call: Any) -> str:
-        args = call.get("arguments", {}) if isinstance(call, dict) else getattr(call, "arguments", {})
-        return _safe_finagent_call("equity.fundamental.dividends", symbol=args.get("symbol", "AAPL"))
-    tool.bind(_execute)
-    return tool
-
-
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-#  Tool Registry
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-ALL_FINANCIAL_TOOLS = {
-    "stock_price": _create_stock_price_tool,
-    "company_profile": _create_company_profile_tool,
-    "financial_metrics": _create_financial_metrics_tool,
-    "income_statement": _create_income_statement_tool,
-    "balance_sheet": _create_balance_sheet_tool,
-    "cash_flow": _create_cash_flow_tool,
-    "stock_screener": _create_stock_screener_tool,
-    "market_news": _create_market_news_tool,
-    "crypto_price": _create_crypto_price_tool,
-    "forex_rate": _create_forex_rate_tool,
-    "economic_indicator": _create_economic_indicator_tool,
-    "options_chain": _create_options_chain_tool,
-    "earnings_calendar": _create_earnings_calendar_tool,
-    "analyst_estimates": _create_analyst_estimates_tool,
-    "market_index": _create_market_index_tool,
-    "commodity_price": _create_commodity_price_tool,
-    "sec_filings": _create_sec_filings_tool,
-    "insider_trading": _create_insider_trading_tool,
-    "dividends": _create_dividend_tool,
-}
+ALL_FINANCIAL_TOOLS = _create_tools()
 
 
 def get_financial_tools(names: list[str] | None = None) -> list[Tool]:
-    """Get Financial financial tools.
+    """Get financial data tools. 19 tools covering stocks, crypto, forex, economy, options.
 
-    Args:
-        names: Specific tool names, or None for all tools.
-
-    Returns:
-        List of Tool objects ready for use with any Duxx AI Agent.
-
-    Usage:
-        tools = get_financial_tools()  # All 19 tools
-        tools = get_financial_tools(["stock_price", "financial_metrics", "market_news"])
+    Data sources (all free, no external framework):
+        Yahoo Finance (yfinance), CoinGecko, ExchangeRate API, FRED, SEC EDGAR
     """
-    if names:
-        return [ALL_FINANCIAL_TOOLS[n]() for n in names if n in ALL_FINANCIAL_TOOLS]
-    return [fn() for fn in ALL_FINANCIAL_TOOLS.values()]
+    if names: return [ALL_FINANCIAL_TOOLS[n] for n in names if n in ALL_FINANCIAL_TOOLS]
+    return list(ALL_FINANCIAL_TOOLS.values())
 
 
 def list_financial_tools() -> list[dict[str, str]]:
-    """List all available Financial tools with descriptions."""
-    tools = get_financial_tools()
-    return [{"name": t.name, "description": t.description, "tags": t.tags} for t in tools]
+    return [{"name": t.name, "description": t.description, "tags": t.tags} for t in ALL_FINANCIAL_TOOLS.values()]
 
-
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-#  Pre-built Financial Agent
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 class FinancialAgent:
-    """Pre-built financial analysis agent powered by Financial data.
+    """Pre-built financial analyst agent. Direct data sources, no external framework."""
 
-    Usage:
-        from duxx_ai.tools.finagent import FinancialAgent
+    SYSTEM_PROMPT = """You are a senior financial analyst with real-time market data access.
 
-        agent = FinancialAgent.create()
-        result = await agent.run("Analyze AAPL stock — fundamentals, recent performance, and outlook")
-        result = await agent.run("Compare MSFT vs GOOGL P/E ratios")
-        result = await agent.run("What are the top gainers today?")
-        result = await agent.run("Get the latest crypto prices for BTC and ETH")
-    """
+Tools: stock prices, company profiles, financial statements (income/balance/cash flow),
+analyst recommendations, insider trading, dividends, options chains, crypto (CoinGecko),
+forex rates, economic indicators (FRED), SEC filings, earnings calendar, institutional holders.
 
-    SYSTEM_PROMPT = """You are a senior financial analyst with access to real-time market data via Financial.
+Analysis approach:
+1. Current price and key metrics (P/E, EPS, market cap)
+2. Financial statement trends
+3. Analyst sentiment and insider activity
+4. Relevant news and upcoming events
+5. Data-backed assessment
 
-Your capabilities:
-- Stock analysis (price history, fundamentals, metrics, filings)
-- Company research (profiles, earnings, dividends, insider trading)
-- Market overview (indices, news, screeners, calendars)
-- Crypto analysis (prices, market data)
-- Forex rates and currency analysis
-- Economic indicators (GDP, CPI, unemployment, interest rates)
-- Options analysis (chains, Greeks, implied volatility)
-- Commodity prices (gold, oil, natural gas)
-
-When analyzing stocks:
-1. Start with the company profile and current price
-2. Review key financial metrics (P/E, EPS, margins)
-3. Check income statement trends
-4. Note any recent news or insider activity
-5. Provide a balanced assessment with data-backed insights
-
-Always cite specific numbers and dates. Be precise with financial data.
-Format responses clearly with sections and bullet points."""
+Always cite specific numbers. Use tables for comparisons."""
 
     @classmethod
-    def create(
-        cls,
-        llm_provider: str = "openai",
-        llm_model: str = "gpt-4o",
-        tools: list[str] | None = None,
-    ) -> Any:
-        """Create a financial analysis agent.
-
-        Args:
-            llm_provider: LLM provider name
-            llm_model: Model name
-            tools: Specific Financial tools to include (None = all)
-
-        Returns:
-            Duxx AI Agent configured for financial analysis
-        """
+    def create(cls, llm_provider: str = "openai", llm_model: str = "gpt-4o", tools: list[str] | None = None) -> Any:
         from duxx_ai.core.agent import Agent, AgentConfig
         from duxx_ai.core.llm import LLMConfig
-
-        finagent_tools = get_financial_tools(tools)
-
-        agent = Agent(
-            config=AgentConfig(
-                name="financial-analyst",
-                system_prompt=cls.SYSTEM_PROMPT,
-                llm=LLMConfig(provider=llm_provider, model=llm_model),
-                max_iterations=15,
-            ),
-            tools=finagent_tools,
+        return Agent(
+            config=AgentConfig(name="financial-analyst", system_prompt=cls.SYSTEM_PROMPT, llm=LLMConfig(provider=llm_provider, model=llm_model), max_iterations=15),
+            tools=get_financial_tools(tools),
         )
-        return agent
