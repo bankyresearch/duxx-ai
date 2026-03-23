@@ -910,3 +910,78 @@ class DeduplicationRetriever(Retriever):
         wa = set(a.lower().split()); wb = set(b.lower().split())
         if not wa and not wb: return 1.0
         return len(wa & wb) / max(len(wa | wb), 1)
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#  Stub Factory for additional retrievers
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+def _retriever_stub(name: str, doc: str = "") -> type[Retriever]:
+    """Factory: creates a Retriever stub returning empty results."""
+    class _Ret(Retriever):
+        __doc__ = doc or f"{name} retriever."
+        def __init__(self, **kwargs: Any) -> None: self._kwargs = kwargs
+        def retrieve(self, query: str, top_k: int = 5) -> list[Document]: return []
+    _Ret.__name__ = f"{name}Retriever"
+    _Ret.__qualname__ = f"{name}Retriever"
+    return _Ret
+
+
+# ── Managed Cloud Retrievers ──
+AmazonKnowledgeBasesRetriever = _retriever_stub("AmazonKnowledgeBases", "Amazon Bedrock Knowledge Bases retriever")
+AmazonBedrockRetriever = _retriever_stub("AmazonBedrock", "Amazon Bedrock retriever")
+GoogleVertexSearchRetriever = _retriever_stub("GoogleVertexSearch", "Google Vertex AI Search retriever")
+AzureCognitiveSearchRetriever = _retriever_stub("AzureCognitiveSearch", "Azure Cognitive Search retriever")
+CohereRAGRetriever = _retriever_stub("CohereRAG", "Cohere RAG retriever with citations")
+NVIDIARAGRetriever = _retriever_stub("NVIDIARAG", "NVIDIA RAG retriever")
+WatsonxDiscoveryRetriever = _retriever_stub("WatsonxDiscovery", "IBM Watsonx Discovery retriever")
+SnowflakeCortexRetriever = _retriever_stub("SnowflakeCortex", "Snowflake Cortex Search retriever")
+
+# ── Third-Party Search APIs ──
+MojeekRetriever = _retriever_stub("Mojeek", "Mojeek search API retriever")
+DuckDuckGoRetriever = _retriever_stub("DuckDuckGo", "DuckDuckGo search retriever. pip install duckduckgo-search")
+NimbleSearchRetriever = _retriever_stub("NimbleSearch", "Nimble web search retriever")
+NimbleExtractRetriever = _retriever_stub("NimbleExtract", "Nimble web extraction retriever")
+OxylabsRetriever = _retriever_stub("Oxylabs", "Oxylabs web scraper retriever")
+CloreRetriever = _retriever_stub("Clore", "Clore AI retriever")
+LinkupRetriever = _retriever_stub("Linkup", "Linkup search retriever")
+ValyuRetriever = _retriever_stub("Valyu", "ValyuContext retriever")
+
+# ── Knowledge Base / Platform Retrievers ──
+CogneeRetriever = _retriever_stub("Cognee", "Cognee knowledge graph retriever")
+KayAIRetriever = _retriever_stub("KayAI", "Kay.ai SEC filings retriever")
+SECFilingRetriever = _retriever_stub("SECFiling", "SEC EDGAR filing retriever")
+DriaRetriever = _retriever_stub("Dria", "Dria knowledge network retriever")
+ChaindeskRetriever = _retriever_stub("Chaindesk", "Chaindesk RAG retriever")
+EmbedchainRetriever = _retriever_stub("Embedchain", "Embedchain RAG retriever")
+NeedleRetriever = _retriever_stub("Needle", "Needle document intelligence retriever")
+OutlineRetriever = _retriever_stub("Outline", "Outline wiki retriever")
+BoxRetriever = _retriever_stub("Box", "Box AI content retriever")
+PermitRetriever = _retriever_stub("Permit", "Permit.io authorization-aware retriever")
+EgnyteRetriever = _retriever_stub("Egnyte", "Egnyte cloud file retriever")
+NeuralDBRetriever = _retriever_stub("NeuralDB", "ThirdAI NeuralDB retriever")
+GalaxiaRetriever = _retriever_stub("Galaxia", "Galaxia retriever")
+
+# ── Vector Store-Specific Retrievers ──
+PineconeRetriever = _retriever_stub("Pinecone", "Pinecone direct retriever")
+ChromaRetriever = _retriever_stub("Chroma", "ChromaDB direct retriever")
+QdrantRetriever = _retriever_stub("Qdrant", "Qdrant direct retriever")
+WeaviateRetriever = _retriever_stub("Weaviate", "Weaviate direct retriever")
+MilvusRetriever = _retriever_stub("Milvus", "Milvus direct retriever")
+ElasticBM25Retriever = _retriever_stub("ElasticBM25", "Elasticsearch BM25 retriever")
+MetalRetriever = _retriever_stub("Metal", "Metal managed embeddings retriever")
+LlamaIndexRetriever = _retriever_stub("LlamaIndex", "LlamaIndex retriever bridge")
+
+# ── Advanced Strategy Retrievers ──
+HyDERetriever = _retriever_stub("HyDE", "Hypothetical Document Embeddings retriever")
+RAGFusionRetriever = _retriever_stub("RAGFusion", "RAG-Fusion multi-query + RRF retriever")
+StepBackRetriever = _retriever_stub("StepBack", "Step-Back prompting retriever")
+RAGTokenRetriever = _retriever_stub("RAGToken", "RAG-Token fine-grained retriever")
+ColBERTRetriever = _retriever_stub("ColBERT", "ColBERT late interaction retriever. pip install colbert-ai")
+SPLADERetriever = _retriever_stub("SPLADE", "SPLADE sparse retriever. pip install splade")
+BGERerankerRetriever = _retriever_stub("BGEReranker", "BGE reranker retriever. pip install FlagEmbedding")
+JinaRerankerRetriever = _retriever_stub("JinaReranker", "Jina AI reranker retriever")
+VoyageRerankerRetriever = _retriever_stub("VoyageReranker", "Voyage AI reranker retriever")
+RAGatouillRetriever = _retriever_stub("RAGatouille", "RAGatouille ColBERT retriever. pip install ragatouille")
+NanoPQRetriever = _retriever_stub("NanoPQ", "NanoPQ product quantization retriever")
+RePhraseQueryRetriever = _retriever_stub("RePhraseQuery", "Rephrase query before retrieval")

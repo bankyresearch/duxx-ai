@@ -450,6 +450,59 @@ class MongoSnapshotStore(SnapshotStore):
         s = await self.list(1); return s[0] if s else None
 
 
+class DynamoDBSnapshotStore(SnapshotStore):
+    """AWS DynamoDB snapshot store. Requires: pip install boto3"""
+    def __init__(self, table_name: str = "duxx_snapshots", region: str = "us-east-1") -> None:
+        try: import boto3
+        except ImportError: raise ImportError("boto3 required: pip install boto3")
+        self._table = boto3.resource("dynamodb", region_name=region).Table(table_name)
+    async def save(self, snapshot: FlowSnapshot) -> str:
+        import json
+        self._table.put_item(Item={"snapshot_id": snapshot.snapshot_id, "step": snapshot.step, "data": json.dumps({"values": snapshot.values, "node": snapshot.node, "step": snapshot.step, "timestamp": snapshot.timestamp, "config": snapshot.config, "parent_snapshot_id": snapshot.parent_snapshot_id, "metadata": snapshot.metadata, "interrupts": snapshot.interrupts}, default=str)})
+        return snapshot.snapshot_id
+    async def load(self, snapshot_id: str) -> FlowSnapshot | None:
+        import json
+        resp = self._table.get_item(Key={"snapshot_id": snapshot_id})
+        item = resp.get("Item")
+        if item:
+            d = json.loads(item["data"])
+            return FlowSnapshot(snapshot_id=snapshot_id, **d)
+        return None
+    async def list(self, limit: int = 100) -> list[FlowSnapshot]:
+        import json
+        resp = self._table.scan(Limit=limit)
+        items = sorted(resp.get("Items", []), key=lambda x: int(x.get("step", 0)), reverse=True)
+        return [FlowSnapshot(snapshot_id=i["snapshot_id"], **json.loads(i["data"])) for i in items[:limit]]
+    async def get_latest(self) -> FlowSnapshot | None:
+        s = await self.list(1); return s[0] if s else None
+
+
+class ValleySnapshotStore(SnapshotStore):
+    """Valkey (Redis fork) snapshot store. Requires: pip install redis"""
+    def __init__(self, url: str = "redis://localhost:6379", prefix: str = "duxx:snap:") -> None:
+        try: import redis
+        except ImportError: raise ImportError("redis required: pip install redis")
+        self._client = redis.from_url(url); self._prefix = prefix; self._order_key = f"{prefix}__order__"
+    async def save(self, snapshot: FlowSnapshot) -> str:
+        import json
+        data = json.dumps({"values": snapshot.values, "node": snapshot.node, "step": snapshot.step, "timestamp": snapshot.timestamp, "config": snapshot.config, "parent_snapshot_id": snapshot.parent_snapshot_id, "metadata": snapshot.metadata, "interrupts": snapshot.interrupts}, default=str)
+        self._client.set(f"{self._prefix}{snapshot.snapshot_id}", data); self._client.rpush(self._order_key, snapshot.snapshot_id)
+        return snapshot.snapshot_id
+    async def load(self, snapshot_id: str) -> FlowSnapshot | None:
+        import json; data = self._client.get(f"{self._prefix}{snapshot_id}")
+        if data: return FlowSnapshot(snapshot_id=snapshot_id, **json.loads(data))
+        return None
+    async def list(self, limit: int = 100) -> list[FlowSnapshot]:
+        ids = self._client.lrange(self._order_key, -limit, -1); result = []
+        for sid in reversed(ids):
+            sid = sid.decode() if isinstance(sid, bytes) else sid
+            snap = await self.load(sid)
+            if snap: result.append(snap)
+        return result
+    async def get_latest(self) -> FlowSnapshot | None:
+        s = await self.list(1); return s[0] if s else None
+
+
 # ── Managed Values ──
 
 class IsLastStep:
