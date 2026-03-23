@@ -42,6 +42,26 @@ class LLMConfig(BaseModel):
             "huggingface": "HF_TOKEN", "cloudflare": "CLOUDFLARE_API_TOKEN",
             "moonshot": "MOONSHOT_API_KEY", "zhipu": "ZHIPU_API_KEY",
             "qwen": "DASHSCOPE_API_KEY", "yi": "YI_API_KEY", "nebius": "NEBIUS_API_KEY",
+            "deepinfra": "DEEPINFRA_API_KEY", "azure_openai": "AZURE_OPENAI_API_KEY",
+            "baichuan": "BAICHUAN_API_KEY", "minimax": "MINIMAX_API_KEY",
+            "stepfun": "STEPFUN_API_KEY", "spark": "SPARK_API_KEY",
+            "volcengine": "VOLC_API_KEY", "dashscope": "DASHSCOPE_API_KEY",
+            "qianfan": "QIANFAN_API_KEY", "hunyuan": "HUNYUAN_API_KEY",
+            "doubao": "ARK_API_KEY", "glm": "ZHIPU_API_KEY",
+            "konko": "KONKO_API_KEY", "friendli": "FRIENDLI_TOKEN",
+            "novita": "NOVITA_API_KEY", "featherless": "FEATHERLESS_API_KEY",
+            "pipeshift": "PIPESHIFT_API_KEY", "runpod": "RUNPOD_API_KEY",
+            "modal": "MODAL_TOKEN_ID", "baseten": "BASETEN_API_KEY",
+            "llama_api": "LLAMA_API_KEY", "maritalk": "MARITALK_API_KEY",
+            "writer": "WRITER_API_KEY", "aimlapi": "AIMLAPI_API_KEY",
+            "edenai": "EDENAI_API_KEY", "predictionguard": "PREDICTIONGUARD_API_KEY",
+            "gradient": "GRADIENT_ACCESS_TOKEN", "oci_genai": "OCI_API_KEY",
+            "watsonx": "WATSONX_API_KEY", "snowflake_cortex": "SNOWFLAKE_API_KEY",
+            "databricks": "DATABRICKS_TOKEN", "sagemaker": "",
+            "upstage": "UPSTAGE_API_KEY", "reka": "REKA_API_KEY",
+            "cohere_command": "COHERE_API_KEY", "dappier": "DAPPIER_API_KEY",
+            "greennode": "GREENNODE_API_KEY", "aleph_alpha": "ALEPH_ALPHA_API_KEY",
+            "netmind": "NETMIND_API_KEY", "abso": "ABSO_API_KEY",
         }
         env_var = env_map.get(self.provider, "")
         return os.environ.get(env_var, "") if env_var else ""
@@ -625,6 +645,48 @@ QwenProvider = _openai_compatible_factory("Qwen", "https://dashscope.aliyuncs.co
 YiProvider = _openai_compatible_factory("Yi", "https://api.lingyiwanwu.com/v1", "YI_API_KEY")
 NebiusProvider = _openai_compatible_factory("Nebius", "https://api.studio.nebius.ai/v1", "NEBIUS_API_KEY")
 
+# ── Tier 3: More OpenAI-compatible providers ──
+DeepInfraProvider = _openai_compatible_factory("DeepInfra", "https://api.deepinfra.com/v1/openai", "DEEPINFRA_API_KEY")
+AzureOpenAIProvider = _openai_compatible_factory("AzureOpenAI", "https://YOUR_RESOURCE.openai.azure.com/openai/deployments/YOUR_DEPLOYMENT/", "AZURE_OPENAI_API_KEY")
+BaichuanProvider = _openai_compatible_factory("Baichuan", "https://api.baichuan-ai.com/v1", "BAICHUAN_API_KEY")
+MinimaxProvider = _openai_compatible_factory("Minimax", "https://api.minimax.chat/v1", "MINIMAX_API_KEY")
+StepFunProvider = _openai_compatible_factory("StepFun", "https://api.stepfun.com/v1", "STEPFUN_API_KEY")
+SparkProvider = _openai_compatible_factory("Spark", "https://spark-api-open.xf-yun.com/v1", "SPARK_API_KEY")
+VolcEngineProvider = _openai_compatible_factory("VolcEngine", "https://ark.cn-beijing.volces.com/api/v3", "VOLC_API_KEY")
+DashScopeProvider = _openai_compatible_factory("DashScope", "https://dashscope.aliyuncs.com/compatible-mode/v1", "DASHSCOPE_API_KEY")
+QianfanProvider = _openai_compatible_factory("Qianfan", "https://aip.baidubce.com/rpc/2.0/ai_custom/v1/wenxinworkshop", "QIANFAN_API_KEY")
+HunYuanProvider = _openai_compatible_factory("HunYuan", "https://api.hunyuan.cloud.tencent.com/v1", "HUNYUAN_API_KEY")
+DoubaoProvider = _openai_compatible_factory("Doubao", "https://ark.cn-beijing.volces.com/api/v3", "ARK_API_KEY")
+GlmProvider = _openai_compatible_factory("GLM", "https://open.bigmodel.cn/api/paas/v4", "ZHIPU_API_KEY")
+KonkoProvider = _openai_compatible_factory("Konko", "https://api.konko.ai/v1", "KONKO_API_KEY")
+FriendliProvider = _openai_compatible_factory("Friendli", "https://inference.friendli.ai/v1", "FRIENDLI_TOKEN")
+NovitaProvider = _openai_compatible_factory("Novita", "https://api.novita.ai/v3/openai", "NOVITA_API_KEY")
+FeatherlessProvider = _openai_compatible_factory("Featherless", "https://api.featherless.ai/v1", "FEATHERLESS_API_KEY")
+PipeshiftProvider = _openai_compatible_factory("Pipeshift", "https://api.pipeshift.com/v1", "PIPESHIFT_API_KEY")
+RunPodProvider = _openai_compatible_factory("RunPod", "https://api.runpod.ai/v2/{endpoint_id}/openai/v1", "RUNPOD_API_KEY")
+ModalProvider = _openai_compatible_factory("Modal", "https://YOUR_APP.modal.run/v1", "MODAL_TOKEN_ID")
+BaseTenProvider = _openai_compatible_factory("BaseTen", "https://model-{model_id}.api.baseten.co/production/predict", "BASETEN_API_KEY")
+LlamaAPIProvider = _openai_compatible_factory("LlamaAPI", "https://api.llama-api.com", "LLAMA_API_KEY")
+MaritalkProvider = _openai_compatible_factory("Maritalk", "https://chat.maritaca.ai/api", "MARITALK_API_KEY")
+WriterProvider = _openai_compatible_factory("Writer", "https://api.writer.com/v1", "WRITER_API_KEY")
+AimlAPIProvider = _openai_compatible_factory("AIMLAPI", "https://api.aimlapi.com/v1", "AIMLAPI_API_KEY")
+EdenAIProvider = _openai_compatible_factory("EdenAI", "https://api.edenai.run/v2", "EDENAI_API_KEY")
+PredictionGuardProvider = _openai_compatible_factory("PredictionGuard", "https://api.predictionguard.com", "PREDICTIONGUARD_API_KEY")
+GradientProvider = _openai_compatible_factory("Gradient", "https://api.gradient.ai/api", "GRADIENT_ACCESS_TOKEN")
+OCIGenAIProvider = _openai_compatible_factory("OCIGenAI", "https://inference.generativeai.us-chicago-1.oci.oraclecloud.com/20231130", "OCI_API_KEY")
+WatsonxProvider = _openai_compatible_factory("Watsonx", "https://us-south.ml.cloud.ibm.com/ml/v1", "WATSONX_API_KEY")
+SnowflakeCortexProvider = _openai_compatible_factory("SnowflakeCortex", "https://YOUR_ACCOUNT.snowflakecomputing.com/api/v2/cortex", "SNOWFLAKE_API_KEY")
+DatabricksProvider = _openai_compatible_factory("Databricks", "https://YOUR_WORKSPACE.databricks.com/serving-endpoints", "DATABRICKS_TOKEN")
+SageMakerProvider = _openai_compatible_factory("SageMaker", "https://runtime.sagemaker.us-east-1.amazonaws.com", "")
+UpstageProvider = _openai_compatible_factory("Upstage", "https://api.upstage.ai/v1/solar", "UPSTAGE_API_KEY")
+RekaProvider = _openai_compatible_factory("Reka", "https://api.reka.ai/v1", "REKA_API_KEY")
+CohereCommandProvider = _openai_compatible_factory("CohereCommand", "https://api.cohere.ai/v2", "COHERE_API_KEY")
+DappierProvider = _openai_compatible_factory("Dappier", "https://api.dappier.com/v1", "DAPPIER_API_KEY")
+GreenNodeProvider = _openai_compatible_factory("GreenNode", "https://api.greennode.ai/v1", "GREENNODE_API_KEY")
+AlephAlphaProvider = _openai_compatible_factory("AlephAlpha", "https://api.aleph-alpha.com", "ALEPH_ALPHA_API_KEY")
+NetmindProvider = _openai_compatible_factory("Netmind", "https://api.netmind.ai/v1", "NETMIND_API_KEY")
+AbsoProvider = _openai_compatible_factory("Abso", "https://api.abso.ai/v1", "ABSO_API_KEY")
+
 
 PROVIDERS: dict[str, type[LLMProvider]] = {
     # Tier 1 — Custom implementations
@@ -634,7 +696,7 @@ PROVIDERS: dict[str, type[LLMProvider]] = {
     "google": GoogleProvider,
     "gemini": GoogleProvider,
     "bedrock": BedrockProvider,
-    # Tier 2 — OpenAI-compatible (custom base_url)
+    # Tier 2 — OpenAI-compatible (major providers)
     "groq": GroqProvider,
     "mistral": MistralProvider,
     "deepseek": DeepSeekProvider,
@@ -661,6 +723,47 @@ PROVIDERS: dict[str, type[LLMProvider]] = {
     "qwen": QwenProvider,
     "yi": YiProvider,
     "nebius": NebiusProvider,
+    # Tier 3 — Additional providers
+    "deepinfra": DeepInfraProvider,
+    "azure_openai": AzureOpenAIProvider,
+    "baichuan": BaichuanProvider,
+    "minimax": MinimaxProvider,
+    "stepfun": StepFunProvider,
+    "spark": SparkProvider,
+    "volcengine": VolcEngineProvider,
+    "dashscope": DashScopeProvider,
+    "qianfan": QianfanProvider,
+    "hunyuan": HunYuanProvider,
+    "doubao": DoubaoProvider,
+    "glm": GlmProvider,
+    "konko": KonkoProvider,
+    "friendli": FriendliProvider,
+    "novita": NovitaProvider,
+    "featherless": FeatherlessProvider,
+    "pipeshift": PipeshiftProvider,
+    "runpod": RunPodProvider,
+    "modal": ModalProvider,
+    "baseten": BaseTenProvider,
+    "llama_api": LlamaAPIProvider,
+    "maritalk": MaritalkProvider,
+    "writer": WriterProvider,
+    "aimlapi": AimlAPIProvider,
+    "edenai": EdenAIProvider,
+    "predictionguard": PredictionGuardProvider,
+    "gradient": GradientProvider,
+    "oci_genai": OCIGenAIProvider,
+    "watsonx": WatsonxProvider,
+    "snowflake_cortex": SnowflakeCortexProvider,
+    "databricks": DatabricksProvider,
+    "sagemaker": SageMakerProvider,
+    "upstage": UpstageProvider,
+    "reka": RekaProvider,
+    "cohere_command": CohereCommandProvider,
+    "dappier": DappierProvider,
+    "greennode": GreenNodeProvider,
+    "aleph_alpha": AlephAlphaProvider,
+    "netmind": NetmindProvider,
+    "abso": AbsoProvider,
 }
 
 
