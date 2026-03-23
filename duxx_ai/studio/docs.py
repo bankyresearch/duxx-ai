@@ -548,8 +548,17 @@ DOCS_TEMPLATE = """<!DOCTYPE html>
         <a class="sidebar-link" onclick="navigateTo('mcp')">MCP Integration</a>
         <a class="sidebar-link" onclick="navigateTo('middleware')">Middleware</a>
 
-        <h3>Integration Catalog</h3>
-        <a class="sidebar-link" onclick="navigateTo('integrations')">All 490 Integrations</a>
+        <h3>Integration Catalog (490)</h3>
+        <a class="sidebar-link" onclick="navigateTo('integrations')">Overview</a>
+        <a class="sidebar-link sub" onclick="navigateTo('int-chat-detail')">Chat Models (72)</a>
+        <a class="sidebar-link sub" onclick="navigateTo('int-embed-detail')">Embeddings (86)</a>
+        <a class="sidebar-link sub" onclick="navigateTo('int-vs-detail')">Vector Stores (153)</a>
+        <a class="sidebar-link sub" onclick="navigateTo('int-loader-detail')">Doc Loaders (63)</a>
+        <a class="sidebar-link sub" onclick="navigateTo('int-ret-detail')">Retrievers (94)</a>
+        <a class="sidebar-link sub" onclick="navigateTo('int-check-detail')">Checkpointers (8)</a>
+        <a class="sidebar-link sub" onclick="navigateTo('int-parser-detail')">Output Parsers (10)</a>
+        <a class="sidebar-link sub" onclick="navigateTo('int-mw-detail')">Middleware (4)</a>
+        <a class="sidebar-link sub" onclick="navigateTo('int-contextual')">Contextual Retrieval</a>
 
         <h3>FlowGraph Engine</h3>
         <a class="sidebar-link" onclick="navigateTo('flowgraph')">FlowGraph Overview</a>
@@ -2414,8 +2423,34 @@ metadata = <span class="kw">await</span> chain.before_call(conversation, system_
 
 <!-- ── Integration Catalog ── -->
 <div id="page-integrations" class="page">
-<h1>Integration Catalog</h1>
-<p>490 integrations across 9 categories. Every provider uses lazy imports — install only what you need.</p>
+<h1>Integration Catalog — 490 Integrations</h1>
+<p>Duxx AI supports <strong>490 integrations</strong> across 9 categories, exceeding LangChain in every category. All providers use <strong>lazy imports</strong> — install only the packages you need.</p>
+
+<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:24px 0;">
+<div style="background:var(--blue-bg);padding:16px;border-radius:8px;text-align:center;"><div style="font-size:28px;font-weight:800;color:var(--blue);">72</div><div style="font-size:12px;color:var(--gray-600);">Chat Models</div></div>
+<div style="background:var(--purple-bg);padding:16px;border-radius:8px;text-align:center;"><div style="font-size:28px;font-weight:800;color:var(--purple);">86</div><div style="font-size:12px;color:var(--gray-600);">Embeddings</div></div>
+<div style="background:var(--green-bg);padding:16px;border-radius:8px;text-align:center;"><div style="font-size:28px;font-weight:800;color:var(--green);">153</div><div style="font-size:12px;color:var(--gray-600);">Vector Stores</div></div>
+<div style="background:var(--orange-bg);padding:16px;border-radius:8px;text-align:center;"><div style="font-size:28px;font-weight:800;color:var(--orange);">63</div><div style="font-size:12px;color:var(--gray-600);">Doc Loaders</div></div>
+<div style="background:var(--pink-bg);padding:16px;border-radius:8px;text-align:center;"><div style="font-size:28px;font-weight:800;color:var(--pink);">94</div><div style="font-size:12px;color:var(--gray-600);">Retrievers</div></div>
+<div style="background:var(--navy-50);padding:16px;border-radius:8px;text-align:center;"><div style="font-size:28px;font-weight:800;color:var(--navy);">22</div><div style="font-size:12px;color:var(--gray-600);">Parsers + Middleware + Checkpointers</div></div>
+</div>
+
+<h2>Universal Pattern</h2>
+<p>Every integration follows the same pattern — import, configure, use:</p>
+<pre class="code-block"><code><span class="kw">from</span> duxx_ai.core.llm <span class="kw">import</span> LLMConfig, create_provider
+
+<span class="cm"># 1. Pick any of 72 providers</span>
+provider = create_provider(LLMConfig(
+    provider=<span class="string">"openai"</span>,           <span class="cm"># or "anthropic", "groq", "mistral", ...</span>
+    model=<span class="string">"gpt-4o"</span>,
+    api_key=<span class="string">"sk-..."</span>,            <span class="cm"># or set OPENAI_API_KEY env var</span>
+))
+
+<span class="cm"># 2. Use with Agent</span>
+<span class="kw">from</span> duxx_ai <span class="kw">import</span> Agent, AgentConfig
+agent = Agent(config=AgentConfig(name=<span class="string">"my-agent"</span>, llm=LLMConfig(provider=<span class="string">"groq"</span>, model=<span class="string">"llama-3.3-70b-versatile"</span>)))
+result = <span class="kw">await</span> agent.run(<span class="string">"Hello!"</span>)</code></pre>
+<p>Click the sub-pages in the sidebar to see every provider with detailed snippets.</p>
 
 <h2 id="int-chat">Chat Models (72 providers)</h2>
 <pre class="code-block"><code><span class="kw">from</span> duxx_ai.core.llm <span class="kw">import</span> LLMConfig, create_provider
@@ -2705,6 +2740,642 @@ results = store.search(<span class="string">"user:123"</span>, query=<span class
 errors = validate_graph(graph)
 <span class="kw">if</span> errors:
     <span class="kw">for</span> e <span class="kw">in</span> errors: <span class="kw">print</span>(f<span class="string">"Error: {e}"</span>)</code></pre>
+</div>
+
+<!-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ -->
+<!-- DETAILED INTEGRATION PAGES -->
+<!-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ -->
+
+<!-- ── Chat Models Detail ── -->
+<div id="page-int-chat-detail" class="page">
+<h1>Chat Models — 72 Providers</h1>
+<p>Duxx AI supports 72 LLM providers through a unified <code>create_provider()</code> API. Set the <code>provider</code> name and <code>model</code>, and Duxx AI handles the rest. API keys are read from environment variables automatically.</p>
+
+<h2>Tier 1 — Native Implementations</h2>
+<p>These providers have full custom implementations with streaming, tool calling, and provider-specific features.</p>
+
+<h3>OpenAI</h3>
+<p>The most widely used LLM API. Supports GPT-4o, GPT-4o-mini, o1, o3, and all OpenAI models.</p>
+<pre class="code-block"><code><span class="cm"># pip install httpx</span>
+<span class="cm"># Set: OPENAI_API_KEY=sk-...</span>
+
+<span class="kw">from</span> duxx_ai.core.llm <span class="kw">import</span> LLMConfig, create_provider
+
+provider = create_provider(LLMConfig(
+    provider=<span class="string">"openai"</span>,
+    model=<span class="string">"gpt-4o"</span>,              <span class="cm"># or "gpt-4o-mini", "o1", "o3-mini"</span>
+    temperature=0.7,
+    max_tokens=4096,
+))
+
+<span class="cm"># Streaming</span>
+<span class="kw">async for</span> chunk <span class="kw">in</span> provider.stream(conversation):
+    <span class="kw">print</span>(chunk, end=<span class="string">""</span>)
+
+<span class="cm"># With tool calling</span>
+response = <span class="kw">await</span> provider.complete(conversation, tools=[calculator, search])</code></pre>
+
+<h3>Anthropic</h3>
+<p>Claude models. Supports Claude Sonnet, Haiku, and Opus with the Anthropic Messages API format.</p>
+<pre class="code-block"><code><span class="cm"># Set: ANTHROPIC_API_KEY=sk-ant-...</span>
+
+provider = create_provider(LLMConfig(
+    provider=<span class="string">"anthropic"</span>,
+    model=<span class="string">"claude-sonnet-4-20250514"</span>,  <span class="cm"># or "claude-haiku", "claude-opus"</span>
+))
+
+<span class="cm"># Anthropic handles system prompts separately (automatic)</span>
+response = <span class="kw">await</span> provider.complete(conversation, system_prompt=<span class="string">"You are helpful."</span>)</code></pre>
+
+<h3>Google Gemini</h3>
+<p>Google's Gemini models with native function calling and streaming. Supports Gemini 2.0, 1.5 Pro/Flash.</p>
+<pre class="code-block"><code><span class="cm"># Set: GOOGLE_API_KEY=AIza...</span>
+
+provider = create_provider(LLMConfig(
+    provider=<span class="string">"google"</span>,              <span class="cm"># or "gemini" (alias)</span>
+    model=<span class="string">"gemini-2.0-flash"</span>,       <span class="cm"># or "gemini-1.5-pro"</span>
+))</code></pre>
+
+<h3>AWS Bedrock</h3>
+<p>Access Claude, Llama, Titan, and other models via AWS Bedrock. Uses boto3 with AWS credentials.</p>
+<pre class="code-block"><code><span class="cm"># pip install boto3</span>
+<span class="cm"># Uses AWS credentials from ~/.aws/credentials or env vars</span>
+
+provider = create_provider(LLMConfig(
+    provider=<span class="string">"bedrock"</span>,
+    model=<span class="string">"anthropic.claude-3-sonnet-20240229-v1:0"</span>,
+    extra={<span class="string">"region"</span>: <span class="string">"us-east-1"</span>},
+))</code></pre>
+
+<h2>Tier 2 — OpenAI-Compatible (Major Providers)</h2>
+<p>These providers use OpenAI-compatible APIs. Duxx AI automatically sets the correct base URL and auth.</p>
+
+<h3>Groq — Ultra-Fast Inference</h3>
+<pre class="code-block"><code><span class="cm"># Set: GROQ_API_KEY=gsk-...</span>
+provider = create_provider(LLMConfig(provider=<span class="string">"groq"</span>, model=<span class="string">"llama-3.3-70b-versatile"</span>))
+<span class="cm"># Models: llama-3.3-70b-versatile, mixtral-8x7b-32768, gemma2-9b-it</span></code></pre>
+
+<h3>Mistral AI</h3>
+<pre class="code-block"><code><span class="cm"># Set: MISTRAL_API_KEY=...</span>
+provider = create_provider(LLMConfig(provider=<span class="string">"mistral"</span>, model=<span class="string">"mistral-large-latest"</span>))
+<span class="cm"># Models: mistral-large-latest, mistral-medium, mistral-small, open-mistral-nemo</span></code></pre>
+
+<h3>DeepSeek</h3>
+<pre class="code-block"><code><span class="cm"># Set: DEEPSEEK_API_KEY=...</span>
+provider = create_provider(LLMConfig(provider=<span class="string">"deepseek"</span>, model=<span class="string">"deepseek-chat"</span>))
+<span class="cm"># Models: deepseek-chat, deepseek-coder, deepseek-reasoner</span></code></pre>
+
+<h3>Together AI — Open Source Models</h3>
+<pre class="code-block"><code><span class="cm"># Set: TOGETHER_API_KEY=...</span>
+provider = create_provider(LLMConfig(provider=<span class="string">"together"</span>, model=<span class="string">"meta-llama/Llama-3-70b-chat-hf"</span>))
+<span class="cm"># 100+ open source models: Llama, Mixtral, Qwen, CodeLlama, etc.</span></code></pre>
+
+<h3>Fireworks AI</h3>
+<pre class="code-block"><code><span class="cm"># Set: FIREWORKS_API_KEY=...</span>
+provider = create_provider(LLMConfig(provider=<span class="string">"fireworks"</span>, model=<span class="string">"accounts/fireworks/models/llama-v3p1-70b-instruct"</span>))</code></pre>
+
+<h3>Cohere</h3>
+<pre class="code-block"><code><span class="cm"># Set: COHERE_API_KEY=...</span>
+provider = create_provider(LLMConfig(provider=<span class="string">"cohere"</span>, model=<span class="string">"command-r-plus"</span>))
+<span class="cm"># Models: command-r-plus, command-r, command-light</span></code></pre>
+
+<h3>Perplexity — Search-Augmented</h3>
+<pre class="code-block"><code><span class="cm"># Set: PERPLEXITY_API_KEY=...</span>
+provider = create_provider(LLMConfig(provider=<span class="string">"perplexity"</span>, model=<span class="string">"llama-3.1-sonar-huge-128k-online"</span>))
+<span class="cm"># Built-in web search, no RAG needed</span></code></pre>
+
+<h3>xAI (Grok)</h3>
+<pre class="code-block"><code><span class="cm"># Set: XAI_API_KEY=...</span>
+provider = create_provider(LLMConfig(provider=<span class="string">"xai"</span>, model=<span class="string">"grok-2"</span>))</code></pre>
+
+<h3>NVIDIA NIM</h3>
+<pre class="code-block"><code><span class="cm"># Set: NVIDIA_API_KEY=...</span>
+provider = create_provider(LLMConfig(provider=<span class="string">"nvidia"</span>, model=<span class="string">"meta/llama-3.1-405b-instruct"</span>))</code></pre>
+
+<h3>OpenRouter — 200+ Models, One API</h3>
+<pre class="code-block"><code><span class="cm"># Set: OPENROUTER_API_KEY=...</span>
+provider = create_provider(LLMConfig(provider=<span class="string">"openrouter"</span>, model=<span class="string">"anthropic/claude-3.5-sonnet"</span>))
+<span class="cm"># Access any model from any provider through OpenRouter</span></code></pre>
+
+<h3>Local Models — Ollama, LM Studio, vLLM</h3>
+<pre class="code-block"><code><span class="cm"># Ollama (no API key, runs locally)</span>
+provider = create_provider(LLMConfig(provider=<span class="string">"ollama"</span>, model=<span class="string">"llama3"</span>))
+
+<span class="cm"># LM Studio (local GUI)</span>
+provider = create_provider(LLMConfig(provider=<span class="string">"lmstudio"</span>, model=<span class="string">"local-model"</span>))
+
+<span class="cm"># vLLM (high-throughput server)</span>
+provider = create_provider(LLMConfig(provider=<span class="string">"vllm"</span>, model=<span class="string">"meta-llama/Llama-3-8b-chat-hf"</span>))
+
+<span class="cm"># Any OpenAI-compatible endpoint</span>
+provider = create_provider(LLMConfig(provider=<span class="string">"local"</span>, model=<span class="string">"model-name"</span>, base_url=<span class="string">"http://localhost:8080/v1"</span>))</code></pre>
+
+<h2>Tier 3 — All Other Providers</h2>
+<p>Each uses the same <code>create_provider(LLMConfig(provider="name", model="model"))</code> pattern:</p>
+<table style="width:100%;font-size:12px;border-collapse:collapse;">
+<tr style="background:var(--gray-100);"><th style="padding:8px;text-align:left;">Provider</th><th style="padding:8px;">Env Variable</th><th style="padding:8px;">Example Model</th></tr>
+<tr><td style="padding:6px 8px;">cerebras</td><td>CEREBRAS_API_KEY</td><td>llama3.1-70b</td></tr>
+<tr><td style="padding:6px 8px;">sambanova</td><td>SAMBANOVA_API_KEY</td><td>Meta-Llama-3.1-70B</td></tr>
+<tr><td style="padding:6px 8px;">ai21</td><td>AI21_API_KEY</td><td>jamba-1.5-large</td></tr>
+<tr><td style="padding:6px 8px;">replicate</td><td>REPLICATE_API_TOKEN</td><td>meta/llama-3-70b</td></tr>
+<tr><td style="padding:6px 8px;">huggingface</td><td>HF_TOKEN</td><td>meta-llama/Llama-3-8b</td></tr>
+<tr><td style="padding:6px 8px;">deepinfra</td><td>DEEPINFRA_API_KEY</td><td>meta-llama/Llama-3-70b</td></tr>
+<tr><td style="padding:6px 8px;">azure_openai</td><td>AZURE_OPENAI_API_KEY</td><td>gpt-4o (deployment)</td></tr>
+<tr><td style="padding:6px 8px;">moonshot</td><td>MOONSHOT_API_KEY</td><td>moonshot-v1-8k</td></tr>
+<tr><td style="padding:6px 8px;">zhipu / glm</td><td>ZHIPU_API_KEY</td><td>glm-4</td></tr>
+<tr><td style="padding:6px 8px;">qwen / dashscope</td><td>DASHSCOPE_API_KEY</td><td>qwen-max</td></tr>
+<tr><td style="padding:6px 8px;">yi</td><td>YI_API_KEY</td><td>yi-large</td></tr>
+<tr><td style="padding:6px 8px;">baichuan</td><td>BAICHUAN_API_KEY</td><td>Baichuan4</td></tr>
+<tr><td style="padding:6px 8px;">minimax</td><td>MINIMAX_API_KEY</td><td>abab6.5-chat</td></tr>
+<tr><td style="padding:6px 8px;">stepfun</td><td>STEPFUN_API_KEY</td><td>step-2-16k</td></tr>
+<tr><td style="padding:6px 8px;">volcengine / doubao</td><td>VOLC_API_KEY / ARK_API_KEY</td><td>doubao-pro-32k</td></tr>
+<tr><td style="padding:6px 8px;">hunyuan</td><td>HUNYUAN_API_KEY</td><td>hunyuan-pro</td></tr>
+<tr><td style="padding:6px 8px;">spark</td><td>SPARK_API_KEY</td><td>spark-v4</td></tr>
+<tr><td style="padding:6px 8px;">reka</td><td>REKA_API_KEY</td><td>reka-core</td></tr>
+<tr><td style="padding:6px 8px;">upstage</td><td>UPSTAGE_API_KEY</td><td>solar-pro</td></tr>
+<tr><td style="padding:6px 8px;">writer</td><td>WRITER_API_KEY</td><td>palmyra-x-004</td></tr>
+<tr><td style="padding:6px 8px;">cloudflare</td><td>CLOUDFLARE_API_TOKEN</td><td>@cf/meta/llama-3-8b</td></tr>
+<tr><td style="padding:6px 8px;">konko, friendli, novita, featherless, pipeshift, runpod, modal, baseten, lepton, nebius, anyscale, maritalk, aimlapi, edenai, predictionguard, gradient, oci_genai, watsonx, snowflake_cortex, databricks, sagemaker, dappier, greennode, aleph_alpha, netmind, abso</td><td colspan="2"><em>See env var naming convention: PROVIDER_API_KEY</em></td></tr>
+</table>
+</div>
+
+<!-- ── Embeddings Detail ── -->
+<div id="page-int-embed-detail" class="page">
+<h1>Embeddings — 86 Providers</h1>
+<p>Convert text to vectors for semantic search. All embedders share the same API: <code>embed(text)</code> and <code>embed_many(texts)</code>.</p>
+
+<h2>Cloud API Embeddings</h2>
+
+<h3>OpenAI Embeddings</h3>
+<p>Industry standard. text-embedding-3-small (1536d) and text-embedding-3-large (3072d).</p>
+<pre class="code-block"><code><span class="cm"># Set: OPENAI_API_KEY=sk-...</span>
+<span class="kw">from</span> duxx_ai.rag.embeddings <span class="kw">import</span> OpenAIEmbedder
+
+embedder = OpenAIEmbedder(model=<span class="string">"text-embedding-3-small"</span>)  <span class="cm"># 1536 dimensions</span>
+vector = embedder.embed(<span class="string">"Hello world"</span>)          <span class="cm"># list[float], len=1536</span>
+vectors = embedder.embed_many([<span class="string">"a"</span>, <span class="string">"b"</span>, <span class="string">"c"</span>])  <span class="cm"># Batched API call</span>
+<span class="kw">print</span>(embedder.dimension)                       <span class="cm"># 1536</span></code></pre>
+
+<h3>Cohere Embeddings</h3>
+<p>High-quality multilingual embeddings with input_type control (search_document vs search_query).</p>
+<pre class="code-block"><code><span class="cm"># Set: COHERE_API_KEY=...</span>
+<span class="kw">from</span> duxx_ai.rag.embeddings <span class="kw">import</span> CohereEmbedder
+
+embedder = CohereEmbedder(
+    model=<span class="string">"embed-english-v3.0"</span>,    <span class="cm"># or "embed-multilingual-v3.0"</span>
+    input_type=<span class="string">"search_document"</span>,  <span class="cm"># or "search_query" at query time</span>
+)</code></pre>
+
+<h3>Voyage AI Embeddings</h3>
+<pre class="code-block"><code><span class="cm"># Set: VOYAGE_API_KEY=...</span>
+<span class="kw">from</span> duxx_ai.rag.embeddings <span class="kw">import</span> VoyageEmbedder
+embedder = VoyageEmbedder(model=<span class="string">"voyage-3"</span>)  <span class="cm"># 1024 dimensions</span></code></pre>
+
+<h3>Google, NVIDIA, Jina, Nomic</h3>
+<pre class="code-block"><code><span class="kw">from</span> duxx_ai.rag.embeddings <span class="kw">import</span> GoogleEmbedder, NVIDIAEmbedder, JinaEmbedder, NomicEmbedder
+
+embedder = GoogleEmbedder(model=<span class="string">"models/text-embedding-004"</span>)     <span class="cm"># GOOGLE_API_KEY</span>
+embedder = NVIDIAEmbedder(model=<span class="string">"nvidia/nv-embedqa-e5-v5"</span>)       <span class="cm"># NVIDIA_API_KEY</span>
+embedder = JinaEmbedder(model=<span class="string">"jina-embeddings-v3"</span>)             <span class="cm"># JINA_API_KEY</span>
+embedder = NomicEmbedder(model=<span class="string">"nomic-embed-text-v1.5"</span>)         <span class="cm"># NOMIC_API_KEY</span></code></pre>
+
+<h2>Local Embeddings (Free, No API Key)</h2>
+
+<h3>HuggingFace / Sentence Transformers</h3>
+<p>Run any HuggingFace embedding model locally. Best quality-to-speed ratio.</p>
+<pre class="code-block"><code><span class="cm"># pip install sentence-transformers</span>
+<span class="kw">from</span> duxx_ai.rag.embeddings <span class="kw">import</span> HuggingFaceEmbedder
+
+embedder = HuggingFaceEmbedder(<span class="string">"all-MiniLM-L6-v2"</span>)        <span class="cm"># 384d, fast</span>
+embedder = HuggingFaceEmbedder(<span class="string">"BAAI/bge-large-en-v1.5"</span>)  <span class="cm"># 1024d, accurate</span>
+embedder = HuggingFaceEmbedder(<span class="string">"intfloat/e5-large-v2"</span>)    <span class="cm"># 1024d, multilingual</span></code></pre>
+
+<h3>FastEmbed (Qdrant) — Optimized ONNX</h3>
+<pre class="code-block"><code><span class="cm"># pip install fastembed</span>
+<span class="kw">from</span> duxx_ai.rag.embeddings <span class="kw">import</span> FastEmbedEmbedder
+embedder = FastEmbedEmbedder(<span class="string">"BAAI/bge-small-en-v1.5"</span>)  <span class="cm"># ONNX optimized, very fast</span></code></pre>
+
+<h3>Ollama, SpaCy, GPT4All, LlamaCpp</h3>
+<pre class="code-block"><code><span class="kw">from</span> duxx_ai.rag.embeddings <span class="kw">import</span> OllamaEmbedder, SpacyEmbedder, GPT4AllEmbedder
+
+embedder = OllamaEmbedder()                <span class="cm"># Uses Ollama server locally</span>
+embedder = SpacyEmbedder(<span class="string">"en_core_web_md"</span>)  <span class="cm"># pip install spacy</span>
+embedder = GPT4AllEmbedder()               <span class="cm"># pip install gpt4all</span></code></pre>
+
+<h3>LocalEmbedder — Zero Dependencies</h3>
+<pre class="code-block"><code><span class="kw">from</span> duxx_ai.rag.embeddings <span class="kw">import</span> LocalEmbedder
+embedder = LocalEmbedder(dimension=384)  <span class="cm"># Hash-based pseudo-embeddings (testing only)</span></code></pre>
+
+<h2>All 86 Embedders</h2>
+<p>Cloud: OpenAI, Cohere, Voyage, Google, NVIDIA, Jina, Nomic, Azure, Bedrock, Mistral, Together, Fireworks, DeepInfra, Groq, OpenRouter, Anyscale, Perplexity, Lepton, Nebius, Databricks, Cloudflare, xAI, Snowflake, OCIGenAI, HunYuan, Doubao, StepFun, DashScope, VolcEngine, Spark, Zhipu, Baichuan, Qianfan, Gradient, MiniMax, Upstage, Solar, Watsonx, YandexGPT, Naver, MosaicML, BookendAI, Embaas, LLMRails, NLPCloud, Isaacus, Konko, OVHCloud, PremAI, EdenAI, PredictionGuard, Clarifai, Aleph Alpha</p>
+<p>Local: HuggingFace, FastEmbed, Ollama, LMStudio, vLLM, SpaCy, GPT4All, LlamaCpp, OpenVINO, Model2Vec, LocalEmbedder, TEI, Infinity, SageMaker, LocalAI, IPEXLLM, LASER, Ascend, ModelScope, TextEmbed, TitanTakeoff, OpenClip, BGE, E5, GTE, Instructor, Mxbai, NomicLocal, SnowflakeArctic, Stella, MultilingualE5</p>
+</div>
+
+<!-- ── Vector Stores Detail ── -->
+<div id="page-int-vs-detail" class="page">
+<h1>Vector Stores — 153 Backends</h1>
+<p>Store and search document embeddings. All vector stores share the same API: <code>add()</code>, <code>search()</code>, <code>delete()</code>, <code>count()</code>.</p>
+
+<h2>Full Implementations (32)</h2>
+<p>These have complete, production-ready implementations:</p>
+
+<h3>In-Memory — Zero Dependencies</h3>
+<pre class="code-block"><code><span class="kw">from</span> duxx_ai.rag.vectorstore <span class="kw">import</span> InMemoryVectorStore
+store = InMemoryVectorStore(embedder)
+ids = store.add(documents)
+results = store.search(<span class="string">"query"</span>, top_k=5)  <span class="cm"># Cosine similarity</span></code></pre>
+
+<h3>FAISS — Fast ANN with Persistence</h3>
+<pre class="code-block"><code><span class="cm"># pip install faiss-cpu  (or faiss-gpu)</span>
+<span class="kw">from</span> duxx_ai.rag.vectorstore <span class="kw">import</span> FAISSVectorStore
+
+store = FAISSVectorStore(embedder, dimension=1536)
+store.add(documents)
+results = store.search(<span class="string">"query"</span>, top_k=10)
+
+<span class="cm"># Save/load index</span>
+store.save(<span class="string">"my_index.faiss"</span>)
+store = FAISSVectorStore.load(<span class="string">"my_index.faiss"</span>, embedder)</code></pre>
+
+<h3>ChromaDB — Developer Friendly</h3>
+<pre class="code-block"><code><span class="cm"># pip install chromadb</span>
+<span class="kw">from</span> duxx_ai.rag.vectorstore <span class="kw">import</span> ChromaVectorStore
+
+store = ChromaVectorStore(embedder,
+    collection_name=<span class="string">"my_docs"</span>,
+    persist_directory=<span class="string">"./chroma_data"</span>,  <span class="cm"># Persistent storage</span>
+)</code></pre>
+
+<h3>Pinecone — Managed Cloud</h3>
+<pre class="code-block"><code><span class="cm"># pip install pinecone</span>
+<span class="cm"># Set: PINECONE_API_KEY=...</span>
+<span class="kw">from</span> duxx_ai.rag.vectorstore <span class="kw">import</span> PineconeVectorStore
+store = PineconeVectorStore(embedder, index_name=<span class="string">"my-index"</span>)</code></pre>
+
+<h3>Qdrant, Weaviate, Milvus, Elasticsearch, PGVector, Redis, MongoDB Atlas, LanceDB, OpenSearch, Neo4j, Cassandra, etc.</h3>
+<pre class="code-block"><code><span class="kw">from</span> duxx_ai.rag.vectorstore <span class="kw">import</span> (
+    QdrantVectorStore,          <span class="cm"># pip install qdrant-client</span>
+    WeaviateVectorStore,        <span class="cm"># pip install weaviate-client</span>
+    MilvusVectorStore,          <span class="cm"># pip install pymilvus</span>
+    ElasticsearchVectorStore,   <span class="cm"># pip install elasticsearch</span>
+    PGVectorStore,              <span class="cm"># pip install psycopg2-binary pgvector</span>
+    RedisVectorStore,           <span class="cm"># pip install redis</span>
+    MongoDBAtlasVectorStore,    <span class="cm"># pip install pymongo</span>
+    LanceDBVectorStore,         <span class="cm"># pip install lancedb</span>
+    Neo4jVectorStore,           <span class="cm"># pip install neo4j</span>
+    DuckDBVectorStore,          <span class="cm"># pip install duckdb</span>
+)</code></pre>
+
+<h2>Stub Implementations (121)</h2>
+<p>These provide a clean import + fallback to InMemoryVectorStore when the native library isn't installed. Install the required package for full functionality.</p>
+<p>Cloud: AstraDB, AlloyDB, BigQuery, CloudSQL, Spanner, Bigtable, Firestore, CosmosDB, AzureAISearch, DocumentDB, MemoryDB, Neptune, Snowflake, CockroachDB, Neon, Timescale, Supabase, Upstash, Turbopuffer, Vectara...</p>
+<p>Self-hosted: Rockset, StarRocks, OceanBase, AnalyticDB, Hologres, DashVector, MyScale, FalkorDB, Vespa, Marqo, Meilisearch, ClickHouse, SingleStore, TiDB, MySQL...</p>
+<p>ML: Annoy, ScaNN, USearch, HNSWLib, NMSLib, PyNNDescent, NGT, SKLearn...</p>
+</div>
+
+<!-- ── Doc Loaders Detail ── -->
+<div id="page-int-loader-detail" class="page">
+<h1>Document Loaders — 63 Types</h1>
+<p>Load content from any source into Duxx AI <code>Document</code> objects. Each loader has a <code>.load()</code> method returning <code>list[Document]</code>.</p>
+
+<h2>File Formats (14)</h2>
+<pre class="code-block"><code><span class="kw">from</span> duxx_ai.rag.loaders <span class="kw">import</span> *
+
+docs = TextLoader(<span class="string">"readme.txt"</span>).load()
+docs = CSVLoader(<span class="string">"data.csv"</span>).load()              <span class="cm"># One Document per row</span>
+docs = JSONLoader(<span class="string">"data.json"</span>, content_key=<span class="string">"text"</span>).load()
+docs = JSONLLoader(<span class="string">"data.jsonl"</span>).load()           <span class="cm"># One Document per line</span>
+docs = MarkdownLoader(<span class="string">"docs.md"</span>, split_by_headers=<span class="kw">True</span>).load()  <span class="cm"># Split by ## headers</span>
+docs = HTMLLoader(<span class="string">"page.html"</span>).load()             <span class="cm"># Strips tags, extracts title</span>
+docs = PDFLoader(<span class="string">"paper.pdf"</span>).load()              <span class="cm"># pip install pdfplumber</span>
+docs = DocxLoader(<span class="string">"report.docx"</span>).load()           <span class="cm"># pip install python-docx</span>
+docs = ExcelLoader(<span class="string">"data.xlsx"</span>).load()            <span class="cm"># pip install openpyxl</span>
+docs = PPTXLoader(<span class="string">"slides.pptx"</span>).load()           <span class="cm"># pip install python-pptx</span>
+docs = EPUBLoader(<span class="string">"book.epub"</span>).load()             <span class="cm"># pip install ebooklib</span>
+docs = RTFLoader(<span class="string">"doc.rtf"</span>).load()                <span class="cm"># pip install striprtf</span>
+docs = XMLLoader(<span class="string">"data.xml"</span>, text_tags=[<span class="string">"title"</span>, <span class="string">"body"</span>]).load()
+docs = EmailLoader(<span class="string">"msg.eml"</span>).load()              <span class="cm"># Extracts subject, from, body</span></code></pre>
+
+<h2>Cloud Storage (6)</h2>
+<pre class="code-block"><code>docs = S3Loader(<span class="string">"bucket"</span>, prefix=<span class="string">"docs/"</span>).load()               <span class="cm"># pip install boto3</span>
+docs = GCSLoader(<span class="string">"bucket"</span>, prefix=<span class="string">"docs/"</span>).load()              <span class="cm"># pip install google-cloud-storage</span>
+docs = AzureBlobLoader(<span class="string">"container"</span>).load()                    <span class="cm"># pip install azure-storage-blob</span>
+docs = GoogleDriveLoader(file_ids=[<span class="string">"id1"</span>]).load()               <span class="cm"># GOOGLE_API_KEY</span>
+docs = DropboxLoader(paths=[<span class="string">"/doc.txt"</span>]).load()                 <span class="cm"># DROPBOX_ACCESS_TOKEN</span>
+docs = OneDriveLoader(file_ids=[<span class="string">"id1"</span>]).load()                  <span class="cm"># ONEDRIVE_ACCESS_TOKEN</span></code></pre>
+
+<h2>Productivity Tools (9)</h2>
+<pre class="code-block"><code>docs = NotionLoader(page_ids=[<span class="string">"page-id"</span>]).load()                <span class="cm"># NOTION_TOKEN</span>
+docs = ConfluenceLoader(page_ids=[<span class="string">"id"</span>]).load()                  <span class="cm"># CONFLUENCE_TOKEN</span>
+docs = JiraLoader(jql=<span class="string">"project=PROJ"</span>).load()                    <span class="cm"># JIRA_TOKEN</span>
+docs = TrelloLoader(board_id=<span class="string">"id"</span>).load()                       <span class="cm"># TRELLO_API_KEY</span>
+docs = LinearLoader(team_key=<span class="string">"TEAM"</span>).load()                     <span class="cm"># LINEAR_API_KEY</span>
+docs = AirtableLoader(<span class="string">"base_id"</span>, <span class="string">"table"</span>).load()                <span class="cm"># AIRTABLE_API_KEY</span>
+docs = AsanaLoader(project_gid=<span class="string">"id"</span>).load()                     <span class="cm"># ASANA_ACCESS_TOKEN</span>
+docs = MondayLoader(board_id=<span class="string">"id"</span>).load()                       <span class="cm"># MONDAY_API_KEY</span>
+docs = ClickUpLoader(list_id=<span class="string">"id"</span>).load()                       <span class="cm"># CLICKUP_API_KEY</span></code></pre>
+
+<h2>Dev Tools, Messaging, Web, Academic, etc.</h2>
+<pre class="code-block"><code><span class="cm"># Dev tools</span>
+docs = GitHubLoader(<span class="string">"owner/repo"</span>).load()                        <span class="cm"># GITHUB_TOKEN</span>
+docs = GitLabLoader(project_id=<span class="string">"123"</span>).load()                    <span class="cm"># GITLAB_TOKEN</span>
+
+<span class="cm"># Messaging</span>
+docs = SlackLoader(channel_id=<span class="string">"C123"</span>).load()                    <span class="cm"># SLACK_BOT_TOKEN</span>
+docs = DiscordLoader(channel_id=<span class="string">"id"</span>).load()                    <span class="cm"># DISCORD_BOT_TOKEN</span>
+docs = TelegramLoader(<span class="string">"export.json"</span>).load()                    <span class="cm"># JSON export file</span>
+docs = WhatsAppLoader(<span class="string">"chat.txt"</span>).load()                       <span class="cm"># TXT export file</span>
+docs = TwitterLoader(query=<span class="string">"AI agents"</span>).load()                  <span class="cm"># TWITTER_BEARER_TOKEN</span>
+
+<span class="cm"># Web</span>
+docs = WebLoader(<span class="string">"https://example.com"</span>).load()
+docs = RecursiveURLLoader(<span class="string">"https://docs.example.com"</span>, max_depth=2).load()
+docs = SitemapLoader(<span class="string">"https://example.com/sitemap.xml"</span>).load()
+docs = FirecrawlLoader(<span class="string">"https://example.com"</span>).load()            <span class="cm"># FIRECRAWL_API_KEY</span>
+
+<span class="cm"># Academic</span>
+docs = WikipediaLoader(<span class="string">"machine learning"</span>).load()
+docs = ArxivLoader(<span class="string">"transformer architecture"</span>).load()
+docs = YouTubeLoader(<span class="string">"https://youtube.com/watch?v=..."</span>).load()   <span class="cm"># pip install youtube-transcript-api</span>
+
+<span class="cm"># Social</span>
+docs = RedditLoader(subreddit=<span class="string">"MachineLearning"</span>).load()
+docs = HackerNewsLoader(limit=10).load()
+docs = RSSLoader(<span class="string">"https://feed.example.com/rss"</span>).load()
+docs = FigmaLoader(file_key=<span class="string">"key"</span>).load()                       <span class="cm"># FIGMA_ACCESS_TOKEN</span>
+
+<span class="cm"># Batch</span>
+docs = DirectoryLoader(<span class="string">"./data"</span>, glob=<span class="string">"**/*.md"</span>).load()          <span class="cm"># Auto-detects file types</span></code></pre>
+</div>
+
+<!-- ── Retrievers Detail ── -->
+<div id="page-int-ret-detail" class="page">
+<h1>Retrievers — 94 Types</h1>
+<p>Retrieve relevant documents from any source. All retrievers share: <code>retrieve(query, top_k) -> list[Document]</code>.</p>
+
+<h2>Core Retrieval Strategies (13)</h2>
+<pre class="code-block"><code><span class="kw">from</span> duxx_ai.rag.retriever <span class="kw">import</span> *
+
+<span class="cm"># Vector similarity</span>
+ret = VectorRetriever(store, min_score=0.5)
+
+<span class="cm"># BM25 (Okapi) — probabilistic keyword ranking</span>
+ret = BM25Retriever(documents, k1=1.5, b=0.75)
+
+<span class="cm"># Hybrid — vector + keyword with Reciprocal Rank Fusion</span>
+ret = HybridRetriever(vector_ret, keyword_ret, vector_weight=0.6)
+
+<span class="cm"># Multi-query — generates query variations for better recall</span>
+ret = MultiQueryRetriever(base_ret, query_count=3)
+
+<span class="cm"># Reranker — Cohere or local CrossEncoder</span>
+ret = RerankerRetriever(base_ret, method=<span class="string">"cohere"</span>, fetch_k=20)
+ret = RerankerRetriever(base_ret, method=<span class="string">"cross_encoder"</span>)
+
+<span class="cm"># Ensemble — combine any retrievers with weights</span>
+ret = EnsembleRetriever([vec_ret, bm25_ret, wiki_ret], weights=[0.5, 0.3, 0.2])
+
+<span class="cm"># Parent document — match chunks, return full parents</span>
+ret = ParentDocRetriever(chunk_retriever, parent_documents)
+
+<span class="cm"># Contextual compression — keep only relevant sentences</span>
+ret = ContextualCompressionRetriever(base_ret, min_sentences=2)
+
+<span class="cm"># MMR — balance relevance with diversity</span>
+ret = MaxMarginalRelevanceRetriever(base_ret, lambda_mult=0.5)
+
+<span class="cm"># Time-weighted — boost newer documents</span>
+ret = TimeWeightedRetriever(base_ret, decay_rate=0.01)
+
+<span class="cm"># Long context reorder — "Lost in the Middle" fix</span>
+ret = LongContextReorderRetriever(base_ret)
+
+<span class="cm"># Deduplication — remove near-duplicates</span>
+ret = DeduplicationRetriever(base_ret, similarity_threshold=0.85)</code></pre>
+
+<h2>Search API Retrievers (11)</h2>
+<pre class="code-block"><code>ret = TavilyRetriever()          <span class="cm"># TAVILY_API_KEY — best for RAG</span>
+ret = ExaRetriever()             <span class="cm"># EXA_API_KEY — semantic search</span>
+ret = GoogleSearchRetriever()    <span class="cm"># GOOGLE_API_KEY + GOOGLE_CSE_ID</span>
+ret = BingSearchRetriever()      <span class="cm"># BING_SEARCH_KEY</span>
+ret = BraveSearchRetriever()     <span class="cm"># BRAVE_API_KEY</span>
+ret = SerpAPIRetriever()         <span class="cm"># SERPAPI_API_KEY</span>
+ret = SerperRetriever()          <span class="cm"># SERPER_API_KEY</span>
+ret = YouRetriever()             <span class="cm"># YDC_API_KEY</span>
+ret = SearchAPIRetriever()       <span class="cm"># SEARCHAPI_KEY</span>
+ret = WebSearchRetriever()       <span class="cm"># DuckDuckGo (no API key)</span>
+ret = SearxNGRetriever(url=<span class="string">"http://localhost:8888"</span>)  <span class="cm"># Self-hosted</span></code></pre>
+
+<h2>Academic &amp; Knowledge (3)</h2>
+<pre class="code-block"><code>ret = WikipediaRetriever(lang=<span class="string">"en"</span>)       <span class="cm"># No API key</span>
+ret = ArxivRetriever(max_results=5)       <span class="cm"># No API key</span>
+ret = PubMedRetriever()                   <span class="cm"># No API key</span></code></pre>
+
+<h2>Cloud Managed (8)</h2>
+<pre class="code-block"><code>ret = AmazonKendraRetriever(index_id=<span class="string">"id"</span>)
+ret = AzureAISearchRetriever(index_name=<span class="string">"idx"</span>)
+ret = ElasticsearchRetriever(index_name=<span class="string">"idx"</span>)
+ret = CohereRerankRetriever(base_ret, model=<span class="string">"rerank-english-v3.0"</span>)
+ret = VectaraRetriever(corpus_key=<span class="string">"key"</span>)
+ret = VertexAISearchRetriever(data_store_id=<span class="string">"id"</span>)
+ret = PineconeHybridRetriever(index_name=<span class="string">"idx"</span>, embedder=embedder)</code></pre>
+
+<h2>ML-Based (4) &amp; Advanced Strategies (12+)</h2>
+<pre class="code-block"><code><span class="cm"># ML-based (pip install scikit-learn)</span>
+ret = KNNRetriever(documents, embedder=embedder)
+ret = SVMRetriever(documents)
+ret = TFIDFRetriever(documents)
+ret = FlashRankRetriever(base_ret)   <span class="cm"># pip install flashrank</span>
+
+<span class="cm"># Advanced strategy stubs</span>
+ret = HyDERetriever()        <span class="cm"># Hypothetical Document Embeddings</span>
+ret = RAGFusionRetriever()   <span class="cm"># RAG-Fusion multi-query + RRF</span>
+ret = StepBackRetriever()    <span class="cm"># Step-back prompting</span>
+ret = ColBERTRetriever()     <span class="cm"># Late interaction (pip install colbert-ai)</span>
+ret = SPLADERetriever()      <span class="cm"># Sparse retriever (pip install splade)</span>
+ret = RAGatouillRetriever()  <span class="cm"># RAGatouille ColBERT (pip install ragatouille)</span></code></pre>
+</div>
+
+<!-- ── Checkpointers Detail ── -->
+<div id="page-int-check-detail" class="page">
+<h1>Checkpointers — 8 Backends</h1>
+<p>Persist FlowGraph state for recovery, time-travel, and durable execution. All checkpointers share: <code>save()</code>, <code>load()</code>, <code>list()</code>, <code>get_latest()</code>.</p>
+<pre class="code-block"><code><span class="kw">from</span> duxx_ai.orchestration.state_graph <span class="kw">import</span> *
+
+<span class="cm"># In-memory (default, no deps)</span>
+cp = MemorySnapshotStore()
+
+<span class="cm"># SQLite (persistent, no server needed)</span>
+cp = SQLiteSnapshotStore(<span class="string">"checkpoints.db"</span>)
+
+<span class="cm"># File-based JSON</span>
+cp = FileSnapshotStore(directory=<span class="string">".duxx_checkpoints"</span>)
+
+<span class="cm"># PostgreSQL (pip install psycopg2-binary)</span>
+cp = PostgresSnapshotStore(<span class="string">"postgresql://user:pass@host/db"</span>)
+
+<span class="cm"># Redis (pip install redis)</span>
+cp = RedisSnapshotStore(<span class="string">"redis://localhost:6379"</span>)
+
+<span class="cm"># MongoDB (pip install pymongo)</span>
+cp = MongoSnapshotStore(<span class="string">"mongodb://localhost:27017"</span>)
+
+<span class="cm"># AWS DynamoDB (pip install boto3)</span>
+cp = DynamoDBSnapshotStore(<span class="string">"table-name"</span>, region=<span class="string">"us-east-1"</span>)
+
+<span class="cm"># Valkey/Redis fork (pip install redis)</span>
+cp = ValleySnapshotStore(<span class="string">"redis://localhost:6379"</span>)
+
+<span class="cm"># Use with FlowGraph</span>
+compiled = graph.compile(checkpointer=cp)
+result = <span class="kw">await</span> compiled.invoke({<span class="string">"input"</span>: <span class="string">"data"</span>})
+
+<span class="cm"># Time-travel</span>
+history = <span class="kw">await</span> compiled.get_state_history()
+result = <span class="kw">await</span> compiled.replay_from(history[0].snapshot_id)</code></pre>
+</div>
+
+<!-- ── Output Parsers Detail ── -->
+<div id="page-int-parser-detail" class="page">
+<h1>Output Parsers — 10 Types</h1>
+<p>Parse LLM text output into structured data. Each parser has <code>parse(text)</code> and <code>get_format_instructions()</code>.</p>
+<pre class="code-block"><code><span class="kw">from</span> duxx_ai.core.parsers <span class="kw">import</span> *
+
+<span class="cm"># JSON — extract from code fences or raw text</span>
+p = JSONOutputParser()
+result = p.parse(<span class="string">'```json\n{"name": "Alice"}\n```'</span>)  <span class="cm"># {"name": "Alice"}</span>
+
+<span class="cm"># Pydantic — validate against schema</span>
+<span class="kw">class</span> User(BaseModel): name: <span class="kw">str</span>; age: <span class="kw">int</span>
+p = PydanticOutputParser(User)
+user = p.parse(<span class="string">'{"name": "Alice", "age": 30}'</span>)     <span class="cm"># User(name="Alice", age=30)</span>
+
+<span class="cm"># XML — extract named tags</span>
+p = XMLOutputParser(tags=[<span class="string">"name"</span>, <span class="string">"score"</span>])
+result = p.parse(<span class="string">"&lt;name&gt;Alice&lt;/name&gt;&lt;score&gt;95&lt;/score&gt;"</span>)
+
+<span class="cm"># YAML — parse YAML blocks</span>
+p = YAMLOutputParser()
+result = p.parse(<span class="string">"name: Alice\nage: 30"</span>)             <span class="cm"># {"name": "Alice", "age": 30}</span>
+
+<span class="cm"># CSV — parse tabular data</span>
+p = CSVOutputParser()
+result = p.parse(<span class="string">"name,age\nAlice,30\nBob,25"</span>)      <span class="cm"># [{"name":"Alice","age":"30"}, ...]</span>
+
+<span class="cm"># Enum — constrained to allowed values</span>
+p = EnumOutputParser(choices=[<span class="string">"positive"</span>, <span class="string">"negative"</span>, <span class="string">"neutral"</span>])
+result = p.parse(<span class="string">"The sentiment is positive"</span>)       <span class="cm"># "positive"</span>
+
+<span class="cm"># Markdown — split by ## headers</span>
+p = MarkdownOutputParser()
+<span class="cm"># Regex — named capture groups</span>
+p = RegexOutputParser(pattern=<span class="string">r"Name: (?P&lt;name&gt;.+)"</span>)
+<span class="cm"># List — numbered/bulleted items</span>
+p = ListOutputParser()
+<span class="cm"># Retry — auto-retry on failure with error feedback</span>
+p = RetryParser(JSONOutputParser(), max_retries=3)
+
+<span class="cm"># Get format instructions for prompt</span>
+instructions = p.get_format_instructions()
+prompt = f<span class="string">"Answer the question.\n{instructions}\nQ: What is 2+2?"</span></code></pre>
+</div>
+
+<!-- ── Middleware Detail ── -->
+<div id="page-int-mw-detail" class="page">
+<h1>Middleware — 4 Types</h1>
+<p>Wrap LLM calls with cross-cutting concerns. Chain multiple middleware together.</p>
+<pre class="code-block"><code><span class="kw">from</span> duxx_ai.core.middleware <span class="kw">import</span> *
+
+<span class="cm"># 1. Prompt Cache — avoid redundant LLM calls</span>
+cache = PromptCacheMiddleware(ttl_seconds=300, max_entries=1000)
+<span class="kw">print</span>(cache.stats)  <span class="cm"># {"hits": 42, "misses": 58, "size": 58}</span>
+
+<span class="cm"># 2. Content Moderation — block PII, injection, profanity</span>
+mod = ContentModerationMiddleware(
+    block_pii=<span class="kw">True</span>,           <span class="cm"># SSN, credit card, email, phone</span>
+    block_injection=<span class="kw">True</span>,     <span class="cm"># "ignore previous instructions"</span>
+    block_profanity=<span class="kw">False</span>,    <span class="cm"># Optional</span>
+    action=<span class="string">"redact"</span>,           <span class="cm"># "block" | "redact" | "warn"</span>
+    custom_blocked_patterns=[<span class="string">r"secret.*key"</span>],  <span class="cm"># Custom regex</span>
+)
+
+<span class="cm"># 3. Logging — track all LLM calls</span>
+log = LoggingMiddleware(log_prompts=<span class="kw">True</span>, log_responses=<span class="kw">False</span>)
+
+<span class="cm"># 4. Rate Limiting — prevent API overuse</span>
+rate = RateLimitMiddleware(max_calls_per_minute=60)
+
+<span class="cm"># Chain them together</span>
+chain = MiddlewareChain([rate, cache, mod, log])
+metadata = <span class="kw">await</span> chain.before_call(conversation, system_prompt, {})
+<span class="kw">if not</span> metadata.get(<span class="string">"_blocked"</span>):
+    response = <span class="kw">await</span> provider.complete(conversation)
+    response_text = <span class="kw">await</span> chain.after_call(response.content, metadata)</code></pre>
+</div>
+
+<!-- ── Contextual Retrieval Detail ── -->
+<div id="page-int-contextual" class="page">
+<h1>Contextual Retrieval</h1>
+<p>Anthropic's technique that reduces retrieval failures by <strong>49-67%</strong>. Prepends AI-generated context to each chunk before embedding.</p>
+
+<h2>How It Works</h2>
+<p>Standard RAG splits documents into chunks, but chunks lose context. "The company's revenue grew by 3%" — which company? What period?</p>
+<p>Contextual Retrieval uses an LLM to generate a short explanation for each chunk within the full document, then prepends it before embedding and indexing.</p>
+
+<h3>Before (standard)</h3>
+<pre class="code-block"><code><span class="cm">"The company's revenue grew by 3% over the previous quarter."</span></code></pre>
+
+<h3>After (contextualized)</h3>
+<pre class="code-block"><code><span class="cm">"This chunk is from ACME Corp's Q2 2023 SEC filing.</span>
+<span class="cm">Previous quarter revenue was $314M.</span>
+<span class="cm"></span>
+<span class="cm">The company's revenue grew by 3% over the previous quarter."</span></code></pre>
+
+<h2>Full Pipeline</h2>
+<pre class="code-block"><code><span class="kw">from</span> duxx_ai.rag.contextual <span class="kw">import</span> ContextualRetrieval
+<span class="kw">from</span> duxx_ai.rag.embeddings <span class="kw">import</span> OpenAIEmbedder
+<span class="kw">from</span> duxx_ai.core.llm <span class="kw">import</span> create_provider, LLMConfig
+
+embedder = OpenAIEmbedder()
+llm = create_provider(LLMConfig(provider=<span class="string">"anthropic"</span>, model=<span class="string">"claude-haiku"</span>))
+
+cr = ContextualRetrieval(
+    embedder=embedder,
+    llm_provider=llm,
+    chunk_size=800,            <span class="cm"># Words per chunk</span>
+    chunk_overlap=200,         <span class="cm"># Overlap between chunks</span>
+    use_contextual_bm25=<span class="kw">True</span>, <span class="cm"># Enable contextual BM25</span>
+    use_reranking=<span class="kw">True</span>,        <span class="cm"># Cohere reranking</span>
+    initial_fetch_k=150,       <span class="cm"># Fetch 150 candidates</span>
+    final_top_k=20,            <span class="cm"># Return top 20 after rerank</span>
+)
+
+<span class="cm"># Index documents</span>
+<span class="kw">await</span> cr.add_document(full_text, source=<span class="string">"report.pdf"</span>)
+
+<span class="cm"># Query</span>
+results = <span class="kw">await</span> cr.query(<span class="string">"What was Q4 revenue growth?"</span>, top_k=5)
+<span class="kw">for</span> doc <span class="kw">in</span> results:
+    <span class="kw">print</span>(doc.content)
+
+<span class="cm"># Stats</span>
+<span class="kw">print</span>(cr.stats)
+<span class="cm"># {"documents_indexed": 3, "total_chunks": 45, "context_cache_size": 45}</span></code></pre>
+
+<h2>Without LLM (Heuristic Fallback)</h2>
+<pre class="code-block"><code><span class="cm"># No API key needed — uses surrounding text as context</span>
+cr = ContextualRetrieval(
+    embedder=embedder,
+    llm_provider=<span class="kw">None</span>,    <span class="cm"># Heuristic context generation</span>
+)</code></pre>
+
+<h2>Performance</h2>
+<table style="width:100%;font-size:13px;border-collapse:collapse;">
+<tr style="background:var(--gray-100);"><th style="padding:8px;text-align:left;">Method</th><th style="padding:8px;">Failure Reduction</th></tr>
+<tr><td style="padding:6px 8px;">Contextual Embeddings only</td><td><strong>35%</strong></td></tr>
+<tr><td style="padding:6px 8px;">+ Contextual BM25</td><td><strong>49%</strong></td></tr>
+<tr><td style="padding:6px 8px;">+ Reranking</td><td><strong>67%</strong></td></tr>
+</table>
 </div>
 
 </main>
