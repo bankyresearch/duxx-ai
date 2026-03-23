@@ -545,6 +545,14 @@ DOCS_TEMPLATE = """<!DOCTYPE html>
     <div class="sidebar-section">
         <div class="sidebar-section-title">Importers</div>
         <a class="sidebar-link" onclick="navigateTo('n8n-import')">n8n Workflow Import</a>
+        <a class="sidebar-link" onclick="navigateTo('mcp')">MCP Integration</a>
+        <a class="sidebar-link" onclick="navigateTo('middleware')">Middleware</a>
+
+        <h3>Integration Catalog</h3>
+        <a class="sidebar-link" onclick="navigateTo('integrations')">All 490 Integrations</a>
+
+        <h3>FlowGraph Engine</h3>
+        <a class="sidebar-link" onclick="navigateTo('flowgraph')">FlowGraph Overview</a>
     </div>
     <div class="sidebar-section">
         <div class="sidebar-section-title">Templates</div>
@@ -2312,6 +2320,391 @@ result = importer.convert(n8n_json)
 <span class="kw">print</span>(result[<span class="string">"python_code"</span>])   <span class="cm"># Ready-to-run Duxx AI code</span>
 <span class="kw">print</span>(result[<span class="string">"node_count"</span>])    <span class="cm"># Number of nodes converted</span>
 <span class="kw">print</span>(result[<span class="string">"warnings"</span>])      <span class="cm"># Any conversion warnings</span></code></pre>
+</div>
+
+<!-- ── MCP Integration ── -->
+<div id="page-mcp" class="page">
+<h1>MCP Integration</h1>
+<p>Connect to any MCP server or expose Duxx AI tools as an MCP server.</p>
+
+<h2 id="mcp-client">MCPClient — Connect to MCP Servers</h2>
+<pre class="code-block"><code><span class="kw">from</span> duxx_ai.tools.mcp <span class="kw">import</span> MCPClient
+
+<span class="cm"># stdio transport (local server)</span>
+<span class="kw">async with</span> MCPClient(<span class="string">"stdio"</span>, command=<span class="string">"python"</span>, args=[<span class="string">"math_server.py"</span>]) <span class="kw">as</span> client:
+    tools = <span class="kw">await</span> client.load_tools()    <span class="cm"># Native Duxx AI Tool objects</span>
+    result = <span class="kw">await</span> client.call_tool(<span class="string">"add"</span>, {<span class="string">"a"</span>: 1, <span class="string">"b"</span>: 2})
+
+<span class="cm"># HTTP transport (remote server)</span>
+<span class="kw">async with</span> MCPClient(<span class="string">"http"</span>, url=<span class="string">"http://localhost:8000/mcp"</span>,
+                     headers={<span class="string">"Authorization"</span>: <span class="string">"Bearer token"</span>}) <span class="kw">as</span> client:
+    tools = <span class="kw">await</span> client.load_tools()
+    resources = <span class="kw">await</span> client.list_resources()
+    prompts = <span class="kw">await</span> client.list_prompts()</code></pre>
+
+<h2 id="mcp-toolkit">MCPToolkit — Multi-Server Management</h2>
+<pre class="code-block"><code><span class="kw">from</span> duxx_ai.tools.mcp <span class="kw">import</span> MCPToolkit
+
+toolkit = MCPToolkit({
+    <span class="string">"math"</span>: {<span class="string">"transport"</span>: <span class="string">"stdio"</span>, <span class="string">"command"</span>: <span class="string">"python"</span>, <span class="string">"args"</span>: [<span class="string">"math.py"</span>]},
+    <span class="string">"weather"</span>: {<span class="string">"transport"</span>: <span class="string">"http"</span>, <span class="string">"url"</span>: <span class="string">"http://localhost:8000/mcp"</span>},
+    <span class="string">"db"</span>: {<span class="string">"transport"</span>: <span class="string">"http"</span>, <span class="string">"url"</span>: <span class="string">"https://api.example.com/mcp"</span>,
+           <span class="string">"headers"</span>: {<span class="string">"Authorization"</span>: <span class="string">"Bearer key"</span>}},
+})
+
+<span class="kw">async with</span> toolkit:
+    all_tools = <span class="kw">await</span> toolkit.get_tools()       <span class="cm"># From all servers</span>
+    math_tools = <span class="kw">await</span> toolkit.get_tools(<span class="string">"math"</span>)  <span class="cm"># From specific server</span>
+
+    <span class="cm"># Use with Agent</span>
+    agent = Agent(tools=all_tools, config=AgentConfig(name=<span class="string">"mcp-agent"</span>))
+    result = <span class="kw">await</span> agent.run(<span class="string">"What is 2+2?"</span>)</code></pre>
+
+<h2 id="mcp-server">MCPServer — Expose Duxx AI Tools</h2>
+<pre class="code-block"><code><span class="kw">from</span> duxx_ai.tools.mcp <span class="kw">import</span> MCPServer
+<span class="kw">from</span> duxx_ai.tools.builtin <span class="kw">import</span> get_builtin_tools
+
+<span class="cm"># Expose tools as MCP server (works with Claude Desktop, Cursor, etc.)</span>
+tools = get_builtin_tools([<span class="string">"calculator"</span>, <span class="string">"web_request"</span>])
+server = MCPServer(<span class="string">"duxx-agent"</span>, tools=tools)
+server.run(transport=<span class="string">"stdio"</span>)  <span class="cm"># or "sse", port=8000</span></code></pre>
+</div>
+
+<!-- ── Middleware ── -->
+<div id="page-middleware" class="page">
+<h1>Middleware</h1>
+<p>Wrap LLM calls with cross-cutting concerns: caching, moderation, logging, rate limiting.</p>
+
+<h2 id="mw-cache">Prompt Cache</h2>
+<pre class="code-block"><code><span class="kw">from</span> duxx_ai.core.middleware <span class="kw">import</span> PromptCacheMiddleware
+
+cache = PromptCacheMiddleware(ttl_seconds=300, max_entries=1000)
+<span class="cm"># Caches identical prompts for 5 minutes</span>
+<span class="kw">print</span>(cache.stats)  <span class="cm"># {"hits": 42, "misses": 58, "size": 58}</span></code></pre>
+
+<h2 id="mw-moderation">Content Moderation</h2>
+<pre class="code-block"><code><span class="kw">from</span> duxx_ai.core.middleware <span class="kw">import</span> ContentModerationMiddleware
+
+mod = ContentModerationMiddleware(
+    block_pii=<span class="kw">True</span>,         <span class="cm"># Detect SSN, CC, email, phone</span>
+    block_injection=<span class="kw">True</span>,   <span class="cm"># Block prompt injection</span>
+    block_profanity=<span class="kw">False</span>,  <span class="cm"># Optional profanity filter</span>
+    action=<span class="string">"redact"</span>,         <span class="cm"># "block", "redact", or "warn"</span>
+)</code></pre>
+
+<h2 id="mw-chain">Middleware Chain</h2>
+<pre class="code-block"><code><span class="kw">from</span> duxx_ai.core.middleware <span class="kw">import</span> (
+    MiddlewareChain, PromptCacheMiddleware,
+    ContentModerationMiddleware, LoggingMiddleware, RateLimitMiddleware,
+)
+
+chain = MiddlewareChain([
+    RateLimitMiddleware(max_calls_per_minute=60),
+    PromptCacheMiddleware(ttl_seconds=300),
+    ContentModerationMiddleware(block_pii=<span class="kw">True</span>),
+    LoggingMiddleware(log_prompts=<span class="kw">True</span>),
+])
+
+<span class="cm"># Apply before/after every LLM call</span>
+metadata = <span class="kw">await</span> chain.before_call(conversation, system_prompt, {})
+<span class="kw">if not</span> metadata.get(<span class="string">"_blocked"</span>):
+    response = <span class="kw">await</span> provider.complete(conversation)
+    response = <span class="kw">await</span> chain.after_call(response.content, metadata)</code></pre>
+</div>
+
+<!-- ── Integration Catalog ── -->
+<div id="page-integrations" class="page">
+<h1>Integration Catalog</h1>
+<p>490 integrations across 9 categories. Every provider uses lazy imports — install only what you need.</p>
+
+<h2 id="int-chat">Chat Models (72 providers)</h2>
+<pre class="code-block"><code><span class="kw">from</span> duxx_ai.core.llm <span class="kw">import</span> LLMConfig, create_provider
+
+<span class="cm"># OpenAI</span>
+p = create_provider(LLMConfig(provider=<span class="string">"openai"</span>, model=<span class="string">"gpt-4o"</span>))
+<span class="cm"># Anthropic</span>
+p = create_provider(LLMConfig(provider=<span class="string">"anthropic"</span>, model=<span class="string">"claude-sonnet-4-20250514"</span>))
+<span class="cm"># Google Gemini</span>
+p = create_provider(LLMConfig(provider=<span class="string">"google"</span>, model=<span class="string">"gemini-2.0-flash"</span>))
+<span class="cm"># Groq (ultra-fast)</span>
+p = create_provider(LLMConfig(provider=<span class="string">"groq"</span>, model=<span class="string">"llama-3.3-70b-versatile"</span>))
+<span class="cm"># DeepSeek</span>
+p = create_provider(LLMConfig(provider=<span class="string">"deepseek"</span>, model=<span class="string">"deepseek-chat"</span>))
+<span class="cm"># AWS Bedrock</span>
+p = create_provider(LLMConfig(provider=<span class="string">"bedrock"</span>, model=<span class="string">"anthropic.claude-3-sonnet"</span>))
+<span class="cm"># Ollama (local)</span>
+p = create_provider(LLMConfig(provider=<span class="string">"ollama"</span>, model=<span class="string">"llama3"</span>))
+
+<span class="cm"># All 72: openai, anthropic, local, google, gemini, bedrock, groq, mistral,</span>
+<span class="cm"># deepseek, together, fireworks, cohere, perplexity, xai, cerebras,</span>
+<span class="cm"># sambanova, ai21, nvidia, anyscale, openrouter, lepton, replicate,</span>
+<span class="cm"># ollama, lmstudio, vllm, huggingface, cloudflare, moonshot, zhipu,</span>
+<span class="cm"># qwen, yi, nebius, deepinfra, azure_openai, baichuan, minimax,</span>
+<span class="cm"># stepfun, spark, volcengine, dashscope, qianfan, hunyuan, doubao,</span>
+<span class="cm"># glm, konko, friendli, novita, featherless, pipeshift, runpod,</span>
+<span class="cm"># modal, baseten, llama_api, maritalk, writer, aimlapi, edenai,</span>
+<span class="cm"># predictionguard, gradient, oci_genai, watsonx, snowflake_cortex,</span>
+<span class="cm"># databricks, sagemaker, upstage, reka, cohere_command, dappier,</span>
+<span class="cm"># greennode, aleph_alpha, netmind, abso</span></code></pre>
+
+<h2 id="int-embed">Embeddings (86 providers)</h2>
+<pre class="code-block"><code><span class="kw">from</span> duxx_ai.rag.embeddings <span class="kw">import</span> (
+    OpenAIEmbedder, HuggingFaceEmbedder, CohereEmbedder,
+    GoogleEmbedder, NVIDIAEmbedder, JinaEmbedder, VoyageEmbedder,
+    FastEmbedEmbedder, LocalEmbedder, OllamaEmbedder,
+)
+
+<span class="cm"># Cloud API</span>
+emb = OpenAIEmbedder(model=<span class="string">"text-embedding-3-small"</span>)
+emb = CohereEmbedder(model=<span class="string">"embed-english-v3.0"</span>)
+emb = JinaEmbedder(model=<span class="string">"jina-embeddings-v3"</span>)
+
+<span class="cm"># Local (free, no API key)</span>
+emb = HuggingFaceEmbedder(<span class="string">"all-MiniLM-L6-v2"</span>)
+emb = FastEmbedEmbedder(<span class="string">"BAAI/bge-small-en-v1.5"</span>)
+emb = OllamaEmbedder()
+emb = LocalEmbedder()  <span class="cm"># Hash-based (testing only)</span>
+
+vec = emb.embed(<span class="string">"Hello world"</span>)      <span class="cm"># list[float]</span>
+vecs = emb.embed_many([<span class="string">"a"</span>, <span class="string">"b"</span>])  <span class="cm"># list[list[float]]</span></code></pre>
+
+<h2 id="int-vs">Vector Stores (153 backends)</h2>
+<pre class="code-block"><code><span class="kw">from</span> duxx_ai.rag.vectorstore <span class="kw">import</span> (
+    InMemoryVectorStore, FAISSVectorStore, ChromaVectorStore,
+    PineconeVectorStore, QdrantVectorStore, WeaviateVectorStore,
+    MilvusVectorStore, ElasticsearchVectorStore, PGVectorStore,
+    LanceDBVectorStore, RedisVectorStore, MongoDBAtlasVectorStore,
+)
+
+<span class="cm"># In-memory (no deps)</span>
+store = InMemoryVectorStore(embedder)
+
+<span class="cm"># FAISS (pip install faiss-cpu)</span>
+store = FAISSVectorStore(embedder, dimension=1536)
+store.save(<span class="string">"index.faiss"</span>)  <span class="cm"># Persist to disk</span>
+
+<span class="cm"># ChromaDB (pip install chromadb)</span>
+store = ChromaVectorStore(embedder, collection_name=<span class="string">"docs"</span>,
+                          persist_directory=<span class="string">"./chroma_db"</span>)
+
+<span class="cm"># Pinecone (cloud)</span>
+store = PineconeVectorStore(embedder, index_name=<span class="string">"my-index"</span>)
+
+<span class="cm"># Common API for all stores:</span>
+ids = store.add(documents)
+results = store.search(<span class="string">"query"</span>, top_k=5)  <span class="cm"># list[SearchResult]</span>
+store.delete(ids)
+count = store.count()</code></pre>
+
+<h2 id="int-loaders">Document Loaders (63 types)</h2>
+<pre class="code-block"><code><span class="kw">from</span> duxx_ai.rag.loaders <span class="kw">import</span> (
+    TextLoader, PDFLoader, CSVLoader, MarkdownLoader,
+    WebLoader, GitHubLoader, NotionLoader, WikipediaLoader,
+    S3Loader, ExcelLoader, SlackLoader, YouTubeLoader,
+    DirectoryLoader, RecursiveURLLoader,
+)
+
+<span class="cm"># Files</span>
+docs = TextLoader(<span class="string">"readme.txt"</span>).load()
+docs = PDFLoader(<span class="string">"paper.pdf"</span>).load()
+docs = ExcelLoader(<span class="string">"data.xlsx"</span>).load()
+docs = MarkdownLoader(<span class="string">"docs.md"</span>, split_by_headers=<span class="kw">True</span>).load()
+
+<span class="cm"># Web</span>
+docs = WebLoader(<span class="string">"https://example.com"</span>).load()
+docs = RecursiveURLLoader(<span class="string">"https://docs.example.com"</span>, max_depth=2).load()
+docs = WikipediaLoader(<span class="string">"machine learning"</span>).load()
+docs = YouTubeLoader(<span class="string">"https://youtube.com/watch?v=..."</span>).load()
+
+<span class="cm"># Cloud</span>
+docs = S3Loader(<span class="string">"my-bucket"</span>, prefix=<span class="string">"docs/"</span>).load()
+docs = GitHubLoader(<span class="string">"owner/repo"</span>, extensions=[<span class="string">".md"</span>]).load()
+docs = NotionLoader(page_ids=[<span class="string">"page-id"</span>]).load()
+docs = SlackLoader(channel_id=<span class="string">"C123"</span>).load()
+
+<span class="cm"># Batch directory</span>
+docs = DirectoryLoader(<span class="string">"./data"</span>, glob=<span class="string">"**/*.md"</span>).load()</code></pre>
+
+<h2 id="int-ret">Retrievers (94 types)</h2>
+<pre class="code-block"><code><span class="kw">from</span> duxx_ai.rag.retriever <span class="kw">import</span> (
+    VectorRetriever, BM25Retriever, HybridRetriever,
+    RerankerRetriever, MultiQueryRetriever, EnsembleRetriever,
+    TavilyRetriever, WikipediaRetriever, ArxivRetriever,
+    ContextualCompressionRetriever, MaxMarginalRelevanceRetriever,
+)
+
+<span class="cm"># Vector similarity</span>
+ret = VectorRetriever(store, min_score=0.5)
+
+<span class="cm"># BM25 (no deps, local)</span>
+ret = BM25Retriever(documents)
+
+<span class="cm"># Hybrid (vector + keyword with RRF fusion)</span>
+ret = HybridRetriever(vector_ret, keyword_ret, vector_weight=0.6)
+
+<span class="cm"># Reranker (Cohere or local CrossEncoder)</span>
+ret = RerankerRetriever(base_ret, method=<span class="string">"cohere"</span>)
+
+<span class="cm"># Multi-query (expand query for better recall)</span>
+ret = MultiQueryRetriever(base_ret, query_count=3)
+
+<span class="cm"># Ensemble (combine any retrievers)</span>
+ret = EnsembleRetriever([vector_ret, bm25_ret, wiki_ret], weights=[0.5, 0.3, 0.2])
+
+<span class="cm"># Web search</span>
+ret = TavilyRetriever()
+
+docs = ret.retrieve(<span class="string">"query"</span>, top_k=5)  <span class="cm"># list[Document]</span></code></pre>
+
+<h2 id="int-check">Checkpointers (8 backends)</h2>
+<pre class="code-block"><code><span class="kw">from</span> duxx_ai.orchestration.state_graph <span class="kw">import</span> (
+    MemorySnapshotStore, SQLiteSnapshotStore, FileSnapshotStore,
+    PostgresSnapshotStore, RedisSnapshotStore, MongoSnapshotStore,
+    DynamoDBSnapshotStore, ValleySnapshotStore,
+)
+
+<span class="cm"># In-memory (default)</span>
+cp = MemorySnapshotStore()
+<span class="cm"># SQLite (persistent)</span>
+cp = SQLiteSnapshotStore(<span class="string">"checkpoints.db"</span>)
+<span class="cm"># PostgreSQL</span>
+cp = PostgresSnapshotStore(<span class="string">"postgresql://user:pass@host/db"</span>)
+<span class="cm"># Redis</span>
+cp = RedisSnapshotStore(<span class="string">"redis://localhost:6379"</span>)
+<span class="cm"># MongoDB</span>
+cp = MongoSnapshotStore(<span class="string">"mongodb://localhost:27017"</span>)
+<span class="cm"># DynamoDB</span>
+cp = DynamoDBSnapshotStore(<span class="string">"my-table"</span>, region=<span class="string">"us-east-1"</span>)
+
+<span class="cm"># Use with FlowGraph</span>
+compiled = graph.compile(checkpointer=cp)</code></pre>
+
+<h2 id="int-parsers">Output Parsers (10 types)</h2>
+<pre class="code-block"><code><span class="kw">from</span> duxx_ai.core.parsers <span class="kw">import</span> (
+    JSONOutputParser, PydanticOutputParser, MarkdownOutputParser,
+    RegexOutputParser, ListOutputParser, RetryParser,
+    XMLOutputParser, YAMLOutputParser, CSVOutputParser, EnumOutputParser,
+)
+
+<span class="cm"># JSON</span>
+parser = JSONOutputParser()
+result = parser.parse(<span class="string">'{"name": "Alice", "age": 30}'</span>)
+
+<span class="cm"># Pydantic schema validation</span>
+<span class="kw">class</span> User(BaseModel): name: <span class="kw">str</span>; age: <span class="kw">int</span>
+parser = PydanticOutputParser(User)
+
+<span class="cm"># XML</span>
+parser = XMLOutputParser(tags=[<span class="string">"name"</span>, <span class="string">"age"</span>])
+result = parser.parse(<span class="string">"&lt;name&gt;Alice&lt;/name&gt;&lt;age&gt;30&lt;/age&gt;"</span>)
+
+<span class="cm"># Enum (constrained choices)</span>
+parser = EnumOutputParser(choices=[<span class="string">"positive"</span>, <span class="string">"negative"</span>, <span class="string">"neutral"</span>])
+
+<span class="cm"># Retry wrapper (auto-retry on parse failure)</span>
+parser = RetryParser(JSONOutputParser(), max_retries=3)</code></pre>
+</div>
+
+<!-- ── FlowGraph (Updated) ── -->
+<div id="page-flowgraph" class="page">
+<h1>FlowGraph — Modern State Graph</h1>
+<p>Typed state graph with channels, streaming, time-travel, and checkpointing.</p>
+
+<h2 id="fg-basic">Basic FlowGraph</h2>
+<pre class="code-block"><code><span class="kw">from</span> typing <span class="kw">import</span> TypedDict, Annotated
+<span class="kw">from</span> duxx_ai.orchestration.state_graph <span class="kw">import</span> (
+    FlowGraph, ENTRY, EXIT, ChatState, merge_messages,
+    MemorySnapshotStore, EventMode,
+)
+
+<span class="kw">class</span> State(TypedDict):
+    messages: Annotated[list, merge_messages]
+    count: <span class="kw">int</span>
+
+<span class="kw">def</span> agent(state):
+    <span class="kw">return</span> {<span class="string">"count"</span>: state[<span class="string">"count"</span>] + 1}
+
+graph = FlowGraph(State)
+graph.add_node(<span class="string">"agent"</span>, agent)
+graph.add_edge(ENTRY, <span class="string">"agent"</span>)
+graph.add_edge(<span class="string">"agent"</span>, EXIT)
+
+compiled = graph.compile(checkpointer=MemorySnapshotStore())
+result = <span class="kw">await</span> compiled.invoke({<span class="string">"messages"</span>: [], <span class="string">"count"</span>: 0})</code></pre>
+
+<h2 id="fg-routing">Dynamic Routing</h2>
+<pre class="code-block"><code><span class="kw">from</span> duxx_ai.orchestration.state_graph <span class="kw">import</span> Route, Dispatch
+
+<span class="cm"># Route — jump to node with state update</span>
+<span class="kw">def</span> router(state):
+    <span class="kw">if</span> state[<span class="string">"urgent"</span>]:
+        <span class="kw">return</span> Route(update={<span class="string">"priority"</span>: <span class="string">"high"</span>}, goto=<span class="string">"fast_track"</span>)
+    <span class="kw">return</span> Route(goto=<span class="string">"normal"</span>)
+
+<span class="cm"># Dispatch — fan-out to multiple nodes</span>
+<span class="kw">def</span> splitter(state):
+    <span class="kw">return</span> [Dispatch(<span class="string">"worker"</span>, {<span class="string">"item"</span>: x}) <span class="kw">for</span> x <span class="kw">in</span> state[<span class="string">"items"</span>]]</code></pre>
+
+<h2 id="fg-hitl">Human-in-the-Loop</h2>
+<pre class="code-block"><code><span class="kw">from</span> duxx_ai.orchestration.state_graph <span class="kw">import</span> pause, FlowPause
+
+<span class="kw">def</span> review_node(state):
+    <span class="kw">if not</span> state.get(<span class="string">"approved"</span>):
+        pause(<span class="string">"Please review and approve"</span>)
+    <span class="kw">return</span> {<span class="string">"status"</span>: <span class="string">"approved"</span>}
+
+<span class="cm"># Will raise FlowPause — resume with:</span>
+result = <span class="kw">await</span> compiled.resume({<span class="string">"approved"</span>: <span class="kw">True</span>})</code></pre>
+
+<h2 id="fg-stream">Streaming</h2>
+<pre class="code-block"><code><span class="kw">async for</span> event <span class="kw">in</span> compiled.stream(input_data, stream_mode=EventMode.UPDATES):
+    <span class="kw">print</span>(f<span class="string">"Node: {event.node}, Data: {event.data}"</span>)
+
+<span class="cm"># Available modes: VALUES, UPDATES, MESSAGES, DEBUG, TASKS, CUSTOM</span></code></pre>
+
+<h2 id="fg-timetravel">Time-Travel Debugging</h2>
+<pre class="code-block"><code><span class="cm"># Browse checkpoint history</span>
+history = <span class="kw">await</span> compiled.get_state_history(limit=20)
+
+<span class="cm"># Replay from any checkpoint</span>
+result = <span class="kw">await</span> compiled.replay_from(snapshot_id=<span class="string">"abc123"</span>)
+
+<span class="cm"># Fork with modifications</span>
+result = <span class="kw">await</span> compiled.fork_from(<span class="string">"abc123"</span>, updates={<span class="string">"count"</span>: 99})</code></pre>
+
+<h2 id="fg-graph-view">Graph Introspection</h2>
+<pre class="code-block"><code>view = compiled.get_graph()
+<span class="kw">print</span>(view.to_ascii())    <span class="cm"># ASCII art diagram</span>
+<span class="kw">print</span>(view.to_mermaid())   <span class="cm"># Mermaid diagram syntax</span></code></pre>
+
+<h2 id="fg-decorators">@workflow / @step</h2>
+<pre class="code-block"><code><span class="kw">from</span> duxx_ai.orchestration.state_graph <span class="kw">import</span> workflow, step, RetryStrategy
+
+@step(name=<span class="string">"fetch"</span>, retry_policy=RetryStrategy(max_attempts=3))
+<span class="kw">async def</span> fetch_data(url: <span class="kw">str</span>) -> dict:
+    <span class="kw">return</span> {<span class="string">"data"</span>: <span class="string">"..."</span>}
+
+@workflow(checkpointer=MemorySnapshotStore())
+<span class="kw">async def</span> my_pipeline(input_data: dict) -> <span class="kw">str</span>:
+    data = <span class="kw">await</span> fetch_data(input_data[<span class="string">"url"</span>])
+    <span class="kw">return</span> data[<span class="string">"data"</span>]
+
+result = <span class="kw">await</span> my_pipeline({<span class="string">"url"</span>: <span class="string">"https://example.com"</span>})</code></pre>
+
+<h2 id="fg-store">Store (Key-Value Persistence)</h2>
+<pre class="code-block"><code><span class="kw">from</span> duxx_ai.orchestration.state_graph <span class="kw">import</span> Store
+
+store = Store()
+store.put(<span class="string">"user:123"</span>, <span class="string">"prefs"</span>, {<span class="string">"theme"</span>: <span class="string">"dark"</span>})
+prefs = store.get(<span class="string">"user:123"</span>, <span class="string">"prefs"</span>)
+results = store.search(<span class="string">"user:123"</span>, query=<span class="string">"theme"</span>)</code></pre>
+
+<h2 id="fg-validate">Graph Validation</h2>
+<pre class="code-block"><code><span class="kw">from</span> duxx_ai.orchestration.state_graph <span class="kw">import</span> validate_graph
+
+errors = validate_graph(graph)
+<span class="kw">if</span> errors:
+    <span class="kw">for</span> e <span class="kw">in</span> errors: <span class="kw">print</span>(f<span class="string">"Error: {e}"</span>)</code></pre>
 </div>
 
 </main>
