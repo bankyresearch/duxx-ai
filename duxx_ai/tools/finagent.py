@@ -1,15 +1,15 @@
-"""OpenBB Financial Data Tools for Duxx AI Agents.
+"""Financial Financial Data Tools for Duxx AI Agents.
 
-Provides agent-ready tools for financial data access powered by OpenBB's
+Provides agent-ready tools for financial data access powered by Financial's
 Open Data Platform. Covers stocks, crypto, forex, options, economy, and more.
 
-Requires: pip install openbb
+Requires: pip install finagent
 
 Usage:
-    from duxx_ai.tools.openbb import get_openbb_tools, FinancialAgent
+    from duxx_ai.tools.finagent import get_financial_tools, FinancialAgent
 
     # Get all financial tools
-    tools = get_openbb_tools()
+    tools = get_financial_tools()
 
     # Or create a ready-made financial agent
     agent = FinancialAgent.create(provider="yfinance")
@@ -26,10 +26,10 @@ from duxx_ai.core.tool import Tool, ToolParameter
 logger = logging.getLogger(__name__)
 
 
-def _safe_openbb_call(fn_path: str, **kwargs: Any) -> str:
-    """Safely call an OpenBB function and return formatted result."""
+def _safe_finagent_call(fn_path: str, **kwargs: Any) -> str:
+    """Safely call an Financial function and return formatted result."""
     try:
-        from openbb import obb
+        from finagent import obb
         # Navigate to the function
         parts = fn_path.split(".")
         obj = obb
@@ -41,7 +41,7 @@ def _safe_openbb_call(fn_path: str, **kwargs: Any) -> str:
             return df.to_string(max_rows=20)
         return str(result.results) if hasattr(result, "results") else str(result)
     except ImportError:
-        return f"[OpenBB not installed. Run: pip install openbb]\nWould call: obb.{fn_path}({kwargs})"
+        return f"[Financial not installed. Run: pip install finagent]\nWould call: obb.{fn_path}({kwargs})"
     except Exception as e:
         return f"Error calling obb.{fn_path}: {e}"
 
@@ -58,11 +58,11 @@ def _create_stock_price_tool() -> Tool:
             ToolParameter(name="symbol", type="string", description="Stock ticker (e.g. AAPL, TSLA, MSFT)", required=True),
             ToolParameter(name="period", type="string", description="Time period: 1d, 5d, 1mo, 3mo, 6mo, 1y, 5y, max", required=False, default="3mo"),
         ],
-        tags=["finance", "openbb", "equity"],
+        tags=["finance", "finagent", "equity"],
     )
     async def _execute(call: Any) -> str:
         args = call.get("arguments", {}) if isinstance(call, dict) else getattr(call, "arguments", {})
-        return _safe_openbb_call("equity.price.historical", symbol=args.get("symbol", "AAPL"))
+        return _safe_finagent_call("equity.price.historical", symbol=args.get("symbol", "AAPL"))
     tool.bind(_execute)
     return tool
 
@@ -72,11 +72,11 @@ def _create_company_profile_tool() -> Tool:
         name="company_profile",
         description="Get company profile information — sector, industry, employees, description, market cap, CEO, website.",
         parameters=[ToolParameter(name="symbol", type="string", description="Stock ticker", required=True)],
-        tags=["finance", "openbb", "equity"],
+        tags=["finance", "finagent", "equity"],
     )
     async def _execute(call: Any) -> str:
         args = call.get("arguments", {}) if isinstance(call, dict) else getattr(call, "arguments", {})
-        return _safe_openbb_call("equity.profile", symbol=args.get("symbol", "AAPL"))
+        return _safe_finagent_call("equity.profile", symbol=args.get("symbol", "AAPL"))
     tool.bind(_execute)
     return tool
 
@@ -86,11 +86,11 @@ def _create_financial_metrics_tool() -> Tool:
         name="financial_metrics",
         description="Get key financial metrics — P/E ratio, EPS, market cap, revenue, profit margins, ROE, debt ratios.",
         parameters=[ToolParameter(name="symbol", type="string", description="Stock ticker", required=True)],
-        tags=["finance", "openbb", "equity"],
+        tags=["finance", "finagent", "equity"],
     )
     async def _execute(call: Any) -> str:
         args = call.get("arguments", {}) if isinstance(call, dict) else getattr(call, "arguments", {})
-        return _safe_openbb_call("equity.fundamental.metrics", symbol=args.get("symbol", "AAPL"))
+        return _safe_finagent_call("equity.fundamental.metrics", symbol=args.get("symbol", "AAPL"))
     tool.bind(_execute)
     return tool
 
@@ -103,11 +103,11 @@ def _create_income_statement_tool() -> Tool:
             ToolParameter(name="symbol", type="string", description="Stock ticker", required=True),
             ToolParameter(name="period", type="string", description="annual or quarter", required=False, default="annual"),
         ],
-        tags=["finance", "openbb", "equity"],
+        tags=["finance", "finagent", "equity"],
     )
     async def _execute(call: Any) -> str:
         args = call.get("arguments", {}) if isinstance(call, dict) else getattr(call, "arguments", {})
-        return _safe_openbb_call("equity.fundamental.income", symbol=args.get("symbol", "AAPL"), period=args.get("period", "annual"))
+        return _safe_finagent_call("equity.fundamental.income", symbol=args.get("symbol", "AAPL"), period=args.get("period", "annual"))
     tool.bind(_execute)
     return tool
 
@@ -117,11 +117,11 @@ def _create_balance_sheet_tool() -> Tool:
         name="balance_sheet",
         description="Get balance sheet data — total assets, liabilities, equity, cash, debt, inventory.",
         parameters=[ToolParameter(name="symbol", type="string", description="Stock ticker", required=True)],
-        tags=["finance", "openbb", "equity"],
+        tags=["finance", "finagent", "equity"],
     )
     async def _execute(call: Any) -> str:
         args = call.get("arguments", {}) if isinstance(call, dict) else getattr(call, "arguments", {})
-        return _safe_openbb_call("equity.fundamental.balance", symbol=args.get("symbol", "AAPL"))
+        return _safe_finagent_call("equity.fundamental.balance", symbol=args.get("symbol", "AAPL"))
     tool.bind(_execute)
     return tool
 
@@ -131,11 +131,11 @@ def _create_cash_flow_tool() -> Tool:
         name="cash_flow",
         description="Get cash flow statement — operating, investing, financing cash flows, free cash flow, capex.",
         parameters=[ToolParameter(name="symbol", type="string", description="Stock ticker", required=True)],
-        tags=["finance", "openbb", "equity"],
+        tags=["finance", "finagent", "equity"],
     )
     async def _execute(call: Any) -> str:
         args = call.get("arguments", {}) if isinstance(call, dict) else getattr(call, "arguments", {})
-        return _safe_openbb_call("equity.fundamental.cash", symbol=args.get("symbol", "AAPL"))
+        return _safe_finagent_call("equity.fundamental.cash", symbol=args.get("symbol", "AAPL"))
     tool.bind(_execute)
     return tool
 
@@ -148,10 +148,10 @@ def _create_stock_screener_tool() -> Tool:
             ToolParameter(name="sector", type="string", description="Sector filter (e.g. Technology, Healthcare)", required=False),
             ToolParameter(name="market_cap_min", type="number", description="Minimum market cap in billions", required=False),
         ],
-        tags=["finance", "openbb", "equity"],
+        tags=["finance", "finagent", "equity"],
     )
     async def _execute(call: Any) -> str:
-        return _safe_openbb_call("equity.screener")
+        return _safe_finagent_call("equity.screener")
     tool.bind(_execute)
     return tool
 
@@ -164,14 +164,14 @@ def _create_market_news_tool() -> Tool:
             ToolParameter(name="symbol", type="string", description="Stock ticker for company news (optional)", required=False),
             ToolParameter(name="limit", type="integer", description="Number of articles", required=False, default=10),
         ],
-        tags=["finance", "openbb", "news"],
+        tags=["finance", "finagent", "news"],
     )
     async def _execute(call: Any) -> str:
         args = call.get("arguments", {}) if isinstance(call, dict) else getattr(call, "arguments", {})
         symbol = args.get("symbol")
         if symbol:
-            return _safe_openbb_call("news.company", symbol=symbol, limit=args.get("limit", 10))
-        return _safe_openbb_call("news.world", limit=args.get("limit", 10))
+            return _safe_finagent_call("news.company", symbol=symbol, limit=args.get("limit", 10))
+        return _safe_finagent_call("news.world", limit=args.get("limit", 10))
     tool.bind(_execute)
     return tool
 
@@ -181,11 +181,11 @@ def _create_crypto_price_tool() -> Tool:
         name="crypto_price",
         description="Get cryptocurrency price data — BTC, ETH, and 1000+ altcoins with OHLCV history.",
         parameters=[ToolParameter(name="symbol", type="string", description="Crypto pair (e.g. BTC-USD, ETH-USD)", required=True)],
-        tags=["finance", "openbb", "crypto"],
+        tags=["finance", "finagent", "crypto"],
     )
     async def _execute(call: Any) -> str:
         args = call.get("arguments", {}) if isinstance(call, dict) else getattr(call, "arguments", {})
-        return _safe_openbb_call("crypto.price.historical", symbol=args.get("symbol", "BTC-USD"))
+        return _safe_finagent_call("crypto.price.historical", symbol=args.get("symbol", "BTC-USD"))
     tool.bind(_execute)
     return tool
 
@@ -195,11 +195,11 @@ def _create_forex_rate_tool() -> Tool:
         name="forex_rate",
         description="Get foreign exchange rates — currency pairs like EUR/USD, GBP/JPY, etc.",
         parameters=[ToolParameter(name="symbol", type="string", description="Currency pair (e.g. EUR/USD)", required=True)],
-        tags=["finance", "openbb", "forex"],
+        tags=["finance", "finagent", "forex"],
     )
     async def _execute(call: Any) -> str:
         args = call.get("arguments", {}) if isinstance(call, dict) else getattr(call, "arguments", {})
-        return _safe_openbb_call("currency.price.historical", symbol=args.get("symbol", "EUR/USD"))
+        return _safe_finagent_call("currency.price.historical", symbol=args.get("symbol", "EUR/USD"))
     tool.bind(_execute)
     return tool
 
@@ -212,14 +212,14 @@ def _create_economic_indicator_tool() -> Tool:
             ToolParameter(name="indicator", type="string", description="Indicator: gdp, cpi, unemployment, interest_rate, pmi", required=True),
             ToolParameter(name="country", type="string", description="Country code (e.g. US, GB, JP)", required=False, default="US"),
         ],
-        tags=["finance", "openbb", "economy"],
+        tags=["finance", "finagent", "economy"],
     )
     async def _execute(call: Any) -> str:
         args = call.get("arguments", {}) if isinstance(call, dict) else getattr(call, "arguments", {})
         indicator = args.get("indicator", "gdp")
         routes = {"gdp": "economy.gdp.nominal", "cpi": "economy.cpi", "unemployment": "economy.unemployment", "interest_rate": "economy.interest_rate"}
         route = routes.get(indicator, f"economy.{indicator}")
-        return _safe_openbb_call(route, country=args.get("country", "US"))
+        return _safe_finagent_call(route, country=args.get("country", "US"))
     tool.bind(_execute)
     return tool
 
@@ -229,11 +229,11 @@ def _create_options_chain_tool() -> Tool:
         name="options_chain",
         description="Get options chain data — calls and puts with strike prices, premiums, Greeks, open interest.",
         parameters=[ToolParameter(name="symbol", type="string", description="Stock ticker", required=True)],
-        tags=["finance", "openbb", "options"],
+        tags=["finance", "finagent", "options"],
     )
     async def _execute(call: Any) -> str:
         args = call.get("arguments", {}) if isinstance(call, dict) else getattr(call, "arguments", {})
-        return _safe_openbb_call("derivatives.options.chains", symbol=args.get("symbol", "AAPL"))
+        return _safe_finagent_call("derivatives.options.chains", symbol=args.get("symbol", "AAPL"))
     tool.bind(_execute)
     return tool
 
@@ -243,14 +243,14 @@ def _create_earnings_calendar_tool() -> Tool:
         name="earnings_calendar",
         description="Get upcoming earnings reports — dates, estimated EPS, actual EPS, surprise percentage.",
         parameters=[ToolParameter(name="symbol", type="string", description="Stock ticker (optional for all upcoming)", required=False)],
-        tags=["finance", "openbb", "equity"],
+        tags=["finance", "finagent", "equity"],
     )
     async def _execute(call: Any) -> str:
         args = call.get("arguments", {}) if isinstance(call, dict) else getattr(call, "arguments", {})
         symbol = args.get("symbol")
         if symbol:
-            return _safe_openbb_call("equity.calendar.earnings", symbol=symbol)
-        return _safe_openbb_call("equity.calendar.earnings")
+            return _safe_finagent_call("equity.calendar.earnings", symbol=symbol)
+        return _safe_finagent_call("equity.calendar.earnings")
     tool.bind(_execute)
     return tool
 
@@ -260,11 +260,11 @@ def _create_analyst_estimates_tool() -> Tool:
         name="analyst_estimates",
         description="Get analyst consensus estimates — price targets, buy/sell ratings, revenue forecasts.",
         parameters=[ToolParameter(name="symbol", type="string", description="Stock ticker", required=True)],
-        tags=["finance", "openbb", "equity"],
+        tags=["finance", "finagent", "equity"],
     )
     async def _execute(call: Any) -> str:
         args = call.get("arguments", {}) if isinstance(call, dict) else getattr(call, "arguments", {})
-        return _safe_openbb_call("equity.estimates.consensus", symbol=args.get("symbol", "AAPL"))
+        return _safe_finagent_call("equity.estimates.consensus", symbol=args.get("symbol", "AAPL"))
     tool.bind(_execute)
     return tool
 
@@ -274,11 +274,11 @@ def _create_market_index_tool() -> Tool:
         name="market_index",
         description="Get market index data — S&P 500, NASDAQ, Dow Jones, Russell 2000, FTSE, Nikkei, etc.",
         parameters=[ToolParameter(name="symbol", type="string", description="Index symbol (e.g. ^GSPC, ^IXIC, ^DJI)", required=True)],
-        tags=["finance", "openbb", "index"],
+        tags=["finance", "finagent", "index"],
     )
     async def _execute(call: Any) -> str:
         args = call.get("arguments", {}) if isinstance(call, dict) else getattr(call, "arguments", {})
-        return _safe_openbb_call("index.price.historical", symbol=args.get("symbol", "^GSPC"))
+        return _safe_finagent_call("index.price.historical", symbol=args.get("symbol", "^GSPC"))
     tool.bind(_execute)
     return tool
 
@@ -288,11 +288,11 @@ def _create_commodity_price_tool() -> Tool:
         name="commodity_price",
         description="Get commodity prices — gold, silver, oil (WTI/Brent), natural gas, copper, wheat, corn.",
         parameters=[ToolParameter(name="symbol", type="string", description="Commodity symbol (e.g. GC=F for gold, CL=F for oil)", required=True)],
-        tags=["finance", "openbb", "commodities"],
+        tags=["finance", "finagent", "commodities"],
     )
     async def _execute(call: Any) -> str:
         args = call.get("arguments", {}) if isinstance(call, dict) else getattr(call, "arguments", {})
-        return _safe_openbb_call("equity.price.historical", symbol=args.get("symbol", "GC=F"))
+        return _safe_finagent_call("equity.price.historical", symbol=args.get("symbol", "GC=F"))
     tool.bind(_execute)
     return tool
 
@@ -302,11 +302,11 @@ def _create_sec_filings_tool() -> Tool:
         name="sec_filings",
         description="Get SEC filings — 10-K, 10-Q, 8-K annual/quarterly reports and disclosures.",
         parameters=[ToolParameter(name="symbol", type="string", description="Stock ticker", required=True)],
-        tags=["finance", "openbb", "regulatory"],
+        tags=["finance", "finagent", "regulatory"],
     )
     async def _execute(call: Any) -> str:
         args = call.get("arguments", {}) if isinstance(call, dict) else getattr(call, "arguments", {})
-        return _safe_openbb_call("equity.fundamental.filings", symbol=args.get("symbol", "AAPL"))
+        return _safe_finagent_call("equity.fundamental.filings", symbol=args.get("symbol", "AAPL"))
     tool.bind(_execute)
     return tool
 
@@ -316,11 +316,11 @@ def _create_insider_trading_tool() -> Tool:
         name="insider_trading",
         description="Get insider trading activity — executive buys/sells, transaction amounts, filing dates.",
         parameters=[ToolParameter(name="symbol", type="string", description="Stock ticker", required=True)],
-        tags=["finance", "openbb", "equity"],
+        tags=["finance", "finagent", "equity"],
     )
     async def _execute(call: Any) -> str:
         args = call.get("arguments", {}) if isinstance(call, dict) else getattr(call, "arguments", {})
-        return _safe_openbb_call("equity.ownership.insider_trading", symbol=args.get("symbol", "AAPL"))
+        return _safe_finagent_call("equity.ownership.insider_trading", symbol=args.get("symbol", "AAPL"))
     tool.bind(_execute)
     return tool
 
@@ -330,11 +330,11 @@ def _create_dividend_tool() -> Tool:
         name="dividends",
         description="Get dividend history and upcoming dividends — payment dates, amounts, yield, ex-dates.",
         parameters=[ToolParameter(name="symbol", type="string", description="Stock ticker", required=True)],
-        tags=["finance", "openbb", "equity"],
+        tags=["finance", "finagent", "equity"],
     )
     async def _execute(call: Any) -> str:
         args = call.get("arguments", {}) if isinstance(call, dict) else getattr(call, "arguments", {})
-        return _safe_openbb_call("equity.fundamental.dividends", symbol=args.get("symbol", "AAPL"))
+        return _safe_finagent_call("equity.fundamental.dividends", symbol=args.get("symbol", "AAPL"))
     tool.bind(_execute)
     return tool
 
@@ -343,7 +343,7 @@ def _create_dividend_tool() -> Tool:
 #  Tool Registry
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-ALL_OPENBB_TOOLS = {
+ALL_FINANCIAL_TOOLS = {
     "stock_price": _create_stock_price_tool,
     "company_profile": _create_company_profile_tool,
     "financial_metrics": _create_financial_metrics_tool,
@@ -366,8 +366,8 @@ ALL_OPENBB_TOOLS = {
 }
 
 
-def get_openbb_tools(names: list[str] | None = None) -> list[Tool]:
-    """Get OpenBB financial tools.
+def get_financial_tools(names: list[str] | None = None) -> list[Tool]:
+    """Get Financial financial tools.
 
     Args:
         names: Specific tool names, or None for all tools.
@@ -376,17 +376,17 @@ def get_openbb_tools(names: list[str] | None = None) -> list[Tool]:
         List of Tool objects ready for use with any Duxx AI Agent.
 
     Usage:
-        tools = get_openbb_tools()  # All 19 tools
-        tools = get_openbb_tools(["stock_price", "financial_metrics", "market_news"])
+        tools = get_financial_tools()  # All 19 tools
+        tools = get_financial_tools(["stock_price", "financial_metrics", "market_news"])
     """
     if names:
-        return [ALL_OPENBB_TOOLS[n]() for n in names if n in ALL_OPENBB_TOOLS]
-    return [fn() for fn in ALL_OPENBB_TOOLS.values()]
+        return [ALL_FINANCIAL_TOOLS[n]() for n in names if n in ALL_FINANCIAL_TOOLS]
+    return [fn() for fn in ALL_FINANCIAL_TOOLS.values()]
 
 
-def list_openbb_tools() -> list[dict[str, str]]:
-    """List all available OpenBB tools with descriptions."""
-    tools = get_openbb_tools()
+def list_financial_tools() -> list[dict[str, str]]:
+    """List all available Financial tools with descriptions."""
+    tools = get_financial_tools()
     return [{"name": t.name, "description": t.description, "tags": t.tags} for t in tools]
 
 
@@ -395,10 +395,10 @@ def list_openbb_tools() -> list[dict[str, str]]:
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 class FinancialAgent:
-    """Pre-built financial analysis agent powered by OpenBB data.
+    """Pre-built financial analysis agent powered by Financial data.
 
     Usage:
-        from duxx_ai.tools.openbb import FinancialAgent
+        from duxx_ai.tools.finagent import FinancialAgent
 
         agent = FinancialAgent.create()
         result = await agent.run("Analyze AAPL stock — fundamentals, recent performance, and outlook")
@@ -407,7 +407,7 @@ class FinancialAgent:
         result = await agent.run("Get the latest crypto prices for BTC and ETH")
     """
 
-    SYSTEM_PROMPT = """You are a senior financial analyst with access to real-time market data via OpenBB.
+    SYSTEM_PROMPT = """You are a senior financial analyst with access to real-time market data via Financial.
 
 Your capabilities:
 - Stock analysis (price history, fundamentals, metrics, filings)
@@ -441,7 +441,7 @@ Format responses clearly with sections and bullet points."""
         Args:
             llm_provider: LLM provider name
             llm_model: Model name
-            tools: Specific OpenBB tools to include (None = all)
+            tools: Specific Financial tools to include (None = all)
 
         Returns:
             Duxx AI Agent configured for financial analysis
@@ -449,7 +449,7 @@ Format responses clearly with sections and bullet points."""
         from duxx_ai.core.agent import Agent, AgentConfig
         from duxx_ai.core.llm import LLMConfig
 
-        openbb_tools = get_openbb_tools(tools)
+        finagent_tools = get_financial_tools(tools)
 
         agent = Agent(
             config=AgentConfig(
@@ -458,6 +458,6 @@ Format responses clearly with sections and bullet points."""
                 llm=LLMConfig(provider=llm_provider, model=llm_model),
                 max_iterations=15,
             ),
-            tools=openbb_tools,
+            tools=finagent_tools,
         )
         return agent
