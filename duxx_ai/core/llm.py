@@ -31,6 +31,14 @@ class LLMConfig(BaseModel):
             "openai": "OPENAI_API_KEY",
             "anthropic": "ANTHROPIC_API_KEY",
             "local": "",
+            "google": "GOOGLE_API_KEY",
+            "gemini": "GOOGLE_API_KEY",
+            "groq": "GROQ_API_KEY",
+            "mistral": "MISTRAL_API_KEY",
+            "bedrock": "",
+            "deepseek": "DEEPSEEK_API_KEY",
+            "together": "TOGETHER_API_KEY",
+            "fireworks": "FIREWORKS_API_KEY",
         }
         env_var = env_map.get(self.provider, "")
         return os.environ.get(env_var, "") if env_var else ""
@@ -280,10 +288,311 @@ class LocalProvider(LLMProvider):
             yield chunk
 
 
+class GoogleProvider(LLMProvider):
+    """Google Gemini API provider.
+
+    Usage:
+        config = LLMConfig(provider="google", model="gemini-2.0-flash", api_key="...")
+        provider = create_provider(config)
+    """
+
+    def __init__(self, config: LLMConfig) -> None:
+        super().__init__(config)
+
+    def _get_key(self) -> str:
+        import os
+        return self.config.api_key or os.environ.get("GOOGLE_API_KEY", "")
+
+    async def complete(self, conversation: Conversation, tools: list[Tool] | None = None, system_prompt: str = "") -> LLMResponse:
+        base = self.config.base_url or "https://generativelanguage.googleapis.com/v1beta"
+        url = f"{base}/models/{self.config.model}:generateContent?key={self._get_key()}"
+
+        # Convert messages to Gemini format
+        contents = []
+        for msg in conversation.messages:
+            if msg.role == Role.SYSTEM:
+                continue  # System prompt handled separately
+            role = "user" if msg.role == Role.USER else "model"
+            contents.append({"role": role, "parts": [{"text": msg.content}]})
+
+        body: dict[str, Any] = {"contents": contents}
+        if system_prompt:
+            body["systemInstruction"] = {"parts": [{"text": system_prompt}]}
+        body["generationConfig"] = {
+            "temperature": self.config.temperature,
+            "maxOutputTokens": self.config.max_tokens,
+        }
+
+        # Add tools if present
+        if tools:
+            func_declarations = []
+            for t in tools:
+                schema = t.to_schema()
+                func_declarations.append({
+                    "name": schema["name"],
+                    "description": schema.get("description", ""),
+                    "parameters": schema.get("parameters", {}),
+                })
+            body["tools"] = [{"functionDeclarations": func_declarations}]
+
+        async with httpx.AsyncClient(timeout=120) as client:
+            resp = await client.post(url, json=body)
+            resp.raise_for_status()
+            data = resp.json()
+
+        candidate = data.get("candidates", [{}])[0]
+        parts = candidate.get("content", {}).get("parts", [])
+
+        content = ""
+        tool_calls = []
+        for part in parts:
+            if "text" in part:
+                content += part["text"]
+            elif "functionCall" in part:
+                fc = part["functionCall"]
+                tool_calls.append(ToolCall(
+                    id=f"call_{fc['name']}",
+                    name=fc["name"],
+                    arguments=fc.get("args", {}),
+                ))
+
+        usage = data.get("usageMetadata", {})
+        return LLMResponse(
+            content=content,
+            tool_calls=tool_calls,
+            usage={"prompt_tokens": usage.get("promptTokenCount", 0), "completion_tokens": usage.get("candidatesTokenCount", 0), "total_tokens": usage.get("totalTokenCount", 0)},
+            model=self.config.model,
+        )
+
+    async def stream(self, conversation: Conversation, tools: list[Tool] | None = None, system_prompt: str = "") -> AsyncIterator[str]:
+        base = self.config.base_url or "https://generativelanguage.googleapis.com/v1beta"
+        url = f"{base}/models/{self.config.model}:streamGenerateContent?alt=sse&key={self._get_key()}"
+
+        contents = []
+        for msg in conversation.messages:
+            if msg.role == Role.SYSTEM:
+                continue
+            role = "user" if msg.role == Role.USER else "model"
+            contents.append({"role": role, "parts": [{"text": msg.content}]})
+
+        body: dict[str, Any] = {"contents": contents}
+        if system_prompt:
+            body["systemInstruction"] = {"parts": [{"text": system_prompt}]}
+
+        async with httpx.AsyncClient(timeout=120) as client:
+            async with client.stream("POST", url, json=body) as resp:
+                async for line in resp.aiter_lines():
+                    if line.startswith("data: "):
+                        chunk_data = json.loads(line[6:])
+                        parts = chunk_data.get("candidates", [{}])[0].get("content", {}).get("parts", [])
+                        for part in parts:
+                            if "text" in part:
+                                yield part["text"]
+
+
+class GroqProvider(LLMProvider):
+    """Groq API provider (OpenAI-compatible, ultra-fast inference).
+
+    Usage:
+        config = LLMConfig(provider="groq", model="llama-3.3-70b-versatile", api_key="...")
+    """
+
+    def __init__(self, config: LLMConfig) -> None:
+        config.base_url = config.base_url or "https://api.groq.com/openai/v1"
+        super().__init__(config)
+        self._delegate = OpenAIProvider(config)
+
+    async def complete(self, conversation: Conversation, tools: list[Tool] | None = None, system_prompt: str = "") -> LLMResponse:
+        return await self._delegate.complete(conversation, tools, system_prompt)
+
+    async def stream(self, conversation: Conversation, tools: list[Tool] | None = None, system_prompt: str = "") -> AsyncIterator[str]:
+        async for chunk in self._delegate.stream(conversation, tools, system_prompt):
+            yield chunk
+
+
+class MistralProvider(LLMProvider):
+    """Mistral AI provider (OpenAI-compatible API).
+
+    Usage:
+        config = LLMConfig(provider="mistral", model="mistral-large-latest", api_key="...")
+    """
+
+    def __init__(self, config: LLMConfig) -> None:
+        config.base_url = config.base_url or "https://api.mistral.ai/v1"
+        super().__init__(config)
+        self._delegate = OpenAIProvider(config)
+
+    async def complete(self, conversation: Conversation, tools: list[Tool] | None = None, system_prompt: str = "") -> LLMResponse:
+        return await self._delegate.complete(conversation, tools, system_prompt)
+
+    async def stream(self, conversation: Conversation, tools: list[Tool] | None = None, system_prompt: str = "") -> AsyncIterator[str]:
+        async for chunk in self._delegate.stream(conversation, tools, system_prompt):
+            yield chunk
+
+
+class BedrockProvider(LLMProvider):
+    """AWS Bedrock provider (Claude, Llama, Titan models).
+
+    Requires: pip install boto3
+
+    Usage:
+        config = LLMConfig(provider="bedrock", model="anthropic.claude-3-sonnet-20240229-v1:0")
+    """
+
+    def __init__(self, config: LLMConfig) -> None:
+        super().__init__(config)
+        try:
+            import boto3  # noqa: F401
+        except ImportError:
+            raise ImportError("boto3 is required for Bedrock: pip install boto3")
+
+    async def complete(self, conversation: Conversation, tools: list[Tool] | None = None, system_prompt: str = "") -> LLMResponse:
+        import boto3
+        region = self.config.extra.get("region", "us-east-1")
+        client = boto3.client("bedrock-runtime", region_name=region)
+
+        messages = []
+        for msg in conversation.messages:
+            if msg.role == Role.SYSTEM:
+                continue
+            role = "user" if msg.role == Role.USER else "assistant"
+            messages.append({"role": role, "content": [{"text": msg.content}]})
+
+        body: dict[str, Any] = {
+            "messages": messages,
+            "inferenceConfig": {"maxTokens": self.config.max_tokens, "temperature": self.config.temperature},
+        }
+        if system_prompt:
+            body["system"] = [{"text": system_prompt}]
+
+        import asyncio
+        resp = await asyncio.get_event_loop().run_in_executor(
+            None,
+            lambda: client.converse(modelId=self.config.model, **body),
+        )
+
+        output = resp.get("output", {})
+        content = ""
+        tool_calls = []
+        for block in output.get("message", {}).get("content", []):
+            if "text" in block:
+                content += block["text"]
+            elif "toolUse" in block:
+                tu = block["toolUse"]
+                tool_calls.append(ToolCall(id=tu["toolUseId"], name=tu["name"], arguments=tu.get("input", {})))
+
+        usage = resp.get("usage", {})
+        return LLMResponse(
+            content=content,
+            tool_calls=tool_calls,
+            usage={"prompt_tokens": usage.get("inputTokens", 0), "completion_tokens": usage.get("outputTokens", 0), "total_tokens": usage.get("inputTokens", 0) + usage.get("outputTokens", 0)},
+            model=self.config.model,
+        )
+
+    async def stream(self, conversation: Conversation, tools: list[Tool] | None = None, system_prompt: str = "") -> AsyncIterator[str]:
+        # Bedrock streaming via converse_stream
+        import boto3, asyncio
+        region = self.config.extra.get("region", "us-east-1")
+        client = boto3.client("bedrock-runtime", region_name=region)
+
+        messages = []
+        for msg in conversation.messages:
+            if msg.role == Role.SYSTEM:
+                continue
+            role = "user" if msg.role == Role.USER else "assistant"
+            messages.append({"role": role, "content": [{"text": msg.content}]})
+
+        body: dict[str, Any] = {
+            "messages": messages,
+            "inferenceConfig": {"maxTokens": self.config.max_tokens, "temperature": self.config.temperature},
+        }
+        if system_prompt:
+            body["system"] = [{"text": system_prompt}]
+
+        resp = await asyncio.get_event_loop().run_in_executor(
+            None,
+            lambda: client.converse_stream(modelId=self.config.model, **body),
+        )
+
+        for event in resp.get("stream", []):
+            if "contentBlockDelta" in event:
+                delta = event["contentBlockDelta"].get("delta", {})
+                if "text" in delta:
+                    yield delta["text"]
+
+
+class DeepSeekProvider(LLMProvider):
+    """DeepSeek API provider (OpenAI-compatible).
+
+    Usage:
+        config = LLMConfig(provider="deepseek", model="deepseek-chat", api_key="...")
+    """
+
+    def __init__(self, config: LLMConfig) -> None:
+        config.base_url = config.base_url or "https://api.deepseek.com/v1"
+        super().__init__(config)
+        self._delegate = OpenAIProvider(config)
+
+    async def complete(self, conversation: Conversation, tools: list[Tool] | None = None, system_prompt: str = "") -> LLMResponse:
+        return await self._delegate.complete(conversation, tools, system_prompt)
+
+    async def stream(self, conversation: Conversation, tools: list[Tool] | None = None, system_prompt: str = "") -> AsyncIterator[str]:
+        async for chunk in self._delegate.stream(conversation, tools, system_prompt):
+            yield chunk
+
+
+class TogetherProvider(LLMProvider):
+    """Together AI provider (OpenAI-compatible).
+
+    Usage:
+        config = LLMConfig(provider="together", model="meta-llama/Llama-3-70b-chat-hf", api_key="...")
+    """
+
+    def __init__(self, config: LLMConfig) -> None:
+        config.base_url = config.base_url or "https://api.together.xyz/v1"
+        super().__init__(config)
+        self._delegate = OpenAIProvider(config)
+
+    async def complete(self, conversation: Conversation, tools: list[Tool] | None = None, system_prompt: str = "") -> LLMResponse:
+        return await self._delegate.complete(conversation, tools, system_prompt)
+
+    async def stream(self, conversation: Conversation, tools: list[Tool] | None = None, system_prompt: str = "") -> AsyncIterator[str]:
+        async for chunk in self._delegate.stream(conversation, tools, system_prompt):
+            yield chunk
+
+
+class FireworksProvider(LLMProvider):
+    """Fireworks AI provider (OpenAI-compatible).
+
+    Usage:
+        config = LLMConfig(provider="fireworks", model="accounts/fireworks/models/llama-v3p1-70b-instruct", api_key="...")
+    """
+
+    def __init__(self, config: LLMConfig) -> None:
+        config.base_url = config.base_url or "https://api.fireworks.ai/inference/v1"
+        super().__init__(config)
+        self._delegate = OpenAIProvider(config)
+
+    async def complete(self, conversation: Conversation, tools: list[Tool] | None = None, system_prompt: str = "") -> LLMResponse:
+        return await self._delegate.complete(conversation, tools, system_prompt)
+
+    async def stream(self, conversation: Conversation, tools: list[Tool] | None = None, system_prompt: str = "") -> AsyncIterator[str]:
+        async for chunk in self._delegate.stream(conversation, tools, system_prompt):
+            yield chunk
+
+
 PROVIDERS: dict[str, type[LLMProvider]] = {
     "openai": OpenAIProvider,
     "anthropic": AnthropicProvider,
     "local": LocalProvider,
+    "google": GoogleProvider,
+    "gemini": GoogleProvider,
+    "groq": GroqProvider,
+    "mistral": MistralProvider,
+    "bedrock": BedrockProvider,
+    "deepseek": DeepSeekProvider,
+    "together": TogetherProvider,
+    "fireworks": FireworksProvider,
 }
 
 

@@ -329,6 +329,126 @@ class FileSnapshotStore(SnapshotStore):
         return snapshots[0] if snapshots else None
 
 
+class PostgresSnapshotStore(SnapshotStore):
+    """PostgreSQL-based snapshot store. Requires: pip install psycopg2-binary"""
+
+    def __init__(self, connection_string: str, table_name: str = "duxx_snapshots") -> None:
+        self._conn_str = connection_string
+        self._table = table_name
+        self._ensure_table()
+
+    def _ensure_table(self) -> None:
+        import psycopg2
+        conn = psycopg2.connect(self._conn_str)
+        cur = conn.cursor()
+        cur.execute(f"""CREATE TABLE IF NOT EXISTS {self._table} (
+            snapshot_id TEXT PRIMARY KEY, data JSONB NOT NULL,
+            step INTEGER, created_at TIMESTAMPTZ DEFAULT NOW()
+        )""")
+        conn.commit(); cur.close(); conn.close()
+
+    async def save(self, snapshot: FlowSnapshot) -> str:
+        import psycopg2
+        data = json.dumps({"values": snapshot.values, "node": snapshot.node, "step": snapshot.step, "timestamp": snapshot.timestamp, "config": snapshot.config, "parent_snapshot_id": snapshot.parent_snapshot_id, "metadata": snapshot.metadata, "interrupts": snapshot.interrupts}, default=str)
+        conn = psycopg2.connect(self._conn_str)
+        cur = conn.cursor()
+        cur.execute(f"INSERT INTO {self._table} (snapshot_id, data, step) VALUES (%s, %s, %s) ON CONFLICT (snapshot_id) DO UPDATE SET data=%s", (snapshot.snapshot_id, data, snapshot.step, data))
+        conn.commit(); cur.close(); conn.close()
+        return snapshot.snapshot_id
+
+    async def load(self, snapshot_id: str) -> FlowSnapshot | None:
+        import psycopg2
+        conn = psycopg2.connect(self._conn_str)
+        cur = conn.cursor()
+        cur.execute(f"SELECT data FROM {self._table} WHERE snapshot_id=%s", (snapshot_id,))
+        row = cur.fetchone(); cur.close(); conn.close()
+        if row:
+            d = json.loads(row[0]) if isinstance(row[0], str) else row[0]
+            return FlowSnapshot(snapshot_id=snapshot_id, **d)
+        return None
+
+    async def list(self, limit: int = 100) -> list[FlowSnapshot]:
+        import psycopg2
+        conn = psycopg2.connect(self._conn_str)
+        cur = conn.cursor()
+        cur.execute(f"SELECT snapshot_id, data FROM {self._table} ORDER BY step DESC LIMIT %s", (limit,))
+        rows = cur.fetchall(); cur.close(); conn.close()
+        return [FlowSnapshot(snapshot_id=r[0], **(json.loads(r[1]) if isinstance(r[1], str) else r[1])) for r in rows]
+
+    async def get_latest(self) -> FlowSnapshot | None:
+        s = await self.list(1); return s[0] if s else None
+
+
+class RedisSnapshotStore(SnapshotStore):
+    """Redis-based snapshot store. Requires: pip install redis"""
+
+    def __init__(self, url: str = "redis://localhost:6379", prefix: str = "duxx:snapshot:") -> None:
+        try:
+            import redis
+        except ImportError:
+            raise ImportError("redis is required: pip install redis")
+        self._client = redis.from_url(url)
+        self._prefix = prefix
+        self._order_key = f"{prefix}__order__"
+
+    async def save(self, snapshot: FlowSnapshot) -> str:
+        data = json.dumps({"values": snapshot.values, "node": snapshot.node, "step": snapshot.step, "timestamp": snapshot.timestamp, "config": snapshot.config, "parent_snapshot_id": snapshot.parent_snapshot_id, "metadata": snapshot.metadata, "interrupts": snapshot.interrupts}, default=str)
+        self._client.set(f"{self._prefix}{snapshot.snapshot_id}", data)
+        self._client.rpush(self._order_key, snapshot.snapshot_id)
+        return snapshot.snapshot_id
+
+    async def load(self, snapshot_id: str) -> FlowSnapshot | None:
+        data = self._client.get(f"{self._prefix}{snapshot_id}")
+        if data:
+            d = json.loads(data)
+            return FlowSnapshot(snapshot_id=snapshot_id, **d)
+        return None
+
+    async def list(self, limit: int = 100) -> list[FlowSnapshot]:
+        ids = self._client.lrange(self._order_key, -limit, -1)
+        result = []
+        for sid in reversed(ids):
+            sid = sid.decode() if isinstance(sid, bytes) else sid
+            snap = await self.load(sid)
+            if snap:
+                result.append(snap)
+        return result
+
+    async def get_latest(self) -> FlowSnapshot | None:
+        s = await self.list(1); return s[0] if s else None
+
+
+class MongoSnapshotStore(SnapshotStore):
+    """MongoDB-based snapshot store. Requires: pip install pymongo"""
+
+    def __init__(self, connection_string: str = "mongodb://localhost:27017", db_name: str = "duxx_ai", collection: str = "snapshots") -> None:
+        try:
+            from pymongo import MongoClient
+        except ImportError:
+            raise ImportError("pymongo is required: pip install pymongo")
+        self._client = MongoClient(connection_string)
+        self._collection = self._client[db_name][collection]
+
+    async def save(self, snapshot: FlowSnapshot) -> str:
+        doc = {"_id": snapshot.snapshot_id, "values": snapshot.values, "node": snapshot.node, "step": snapshot.step, "timestamp": snapshot.timestamp, "config": snapshot.config, "parent_snapshot_id": snapshot.parent_snapshot_id, "metadata": snapshot.metadata, "interrupts": snapshot.interrupts}
+        self._collection.replace_one({"_id": snapshot.snapshot_id}, doc, upsert=True)
+        return snapshot.snapshot_id
+
+    async def load(self, snapshot_id: str) -> FlowSnapshot | None:
+        doc = self._collection.find_one({"_id": snapshot_id})
+        if doc:
+            doc.pop("_id", None)
+            return FlowSnapshot(snapshot_id=snapshot_id, **doc)
+        return None
+
+    async def list(self, limit: int = 100) -> list[FlowSnapshot]:
+        docs = self._collection.find().sort("step", -1).limit(limit)
+        return [FlowSnapshot(snapshot_id=d.pop("_id"), **d) for d in docs]
+
+    async def get_latest(self) -> FlowSnapshot | None:
+        s = await self.list(1); return s[0] if s else None
+
+
 # ── Managed Values ──
 
 class IsLastStep:
