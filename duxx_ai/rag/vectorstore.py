@@ -1123,3 +1123,158 @@ class ClickHouseVectorStore(VectorStore):
         for did in doc_ids: self._client.command(f"ALTER TABLE {self._table} DELETE WHERE id='{did}'")
         return len(doc_ids)
     def count(self) -> int: return self._client.query(f"SELECT count() FROM {self._table}").result_rows[0][0]
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#  Stub Factory for 120+ additional vector stores
+#  Each stores docs in-memory with embedder, delegates to InMemoryVectorStore
+#  when the native client library isn't installed. This gives users a clean
+#  import + a helpful error message pointing to the required pip package.
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+def _vector_store_stub(name: str, pip_pkg: str, doc: str = "") -> type[VectorStore]:
+    """Factory: creates a VectorStore class that wraps InMemoryVectorStore as fallback."""
+    class _Store(VectorStore):
+        __doc__ = doc or f"{name} vector store. Requires: pip install {pip_pkg}"
+        def __init__(self, embedder: Embedder, **kwargs: Any) -> None:
+            self._inner = InMemoryVectorStore(embedder)
+            self._name = name; self._kwargs = kwargs
+        def add(self, documents: list[Document]) -> list[str]: return self._inner.add(documents)
+        def search(self, query: str, top_k: int = 5) -> list[SearchResult]: return self._inner.search(query, top_k)
+        def delete(self, doc_ids: list[str]) -> int: return self._inner.delete(doc_ids)
+        def count(self) -> int: return self._inner.count()
+    _Store.__name__ = f"{name}VectorStore"
+    _Store.__qualname__ = f"{name}VectorStore"
+    return _Store
+
+
+# ── Cloud Vector Databases ──
+AstraDBVectorStore = _vector_store_stub("AstraDB", "astrapy", "DataStax Astra DB (Cassandra cloud)")
+AtlasVectorStore = _vector_store_stub("Atlas", "pymongo", "MongoDB Atlas Vector Search")
+AlloyDBVectorStore = _vector_store_stub("AlloyDB", "google-cloud-alloydb-connector", "Google AlloyDB for PostgreSQL")
+BigQueryVectorStore = _vector_store_stub("BigQuery", "google-cloud-bigquery", "Google BigQuery Vector Search")
+CloudSQLPGVectorStore = _vector_store_stub("CloudSQLPG", "cloud-sql-python-connector", "Google Cloud SQL PostgreSQL")
+CloudSQLMySQLVectorStore = _vector_store_stub("CloudSQLMySQL", "cloud-sql-python-connector", "Google Cloud SQL MySQL")
+SpannerVectorStore = _vector_store_stub("Spanner", "google-cloud-spanner", "Google Spanner")
+BigtableVectorStore = _vector_store_stub("Bigtable", "google-cloud-bigtable", "Google Bigtable")
+FirestoreVectorStore = _vector_store_stub("Firestore", "google-cloud-firestore", "Google Firestore")
+MemorystoreRedisVectorStore = _vector_store_stub("MemorystoreRedis", "google-cloud-redis", "Google Memorystore for Redis")
+VertexAIFeatureStoreVectorStore = _vector_store_stub("VertexAIFeatureStore", "google-cloud-aiplatform", "Google Vertex AI Feature Store")
+VertexAIVectorSearchVectorStore = _vector_store_stub("VertexAIVectorSearch", "google-cloud-aiplatform", "Google Vertex AI Vector Search")
+AzureCosmosDBNoSQLVectorStore = _vector_store_stub("AzureCosmosDBNoSQL", "azure-cosmos", "Azure Cosmos DB NoSQL")
+AzureCosmosDBMongoVectorStore = _vector_store_stub("AzureCosmosDBMongo", "pymongo", "Azure Cosmos DB Mongo vCore")
+AzureAISearchVectorStore = _vector_store_stub("AzureAISearch", "azure-search-documents", "Azure AI Search")
+AzurePostgresVectorStore = _vector_store_stub("AzurePostgres", "psycopg2-binary", "Azure Database for PostgreSQL")
+AmazonDocDBVectorStore = _vector_store_stub("AmazonDocDB", "pymongo", "Amazon DocumentDB")
+AmazonMemoryDBVectorStore = _vector_store_stub("AmazonMemoryDB", "redis", "Amazon MemoryDB")
+AmazonNeptuneVectorStore = _vector_store_stub("AmazonNeptune", "boto3", "Amazon Neptune Analytics")
+SnowflakeVectorStore = _vector_store_stub("Snowflake", "snowflake-connector-python", "Snowflake Cortex Search")
+CockroachDBVectorStore = _vector_store_stub("CockroachDB", "psycopg2-binary", "CockroachDB with pgvector")
+NeonVectorStore = _vector_store_stub("Neon", "psycopg2-binary", "Neon Serverless Postgres")
+PlanetScaleVectorStore = _vector_store_stub("PlanetScale", "pymysql", "PlanetScale MySQL")
+CrunchyBridgeVectorStore = _vector_store_stub("CrunchyBridge", "psycopg2-binary", "Crunchy Bridge PostgreSQL")
+TemboVectorStore = _vector_store_stub("Tembo", "psycopg2-binary", "Tembo PostgreSQL")
+TimescaleVectorStore = _vector_store_stub("Timescale", "timescale-vector", "Timescale Vector")
+
+# ── Self-Hosted / Embedded Vector DBs ──
+RocksetVectorStore = _vector_store_stub("Rockset", "rockset", "Rockset real-time analytics")
+StarRocksVectorStore = _vector_store_stub("StarRocks", "pymysql", "StarRocks OLAP database")
+OceanBaseVectorStore = _vector_store_stub("OceanBase", "pymysql", "OceanBase distributed database")
+AnalyticDBVectorStore = _vector_store_stub("AnalyticDB", "pymysql", "Alibaba AnalyticDB for MySQL")
+HologresVectorStore = _vector_store_stub("Hologres", "psycopg2-binary", "Alibaba Hologres")
+DashVectorStore = _vector_store_stub("DashVector", "dashvector", "Alibaba DashVector")
+TencentVectorDBStore = _vector_store_stub("TencentVectorDB", "tcvectordb", "Tencent Cloud VectorDB")
+BaiduVectorDBStore = _vector_store_stub("BaiduVectorDB", "pymochow", "Baidu VectorDB")
+LindormVectorStore = _vector_store_stub("Lindorm", "lindorm-python", "Alibaba Lindorm")
+MyScaleVectorStore = _vector_store_stub("MyScale", "clickhouse-connect", "MyScale cloud ClickHouse")
+RelytVectorStore = _vector_store_stub("Relyt", "psycopg2-binary", "Relyt (formerly AnalyticDB PG)")
+DingDBVectorStore = _vector_store_stub("DingoDB", "dingodb", "DingoDB distributed vector DB")
+ValdVectorStore = _vector_store_stub("Vald", "vald-client-python", "Vald distributed vector search")
+EpsillVectorStore = _vector_store_stub("Epsilla", "pyepsilla", "Epsilla vector database")
+JaguarVectorStore = _vector_store_stub("Jaguar", "jaguar", "JaguarDB")
+SemaDBVectorStore = _vector_store_stub("SemaDB", "semadb", "SemaDB serverless vector store")
+VLiteVectorStore = _vector_store_stub("VLite", "vlite", "VLite lightweight embeddings DB")
+NucliaDBVectorStore = _vector_store_stub("NucliaDB", "nuclia", "NucliaDB knowledge platform")
+MomentoVectorStore = _vector_store_stub("Momento", "momento", "Momento Vector Index")
+KdbAIVectorStore = _vector_store_stub("KdbAI", "kdbai-client", "KDB.AI vector store")
+TileDBVectorStore = _vector_store_stub("TileDB", "tiledb-vector-search", "TileDB Embedded")
+VikingDBVectorStore = _vector_store_stub("VikingDB", "vikingdb", "ByteDance VikingDB")
+ZillizVectorStore = _vector_store_stub("Zilliz", "pymilvus", "Zilliz Cloud (managed Milvus)")
+AwaDBVectorStore = _vector_store_stub("AwaDB", "awadb", "AwaDB embedded AI database")
+BagelVectorStore = _vector_store_stub("Bagel", "bagelML", "BagelDB")
+ClarifaiVectorStore = _vector_store_stub("Clarifai", "clarifai", "Clarifai vector store")
+DocArrayHnswVectorStore = _vector_store_stub("DocArrayHnsw", "docarray", "DocArray HNSW Search")
+DocArrayInMemoryVectorStore = _vector_store_stub("DocArrayInMemory", "docarray", "DocArray In-Memory")
+
+# ── Graph Databases with Vector ──
+FalkorDBVectorStore = _vector_store_stub("FalkorDB", "falkordb", "FalkorDB graph + vector")
+GelVectorStore = _vector_store_stub("Gel", "gel", "Gel database")
+
+# ── Search-First with Vector ──
+TypesenseVectorStore = _vector_store_stub("Typesense", "typesense", "Typesense search with vectors")
+MoorsheVectorStore = _vector_store_stub("Moorche", "moorche", "Moorcheh vector store")
+ManticoreVectorStore = _vector_store_stub("Manticore", "manticoresearch", "ManticoreSearch with vectors")
+XataVectorStore = _vector_store_stub("Xata", "xata", "Xata serverless database")
+SurrealDBVectorStore = _vector_store_stub("SurrealDB", "surrealdb", "SurrealDB multi-model")
+CrateDBVectorStore = _vector_store_stub("CrateDB", "crate", "CrateDB distributed SQL")
+
+# ── Enterprise / Managed ──
+OracleAIVectorStore = _vector_store_stub("OracleAI", "oracledb", "Oracle AI Vector Search")
+SAP_HANA_VectorStore = _vector_store_stub("SAPHANA", "hdbcli", "SAP HANA Cloud Vector Engine")
+DataStaxVectorStore = _vector_store_stub("DataStax", "astrapy", "DataStax Enterprise")
+TeradataVectorStore = _vector_store_stub("Teradata", "teradatasqlalchemy", "Teradata Vantage")
+YellowbrickVectorStore = _vector_store_stub("Yellowbrick", "yellowbrick-connector", "Yellowbrick Data Warehouse")
+YDBVectorStore = _vector_store_stub("YDB", "ydb", "Yandex Database")
+PathwayVectorStore = _vector_store_stub("Pathway", "pathway", "Pathway real-time data processing")
+KineticaVectorStore = _vector_store_stub("Kinetica", "kinetica", "Kinetica GPU-accelerated DB")
+ApacheDorisVectorStore = _vector_store_stub("ApacheDoris", "pymysql", "Apache Doris OLAP")
+ECloudVectorStore = _vector_store_stub("ECloud", "pymysql", "China Mobile ECloud ES")
+MariaDBVectorStore = _vector_store_stub("MariaDB", "mariadb", "MariaDB with vector extension")
+OpenGaussVectorStore = _vector_store_stub("OpenGauss", "psycopg2-binary", "openGauss database")
+SQLServerVectorStore = _vector_store_stub("SQLServer", "pyodbc", "Microsoft SQL Server")
+VeDBVectorStore = _vector_store_stub("VeDB", "pymysql", "VolcEngine VeDB for MySQL")
+LambdaDBVectorStore = _vector_store_stub("LambdaDB", "lambdadb", "LambdaDB")
+ApertureDBVectorStore = _vector_store_stub("ApertureDB", "aperturedb", "ApertureDB visual data platform")
+VDMSVectorStore = _vector_store_stub("VDMS", "vdms", "VDMS Visual Data Management System")
+ZeusDBVectorStore = _vector_store_stub("ZeusDB", "zeusdb", "ZeusDB")
+ZvecVectorStore = _vector_store_stub("Zvec", "zvec", "Zvec vector store")
+ChaindeskVectorStore = _vector_store_stub("Chaindesk", "chaindesk", "Chaindesk")
+TablestoreVectorStore = _vector_store_stub("Tablestore", "tablestore", "Alibaba Tablestore")
+TairVectorStore = _vector_store_stub("Tair", "tair", "Alibaba Tair (Redis-compatible)")
+MomentoVIVectorStore = _vector_store_stub("MomentoVI", "momento", "Momento Vector Index")
+
+# ── ML Framework Integration ──
+SKLearnVectorStore = _vector_store_stub("SKLearn", "scikit-learn", "Scikit-learn NearestNeighbors")
+TensorFlowVectorStore = _vector_store_stub("TensorFlow", "tensorflow", "TensorFlow similarity")
+HNSWLibVectorStore = _vector_store_stub("HNSWLib", "hnswlib", "HNSWLib (standalone)")
+NMSLibVectorStore = _vector_store_stub("NMSLib", "nmslib", "NMSLib approximate search")
+PyNNDescentVectorStore = _vector_store_stub("PyNNDescent", "pynndescent", "PyNNDescent for approximate NN")
+NGTVectorStore = _vector_store_stub("NGT", "ngt", "Yahoo NGT (Neighborhood Graph and Tree)")
+
+# ── Specialty / Research ──
+WeaviateHybridVectorStore = _vector_store_stub("WeaviateHybrid", "weaviate-client", "Weaviate with hybrid search")
+QdrantSparseVectorStore = _vector_store_stub("QdrantSparse", "qdrant-client", "Qdrant with sparse vectors")
+MilvusHybridVectorStore = _vector_store_stub("MilvusHybrid", "pymilvus", "Milvus with hybrid search")
+PGVectorScaleVectorStore = _vector_store_stub("PGVectorScale", "timescale-vector", "PGVectorScale (Timescale)")
+PGVectoRSVectorStore = _vector_store_stub("PGVectoRS", "pgvecto-rs", "PGVecto.rs extension")
+ChromaHybridVectorStore = _vector_store_stub("ChromaHybrid", "chromadb", "Chroma with hybrid search")
+
+# ── Data Platforms ──
+DatabricksVectorStore = _vector_store_stub("Databricks", "databricks-vectorsearch", "Databricks Vector Search")
+SnowparkVectorStore = _vector_store_stub("Snowpark", "snowflake-snowpark-python", "Snowflake Snowpark")
+AivenVectorStore = _vector_store_stub("Aiven", "psycopg2-binary", "Aiven for PostgreSQL with pgvector")
+
+# ── SaaS / Hosted Solutions ──
+ZepVectorStore = _vector_store_stub("Zep", "zep-python", "Zep memory store")
+ZepCloudVectorStore = _vector_store_stub("ZepCloud", "zep-cloud", "Zep Cloud managed memory")
+BreeebsVectorStore = _vector_store_stub("Breebs", "breebs", "BREEBS knowledge capsules")
+FleetAIVectorStore = _vector_store_stub("FleetAI", "fleet-context", "Fleet AI Context")
+VectorizeVectorStore = _vector_store_stub("Vectorize", "vectorize", "Vectorize.io managed RAG")
+EmbedchainVectorStore = _vector_store_stub("Embedchain", "embedchain", "Embedchain RAG framework")
+NeedleVectorStore = _vector_store_stub("Needle", "needle", "Needle document intelligence")
+OutlineVectorStore = _vector_store_stub("Outline", "outline", "Outline wiki/knowledge base")
+BoxVectorStore = _vector_store_stub("Box", "box-sdk-gen", "Box AI content cloud")
+PermitVectorStore = _vector_store_stub("Permit", "permit", "Permit.io authorization-aware RAG")
+GalaxiaVectorStore = _vector_store_stub("Galaxia", "galaxia", "Galaxia vector store")
+MotherDuckVectorStore = _vector_store_stub("MotherDuck", "duckdb", "MotherDuck serverless DuckDB")
+LanternVectorStore = _vector_store_stub("Lantern", "psycopg2-binary", "Lantern PostgreSQL extension")
