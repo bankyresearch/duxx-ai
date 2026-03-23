@@ -1,6 +1,6 @@
 """Advanced agent patterns — ReAct, Reflection, Handoffs, Self-Improving, Teachable.
 
-Implements the most advanced agentic patterns from LangGraph, DeepAgents,
+Implements the most advanced agentic patterns from modern AI research,
 CrewAI, AutoGen, OpenAI Agents SDK, and Anthropic Agent SDK.
 """
 

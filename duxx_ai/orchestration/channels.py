@@ -1,7 +1,7 @@
 """Channel implementations for state management in StateGraph.
 
 Channels define how state values are stored, updated, and merged during
-parallel execution. Inspired by LangGraph's channel system.
+parallel execution. Advanced channel system for typed state management.
 """
 
 from __future__ import annotations
@@ -187,7 +187,7 @@ class NamedBarrierValue(BaseChannel[dict[str, T]]):
 # ── Annotated reducer support ──
 
 def merge_messages(left: list, right: list | Any, *, format: str | None = None) -> list:
-    """Merge message lists intelligently (LangGraph-compatible).
+    """Merge message lists intelligently 
 
     - If right message has same ID as left message, it replaces it
     - Otherwise right messages are appended

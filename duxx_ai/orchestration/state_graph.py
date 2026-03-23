@@ -1,4 +1,4 @@
-"""FlowGraph — LangGraph-compatible typed state graph with channels, commands, streaming, and checkpointing.
+"""FlowGraph — Advanced typed state graph with channels, commands, streaming, and checkpointing.
 
 This is the modern graph API for Duxx AI, providing:
 - Typed state schemas (TypedDict or Pydantic)

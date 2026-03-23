@@ -672,13 +672,13 @@ class Graph:
             lines.append(f"  {edge.source} -> {edge.target}{cond}")
         return "\n".join(lines)
 
-    # ── LangGraph-Compatible Features ──
+    # ── Advanced Graph Features ──
 
     def add_conditional_edge(
         self, source: str, condition_fn: Callable[[GraphState], str],
         path_map: dict[str, str] | None = None,
     ) -> "Graph":
-        """Add a conditional edge with a routing function (LangGraph-style).
+        """Add a conditional edge with a routing function ().
 
         The condition_fn receives the state and returns a string key.
         The path_map maps keys to target node IDs.
@@ -715,7 +715,7 @@ class Graph:
         return self
 
     def compile(self, checkpointer: Any = None, store: Any = None) -> "Graph":
-        """Compile the graph for execution (LangGraph-compatible).
+        """Compile the graph for execution ().
 
         Validates the graph, sets up checkpointing backend, and optimizes.
 
@@ -758,7 +758,7 @@ class Graph:
         return self
 
     def update_state(self, config: dict[str, Any], values: dict[str, Any], as_node: str | None = None) -> GraphState:
-        """Update graph state externally (LangGraph-compatible).
+        """Update graph state externally ().
 
         Modifies the current state and creates a new checkpoint.
         Used for human-in-the-loop state modifications.
@@ -802,7 +802,7 @@ class Graph:
         return state
 
     def get_state(self, config: dict[str, Any] | None = None) -> GraphState | None:
-        """Get current graph state (LangGraph-compatible).
+        """Get current graph state ().
 
         Args:
             config: Optional config with thread_id/checkpoint_id
@@ -821,7 +821,7 @@ class Graph:
         return self.checkpoints[-1]
 
     def get_state_history(self, config: dict[str, Any] | None = None) -> list[GraphState]:
-        """Get checkpoint history in reverse chronological order (LangGraph-compatible).
+        """Get checkpoint history in reverse chronological order ().
 
         Returns:
             List of GraphState checkpoints, most recent first
@@ -830,7 +830,7 @@ class Graph:
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-#  Command — Resume with goto/update (LangGraph-compatible)
+#  Command — Resume with goto/update ()
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 class Command:
@@ -859,7 +859,7 @@ class Command:
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-#  Checkpoint Backends (LangGraph-compatible)
+#  Checkpoint Backends ()
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 class BaseCheckpointSaver:
@@ -879,7 +879,7 @@ class BaseCheckpointSaver:
 
 
 class InMemorySaver(BaseCheckpointSaver):
-    """In-memory checkpoint saver (LangGraph MemorySaver equivalent)."""
+    """In-memory checkpoint saver ."""
 
     def __init__(self):
         self._storage: dict[str, list[GraphState]] = {}
@@ -995,7 +995,7 @@ class SqliteCheckpointer(BaseCheckpointSaver):
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-#  @task Decorator — Durable Execution (LangGraph-compatible)
+#  @task Decorator — Durable Execution ()
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 def task(fn: Callable | None = None, *, retries: int = 0) -> Callable:
@@ -1040,11 +1040,11 @@ def task(fn: Callable | None = None, *, retries: int = 0) -> Callable:
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-#  interrupt() function — LangGraph-compatible
+#  interrupt() function — 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 def interrupt(value: Any = None) -> None:
-    """Pause graph execution for human input (LangGraph-compatible).
+    """Pause graph execution for human input ().
 
     Call this inside a node handler to pause execution and wait for
     human input. The graph state is checkpointed automatically.

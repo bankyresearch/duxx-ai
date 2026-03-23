@@ -535,7 +535,7 @@ DOCS_TEMPLATE = """<!DOCTYPE html>
         <a class="sidebar-link" onclick="navigateTo('a2a')">A2A Protocol</a>
     </div>
     <div class="sidebar-section">
-        <div class="sidebar-section-title">LangGraph Compatible</div>
+        <div class="sidebar-section-title">Advanced Graph Engine</div>
         <a class="sidebar-link" onclick="navigateTo('lg-compile')">compile() &amp; Command</a>
         <a class="sidebar-link" onclick="navigateTo('lg-interrupt')">Interrupts &amp; HITL</a>
         <a class="sidebar-link" onclick="navigateTo('lg-checkpoints')">Checkpointers</a>
@@ -644,10 +644,10 @@ DOCS_TEMPLATE = """<!DOCTYPE html>
 
 <h2 id="comparison">How Duxx AI Compares</h2>
 <table>
-    <thead><tr><th>Feature</th><th>Duxx AI</th><th>LangChain</th><th>CrewAI</th><th>Unsloth</th></tr></thead>
+    <thead><tr><th>Feature</th><th>Duxx AI</th><th>Others</th><th>CrewAI</th><th>Unsloth</th></tr></thead>
     <tbody>
         <tr><td>Agent SDK</td><td><strong style="color:var(--green)">&#10003;</strong></td><td>&#10003;</td><td>&#10003;</td><td>&#10007;</td></tr>
-        <tr><td>Graph Orchestration</td><td><strong style="color:var(--green)">&#10003;</strong></td><td>&#10003; (LangGraph)</td><td>&#10007;</td><td>&#10007;</td></tr>
+        <tr><td>Graph Orchestration</td><td><strong style="color:var(--green)">&#10003;</strong></td><td>&#10003;</td><td>&#10007;</td><td>&#10007;</td></tr>
         <tr><td>Multi-Agent Crews</td><td><strong style="color:var(--green)">&#10003;</strong></td><td>&#10007;</td><td>&#10003;</td><td>&#10007;</td></tr>
         <tr><td>Fine-Tuning Pipeline</td><td><strong style="color:var(--green)">&#10003;</strong></td><td>&#10007;</td><td>&#10007;</td><td>&#10003;</td></tr>
         <tr><td>Guardrails &amp; RBAC</td><td><strong style="color:var(--green)">&#10003;</strong></td><td>&#10007;</td><td>&#10007;</td><td>&#10007;</td></tr>
@@ -997,7 +997,7 @@ history = conv.get_history(last_n=<span class="number">5</span>)</code></pre>
 <!-- ════════════════ GRAPH WORKFLOWS ════════════════ -->
 <div id="page-graph" class="page">
 <h1>Graph Workflows</h1>
-<p class="lead">Build complex agent workflows as directed acyclic graphs (DAGs) with conditional routing, parallel execution, and state checkpointing. Inspired by LangGraph and state machine research.</p>
+<p class="lead">Build complex agent workflows as directed acyclic graphs (DAGs) with conditional routing, parallel execution, and state checkpointing. Built on advanced state machine research and graph theory.</p>
 
 <div class="callout callout-note">
     <span class="callout-icon">&#128218;</span>
@@ -2375,11 +2375,11 @@ responses = <span class="kw">await</span> protocol.broadcast(<span class="string
 result = <span class="kw">await</span> protocol.delegate(<span class="string">"manager"</span>, <span class="string">"Write Q4 summary"</span>, capability=<span class="string">"writing"</span>)</code></pre>
 </div>
 
-<!-- ══════ LANGGRAPH COMPATIBLE ══════ -->
+<!-- ══════ ADVANCED GRAPH ENGINE ══════ -->
 
 <div id="page-lg-compile" class="page">
 <h1>compile() &amp; Command</h1>
-<p>LangGraph-compatible graph compilation, validation, and resume control.</p>
+<p>Advanced graph compilation, validation, and resume control.</p>
 <pre class="code-block"><code><span class="kw">from</span> duxx_ai.orchestration.graph <span class="kw">import</span> Graph, Command, InMemorySaver
 
 graph = Graph(<span class="string">"my-workflow"</span>)
@@ -2613,7 +2613,7 @@ metadata = <span class="kw">await</span> chain.before_call(conversation, system_
 <!-- ── Integration Catalog ── -->
 <div id="page-integrations" class="page">
 <h1>Integration Catalog — 490 Integrations</h1>
-<p>Duxx AI supports <strong>490 integrations</strong> across 9 categories, exceeding LangChain in every category. All providers use <strong>lazy imports</strong> — install only the packages you need.</p>
+<p>Duxx AI supports <strong>490 integrations</strong> across 9 categories, across all major categories. All providers use <strong>lazy imports</strong> — install only the packages you need.</p>
 
 <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:24px 0;">
 <div style="background:var(--blue-bg);padding:16px;border-radius:8px;text-align:center;"><div style="font-size:28px;font-weight:800;color:var(--blue);">72</div><div style="font-size:12px;color:var(--gray-600);">Chat Models</div></div>
