@@ -239,6 +239,97 @@ class VoyageEmbedder(Embedder):
         return embeddings
 
 
+class NVIDIAEmbedder(Embedder):
+    """NVIDIA NIM embeddings. Requires: NVIDIA_API_KEY env var."""
+    def __init__(self, model: str = "nvidia/nv-embedqa-e5-v5", api_key: str = "") -> None:
+        self.model = model; self._api_key = api_key; self._dim = 1024
+    @property
+    def dimension(self) -> int: return self._dim
+    def embed(self, text: str) -> list[float]: return self.embed_many([text])[0]
+    def embed_many(self, texts: list[str]) -> list[list[float]]:
+        import os, httpx
+        key = self._api_key or os.environ.get("NVIDIA_API_KEY", "")
+        resp = httpx.post("https://integrate.api.nvidia.com/v1/embeddings", headers={"Authorization": f"Bearer {key}"}, json={"input": texts, "model": self.model}, timeout=60)
+        resp.raise_for_status(); data = resp.json(); embs = [d["embedding"] for d in sorted(data["data"], key=lambda x: x["index"])]
+        if embs: self._dim = len(embs[0])
+        return embs
+
+
+class JinaEmbedder(Embedder):
+    """Jina AI embeddings. Requires: JINA_API_KEY env var."""
+    def __init__(self, model: str = "jina-embeddings-v3", api_key: str = "") -> None:
+        self.model = model; self._api_key = api_key; self._dim = 1024
+    @property
+    def dimension(self) -> int: return self._dim
+    def embed(self, text: str) -> list[float]: return self.embed_many([text])[0]
+    def embed_many(self, texts: list[str]) -> list[list[float]]:
+        import os, httpx
+        key = self._api_key or os.environ.get("JINA_API_KEY", "")
+        resp = httpx.post("https://api.jina.ai/v1/embeddings", headers={"Authorization": f"Bearer {key}"}, json={"input": texts, "model": self.model}, timeout=60)
+        resp.raise_for_status(); data = resp.json()
+        embs = [d["embedding"] for d in sorted(data["data"], key=lambda x: x["index"])]
+        if embs: self._dim = len(embs[0])
+        return embs
+
+
+class NomicEmbedder(Embedder):
+    """Nomic AI embeddings. Requires: NOMIC_API_KEY env var."""
+    def __init__(self, model: str = "nomic-embed-text-v1.5", api_key: str = "") -> None:
+        self.model = model; self._api_key = api_key; self._dim = 768
+    @property
+    def dimension(self) -> int: return self._dim
+    def embed(self, text: str) -> list[float]: return self.embed_many([text])[0]
+    def embed_many(self, texts: list[str]) -> list[list[float]]:
+        import os, httpx
+        key = self._api_key or os.environ.get("NOMIC_API_KEY", "")
+        resp = httpx.post("https://api-atlas.nomic.ai/v1/embedding/text", headers={"Authorization": f"Bearer {key}"}, json={"texts": texts, "model": self.model}, timeout=60)
+        resp.raise_for_status(); return resp.json().get("embeddings", [])
+
+
+class FastEmbedEmbedder(Embedder):
+    """FastEmbed (Qdrant) — fast local embeddings. Requires: pip install fastembed"""
+    def __init__(self, model: str = "BAAI/bge-small-en-v1.5") -> None:
+        try: from fastembed import TextEmbedding
+        except ImportError: raise ImportError("fastembed required: pip install fastembed")
+        self._model = TextEmbedding(model); self._dim = 384
+    @property
+    def dimension(self) -> int: return self._dim
+    def embed(self, text: str) -> list[float]: return list(self._model.embed([text]))[0].tolist()
+    def embed_many(self, texts: list[str]) -> list[list[float]]:
+        results = list(self._model.embed(texts)); return [r.tolist() for r in results]
+
+
+class BedrockEmbedder(Embedder):
+    """AWS Bedrock embeddings (Titan, Cohere). Requires: pip install boto3"""
+    def __init__(self, model: str = "amazon.titan-embed-text-v2:0", region: str = "us-east-1") -> None:
+        self.model = model; self.region = region; self._dim = 1024
+    @property
+    def dimension(self) -> int: return self._dim
+    def embed(self, text: str) -> list[float]:
+        import boto3, json
+        client = boto3.client("bedrock-runtime", region_name=self.region)
+        resp = client.invoke_model(modelId=self.model, body=json.dumps({"inputText": text}))
+        data = json.loads(resp["body"].read()); vec = data.get("embedding", [])
+        self._dim = len(vec); return vec
+    def embed_many(self, texts: list[str]) -> list[list[float]]: return [self.embed(t) for t in texts]
+
+
+class AzureEmbedder(Embedder):
+    """Azure OpenAI embeddings. Requires: AZURE_OPENAI_API_KEY + AZURE_OPENAI_ENDPOINT."""
+    def __init__(self, deployment: str = "text-embedding-ada-002", api_version: str = "2024-02-01") -> None:
+        import os
+        self.deployment = deployment; self.api_version = api_version
+        self._endpoint = os.environ.get("AZURE_OPENAI_ENDPOINT", ""); self._key = os.environ.get("AZURE_OPENAI_API_KEY", ""); self._dim = 1536
+    @property
+    def dimension(self) -> int: return self._dim
+    def embed(self, text: str) -> list[float]: return self.embed_many([text])[0]
+    def embed_many(self, texts: list[str]) -> list[list[float]]:
+        import httpx
+        url = f"{self._endpoint}/openai/deployments/{self.deployment}/embeddings?api-version={self.api_version}"
+        resp = httpx.post(url, headers={"api-key": self._key}, json={"input": texts}, timeout=60)
+        resp.raise_for_status(); return [d["embedding"] for d in sorted(resp.json()["data"], key=lambda x: x["index"])]
+
+
 class GoogleEmbedder(Embedder):
     """Google Gemini / Vertex AI embeddings.
 

@@ -183,3 +183,111 @@ class RetryParser(OutputParser[T]):
         if self._last_errors:
             base += f"\n\nPrevious attempt failed: {self._last_errors[-1]}\nPlease fix the formatting."
         return base
+
+
+class XMLOutputParser(OutputParser[dict[str, Any]]):
+    """Parse XML output from LLM into a dict.
+
+    Usage:
+        parser = XMLOutputParser(tags=["name", "age"])
+        result = parser.parse("<response><name>Alice</name><age>30</age></response>")
+    """
+    def __init__(self, tags: list[str] | None = None) -> None:
+        self.tags = tags
+
+    def parse(self, text: str) -> dict[str, Any]:
+        import re
+        result: dict[str, Any] = {}
+        tags_to_find = self.tags or re.findall(r"<(\w+)>", text)
+        for tag in set(tags_to_find):
+            match = re.search(rf"<{tag}>(.*?)</{tag}>", text, re.DOTALL)
+            if match:
+                result[tag] = match.group(1).strip()
+        if not result:
+            raise ParseError("No XML tags found in output")
+        return result
+
+    def get_format_instructions(self) -> str:
+        if self.tags:
+            tags_example = "".join(f"<{t}>...</{t}>" for t in self.tags)
+            return f"Output your response as XML with these tags:\n<response>{tags_example}</response>"
+        return "Output your response as XML tags."
+
+
+class YAMLOutputParser(OutputParser[dict[str, Any]]):
+    """Parse YAML output from LLM.
+
+    Usage:
+        parser = YAMLOutputParser()
+        result = parser.parse("name: Alice\\nage: 30")
+    """
+    def parse(self, text: str) -> dict[str, Any]:
+        import re
+        # Extract YAML from code fences
+        yaml_match = re.search(r"```(?:yaml)?\s*\n(.*?)```", text, re.DOTALL)
+        raw = yaml_match.group(1) if yaml_match else text
+        # Simple YAML parser (no external dep)
+        result: dict[str, Any] = {}
+        for line in raw.strip().split("\n"):
+            line = line.strip()
+            if ":" in line and not line.startswith("#"):
+                key, _, value = line.partition(":")
+                key = key.strip(); value = value.strip()
+                if value.startswith("[") and value.endswith("]"):
+                    value = [v.strip().strip("'\"") for v in value[1:-1].split(",")]
+                elif value.lower() in ("true", "yes"): value = True
+                elif value.lower() in ("false", "no"): value = False
+                elif value.isdigit(): value = int(value)
+                else:
+                    try: value = float(value)
+                    except ValueError: value = value.strip("'\"")
+                result[key] = value
+        if not result:
+            raise ParseError("No YAML content found")
+        return result
+
+    def get_format_instructions(self) -> str:
+        return "Output your response in YAML format:\n```yaml\nkey: value\n```"
+
+
+class CSVOutputParser(OutputParser[list[dict[str, str]]]):
+    """Parse CSV output from LLM into a list of dicts.
+
+    Usage:
+        parser = CSVOutputParser()
+        result = parser.parse("name,age\\nAlice,30\\nBob,25")
+    """
+    def parse(self, text: str) -> list[dict[str, str]]:
+        import re, csv, io
+        csv_match = re.search(r"```(?:csv)?\s*\n(.*?)```", text, re.DOTALL)
+        raw = csv_match.group(1) if csv_match else text
+        reader = csv.DictReader(io.StringIO(raw.strip()))
+        result = list(reader)
+        if not result:
+            raise ParseError("No CSV data found")
+        return result
+
+    def get_format_instructions(self) -> str:
+        return "Output your response as CSV with headers:\n```csv\ncolumn1,column2\nvalue1,value2\n```"
+
+
+class EnumOutputParser(OutputParser[str]):
+    """Parse LLM output as one of a set of allowed values.
+
+    Usage:
+        parser = EnumOutputParser(choices=["positive", "negative", "neutral"])
+        result = parser.parse("positive")
+    """
+    def __init__(self, choices: list[str]) -> None:
+        self.choices = [c.lower() for c in choices]
+        self._original = choices
+
+    def parse(self, text: str) -> str:
+        text = text.strip().lower()
+        for i, choice in enumerate(self.choices):
+            if choice in text:
+                return self._original[i]
+        raise ParseError(f"Output must be one of: {self._original}. Got: {text}")
+
+    def get_format_instructions(self) -> str:
+        return f"Output ONLY one of these values: {', '.join(self._original)}"

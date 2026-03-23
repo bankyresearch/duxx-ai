@@ -309,6 +309,73 @@ class ParentDocRetriever(Retriever):
         return result
 
 
+class WikipediaRetriever(Retriever):
+    """Retrieve documents from Wikipedia."""
+    def __init__(self, max_results: int = 3, lang: str = "en") -> None:
+        self.max_results = max_results; self.lang = lang
+    def retrieve(self, query: str, top_k: int = 5) -> list[Document]:
+        from duxx_ai.rag.loaders import WikipediaLoader
+        loader = WikipediaLoader(query, max_results=min(top_k, self.max_results), lang=self.lang)
+        return loader.load()
+
+
+class ArxivRetriever(Retriever):
+    """Retrieve papers from arXiv."""
+    def __init__(self, max_results: int = 5) -> None: self.max_results = max_results
+    def retrieve(self, query: str, top_k: int = 5) -> list[Document]:
+        from duxx_ai.rag.loaders import ArxivLoader
+        return ArxivLoader(query, max_results=min(top_k, self.max_results)).load()
+
+
+class TavilyRetriever(Retriever):
+    """Retrieve web search results via Tavily API. Requires: TAVILY_API_KEY env var."""
+    def __init__(self, api_key: str = "", search_depth: str = "basic") -> None:
+        import os; self._key = api_key or os.environ.get("TAVILY_API_KEY", ""); self.search_depth = search_depth
+    def retrieve(self, query: str, top_k: int = 5) -> list[Document]:
+        import httpx
+        resp = httpx.post("https://api.tavily.com/search", json={"query": query, "api_key": self._key, "search_depth": self.search_depth, "max_results": top_k}, timeout=15)
+        resp.raise_for_status(); results = resp.json().get("results", [])
+        return [Document(content=r.get("content",""), source=r.get("url",""), metadata={"title": r.get("title",""), "score": r.get("score",0)}) for r in results]
+
+
+class WebSearchRetriever(Retriever):
+    """Retrieve results from web search (DuckDuckGo, no API key needed)."""
+    def __init__(self) -> None: pass
+    def retrieve(self, query: str, top_k: int = 5) -> list[Document]:
+        import httpx
+        resp = httpx.get(f"https://html.duckduckgo.com/html/?q={query}", headers={"User-Agent": "DuxxAI/1.0"}, timeout=15, follow_redirects=True)
+        import re; results = re.findall(r'class="result__snippet">(.*?)</a>', resp.text, re.DOTALL)
+        docs = [];
+        for r in results[:top_k]:
+            text = re.sub(r"<[^>]+>", "", r).strip()
+            if text: docs.append(Document(content=text, source="duckduckgo", metadata={"type": "web_search"}))
+        return docs
+
+
+class EnsembleRetriever(Retriever):
+    """Combine multiple retrievers with configurable weights.
+
+    Usage:
+        ensemble = EnsembleRetriever(
+            retrievers=[vector_retriever, bm25_retriever, wiki_retriever],
+            weights=[0.5, 0.3, 0.2]
+        )
+    """
+    def __init__(self, retrievers: list[Retriever], weights: list[float] | None = None) -> None:
+        self.retrievers = retrievers
+        self.weights = weights or [1.0 / len(retrievers)] * len(retrievers)
+    def retrieve(self, query: str, top_k: int = 5) -> list[Document]:
+        all_docs: dict[str, Document] = {}; scores: dict[str, float] = {}
+        for retriever, weight in zip(self.retrievers, self.weights):
+            docs = retriever.retrieve(query, top_k=top_k * 2)
+            for rank, doc in enumerate(docs):
+                key = doc.doc_id or doc.content[:100]
+                if key not in all_docs: all_docs[key] = doc
+                scores[key] = scores.get(key, 0) + weight / (rank + 1)
+        ranked = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+        return [all_docs[k] for k, _ in ranked[:top_k]]
+
+
 class ContextualCompressionRetriever(Retriever):
     """Compresses retrieved documents to only the relevant parts.
 

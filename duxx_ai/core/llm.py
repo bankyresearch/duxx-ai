@@ -28,17 +28,20 @@ class LLMConfig(BaseModel):
         if self.api_key:
             return self.api_key
         env_map = {
-            "openai": "OPENAI_API_KEY",
-            "anthropic": "ANTHROPIC_API_KEY",
-            "local": "",
-            "google": "GOOGLE_API_KEY",
-            "gemini": "GOOGLE_API_KEY",
-            "groq": "GROQ_API_KEY",
-            "mistral": "MISTRAL_API_KEY",
-            "bedrock": "",
-            "deepseek": "DEEPSEEK_API_KEY",
-            "together": "TOGETHER_API_KEY",
-            "fireworks": "FIREWORKS_API_KEY",
+            "openai": "OPENAI_API_KEY", "anthropic": "ANTHROPIC_API_KEY",
+            "local": "", "google": "GOOGLE_API_KEY", "gemini": "GOOGLE_API_KEY",
+            "groq": "GROQ_API_KEY", "mistral": "MISTRAL_API_KEY",
+            "bedrock": "", "deepseek": "DEEPSEEK_API_KEY",
+            "together": "TOGETHER_API_KEY", "fireworks": "FIREWORKS_API_KEY",
+            "cohere": "COHERE_API_KEY", "perplexity": "PERPLEXITY_API_KEY",
+            "xai": "XAI_API_KEY", "cerebras": "CEREBRAS_API_KEY",
+            "sambanova": "SAMBANOVA_API_KEY", "ai21": "AI21_API_KEY",
+            "nvidia": "NVIDIA_API_KEY", "anyscale": "ANYSCALE_API_KEY",
+            "openrouter": "OPENROUTER_API_KEY", "lepton": "LEPTON_API_KEY",
+            "replicate": "REPLICATE_API_TOKEN", "ollama": "", "lmstudio": "", "vllm": "",
+            "huggingface": "HF_TOKEN", "cloudflare": "CLOUDFLARE_API_TOKEN",
+            "moonshot": "MOONSHOT_API_KEY", "zhipu": "ZHIPU_API_KEY",
+            "qwen": "DASHSCOPE_API_KEY", "yi": "YI_API_KEY", "nebius": "NEBIUS_API_KEY",
         }
         env_var = env_map.get(self.provider, "")
         return os.environ.get(env_var, "") if env_var else ""
@@ -581,18 +584,83 @@ class FireworksProvider(LLMProvider):
             yield chunk
 
 
+def _openai_compatible_factory(name: str, base_url: str, env_key: str) -> type[LLMProvider]:
+    """Factory for creating OpenAI-compatible provider classes."""
+    class _Provider(LLMProvider):
+        __doc__ = f"{name} provider (OpenAI-compatible). Set {env_key} env var or pass api_key."
+        def __init__(self, config: LLMConfig) -> None:
+            config.base_url = config.base_url or base_url
+            super().__init__(config)
+            self._delegate = OpenAIProvider(config)
+        async def complete(self, conversation: Conversation, tools: list[Tool] | None = None, system_prompt: str = "") -> LLMResponse:
+            return await self._delegate.complete(conversation, tools, system_prompt)
+        async def stream(self, conversation: Conversation, tools: list[Tool] | None = None, system_prompt: str = "") -> AsyncIterator[str]:
+            async for chunk in self._delegate.stream(conversation, tools, system_prompt):
+                yield chunk
+    _Provider.__name__ = f"{name}Provider"
+    _Provider.__qualname__ = f"{name}Provider"
+    return _Provider
+
+
+# Generate 20+ OpenAI-compatible providers
+CohereProvider = _openai_compatible_factory("Cohere", "https://api.cohere.ai/v2", "COHERE_API_KEY")
+PerplexityProvider = _openai_compatible_factory("Perplexity", "https://api.perplexity.ai", "PERPLEXITY_API_KEY")
+XAIProvider = _openai_compatible_factory("xAI", "https://api.x.ai/v1", "XAI_API_KEY")
+CerebrasProvider = _openai_compatible_factory("Cerebras", "https://api.cerebras.ai/v1", "CEREBRAS_API_KEY")
+SambaNovaProvider = _openai_compatible_factory("SambaNova", "https://api.sambanova.ai/v1", "SAMBANOVA_API_KEY")
+AI21Provider = _openai_compatible_factory("AI21", "https://api.ai21.com/studio/v1", "AI21_API_KEY")
+NVIDIAProvider = _openai_compatible_factory("NVIDIA", "https://integrate.api.nvidia.com/v1", "NVIDIA_API_KEY")
+AnyscaleProvider = _openai_compatible_factory("Anyscale", "https://api.endpoints.anyscale.com/v1", "ANYSCALE_API_KEY")
+OpenRouterProvider = _openai_compatible_factory("OpenRouter", "https://openrouter.ai/api/v1", "OPENROUTER_API_KEY")
+LeptonProvider = _openai_compatible_factory("Lepton", "https://llm.lepton.run/api/v1", "LEPTON_API_KEY")
+ReplicateProvider = _openai_compatible_factory("Replicate", "https://openai-proxy.replicate.com/v1", "REPLICATE_API_TOKEN")
+OllamaProvider = _openai_compatible_factory("Ollama", "http://localhost:11434/v1", "")
+LMStudioProvider = _openai_compatible_factory("LMStudio", "http://localhost:1234/v1", "")
+VLLMProvider = _openai_compatible_factory("vLLM", "http://localhost:8000/v1", "")
+HuggingFaceProvider = _openai_compatible_factory("HuggingFace", "https://api-inference.huggingface.co/v1", "HF_TOKEN")
+CloudflareProvider = _openai_compatible_factory("Cloudflare", "https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/v1", "CLOUDFLARE_API_TOKEN")
+MoonshotProvider = _openai_compatible_factory("Moonshot", "https://api.moonshot.cn/v1", "MOONSHOT_API_KEY")
+ZhipuProvider = _openai_compatible_factory("Zhipu", "https://open.bigmodel.cn/api/paas/v4", "ZHIPU_API_KEY")
+QwenProvider = _openai_compatible_factory("Qwen", "https://dashscope.aliyuncs.com/compatible-mode/v1", "DASHSCOPE_API_KEY")
+YiProvider = _openai_compatible_factory("Yi", "https://api.lingyiwanwu.com/v1", "YI_API_KEY")
+NebiusProvider = _openai_compatible_factory("Nebius", "https://api.studio.nebius.ai/v1", "NEBIUS_API_KEY")
+
+
 PROVIDERS: dict[str, type[LLMProvider]] = {
+    # Tier 1 — Custom implementations
     "openai": OpenAIProvider,
     "anthropic": AnthropicProvider,
     "local": LocalProvider,
     "google": GoogleProvider,
     "gemini": GoogleProvider,
+    "bedrock": BedrockProvider,
+    # Tier 2 — OpenAI-compatible (custom base_url)
     "groq": GroqProvider,
     "mistral": MistralProvider,
-    "bedrock": BedrockProvider,
     "deepseek": DeepSeekProvider,
     "together": TogetherProvider,
     "fireworks": FireworksProvider,
+    "cohere": CohereProvider,
+    "perplexity": PerplexityProvider,
+    "xai": XAIProvider,
+    "cerebras": CerebrasProvider,
+    "sambanova": SambaNovaProvider,
+    "ai21": AI21Provider,
+    "nvidia": NVIDIAProvider,
+    "anyscale": AnyscaleProvider,
+    "openrouter": OpenRouterProvider,
+    "lepton": LeptonProvider,
+    "replicate": ReplicateProvider,
+    "ollama": OllamaProvider,
+    "lmstudio": LMStudioProvider,
+    "vllm": VLLMProvider,
+    "huggingface": HuggingFaceProvider,
+    "cloudflare": CloudflareProvider,
+    "moonshot": MoonshotProvider,
+    "zhipu": ZhipuProvider,
+    "qwen": QwenProvider,
+    "yi": YiProvider,
+    "nebius": NebiusProvider,
 }
 
 
