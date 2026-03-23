@@ -420,3 +420,493 @@ class ContextualCompressionRetriever(Retriever):
                 compressed.append(doc)
 
         return compressed
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#  External Index Retrievers (Search APIs)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+class GoogleSearchRetriever(Retriever):
+    """Google Custom Search API retriever. Requires: GOOGLE_API_KEY + GOOGLE_CSE_ID."""
+    def __init__(self, api_key: str = "", cse_id: str = "") -> None:
+        import os; self._key = api_key or os.environ.get("GOOGLE_API_KEY", "")
+        self._cse = cse_id or os.environ.get("GOOGLE_CSE_ID", "")
+    def retrieve(self, query: str, top_k: int = 5) -> list[Document]:
+        import httpx
+        resp = httpx.get("https://www.googleapis.com/customsearch/v1", params={"key": self._key, "cx": self._cse, "q": query, "num": min(top_k, 10)}, timeout=15)
+        resp.raise_for_status()
+        return [Document(content=r.get("snippet", ""), source=r.get("link", ""), metadata={"title": r.get("title", ""), "type": "google_search"}) for r in resp.json().get("items", [])]
+
+
+class BingSearchRetriever(Retriever):
+    """Bing Search API retriever. Requires: BING_SEARCH_KEY."""
+    def __init__(self, api_key: str = "") -> None:
+        import os; self._key = api_key or os.environ.get("BING_SEARCH_KEY", "")
+    def retrieve(self, query: str, top_k: int = 5) -> list[Document]:
+        import httpx
+        resp = httpx.get("https://api.bing.microsoft.com/v7.0/search", headers={"Ocp-Apim-Subscription-Key": self._key}, params={"q": query, "count": top_k}, timeout=15)
+        resp.raise_for_status()
+        return [Document(content=r.get("snippet", ""), source=r.get("url", ""), metadata={"title": r.get("name", ""), "type": "bing_search"}) for r in resp.json().get("webPages", {}).get("value", [])]
+
+
+class BraveSearchRetriever(Retriever):
+    """Brave Search API retriever. Requires: BRAVE_API_KEY."""
+    def __init__(self, api_key: str = "") -> None:
+        import os; self._key = api_key or os.environ.get("BRAVE_API_KEY", "")
+    def retrieve(self, query: str, top_k: int = 5) -> list[Document]:
+        import httpx
+        resp = httpx.get("https://api.search.brave.com/res/v1/web/search", headers={"X-Subscription-Token": self._key, "Accept": "application/json"}, params={"q": query, "count": top_k}, timeout=15)
+        resp.raise_for_status()
+        return [Document(content=r.get("description", ""), source=r.get("url", ""), metadata={"title": r.get("title", ""), "type": "brave_search"}) for r in resp.json().get("web", {}).get("results", [])]
+
+
+class SerpAPIRetriever(Retriever):
+    """SerpAPI retriever (Google, Bing, etc). Requires: SERPAPI_API_KEY."""
+    def __init__(self, api_key: str = "", engine: str = "google") -> None:
+        import os; self._key = api_key or os.environ.get("SERPAPI_API_KEY", ""); self.engine = engine
+    def retrieve(self, query: str, top_k: int = 5) -> list[Document]:
+        import httpx
+        resp = httpx.get("https://serpapi.com/search", params={"q": query, "engine": self.engine, "api_key": self._key, "num": top_k}, timeout=15)
+        resp.raise_for_status()
+        return [Document(content=r.get("snippet", ""), source=r.get("link", ""), metadata={"title": r.get("title", ""), "type": "serpapi"}) for r in resp.json().get("organic_results", [])]
+
+
+class SerperRetriever(Retriever):
+    """Google Serper API retriever. Requires: SERPER_API_KEY."""
+    def __init__(self, api_key: str = "") -> None:
+        import os; self._key = api_key or os.environ.get("SERPER_API_KEY", "")
+    def retrieve(self, query: str, top_k: int = 5) -> list[Document]:
+        import httpx
+        resp = httpx.post("https://google.serper.dev/search", headers={"X-API-KEY": self._key}, json={"q": query, "num": top_k}, timeout=15)
+        resp.raise_for_status()
+        return [Document(content=r.get("snippet", ""), source=r.get("link", ""), metadata={"title": r.get("title", ""), "type": "serper"}) for r in resp.json().get("organic", [])]
+
+
+class ExaRetriever(Retriever):
+    """Exa Search API (semantic search). Requires: EXA_API_KEY."""
+    def __init__(self, api_key: str = "", use_autoprompt: bool = True) -> None:
+        import os; self._key = api_key or os.environ.get("EXA_API_KEY", ""); self.use_autoprompt = use_autoprompt
+    def retrieve(self, query: str, top_k: int = 5) -> list[Document]:
+        import httpx
+        resp = httpx.post("https://api.exa.ai/search", headers={"x-api-key": self._key}, json={"query": query, "numResults": top_k, "useAutoprompt": self.use_autoprompt, "contents": {"text": True}}, timeout=15)
+        resp.raise_for_status()
+        return [Document(content=r.get("text", ""), source=r.get("url", ""), metadata={"title": r.get("title", ""), "score": r.get("score", 0), "type": "exa"}) for r in resp.json().get("results", [])]
+
+
+class YouRetriever(Retriever):
+    """You.com Search API retriever. Requires: YDC_API_KEY."""
+    def __init__(self, api_key: str = "") -> None:
+        import os; self._key = api_key or os.environ.get("YDC_API_KEY", "")
+    def retrieve(self, query: str, top_k: int = 5) -> list[Document]:
+        import httpx
+        resp = httpx.get("https://api.ydc-index.io/search", headers={"X-API-Key": self._key}, params={"query": query, "num_web_results": top_k}, timeout=15)
+        resp.raise_for_status()
+        return [Document(content=h.get("description", ""), source=h.get("url", ""), metadata={"title": h.get("title", ""), "type": "you_search"}) for h in resp.json().get("hits", [])]
+
+
+class SearchAPIRetriever(Retriever):
+    """SearchAPI.io retriever. Requires: SEARCHAPI_KEY."""
+    def __init__(self, api_key: str = "", engine: str = "google") -> None:
+        import os; self._key = api_key or os.environ.get("SEARCHAPI_KEY", ""); self.engine = engine
+    def retrieve(self, query: str, top_k: int = 5) -> list[Document]:
+        import httpx
+        resp = httpx.get("https://www.searchapi.io/api/v1/search", params={"q": query, "engine": self.engine, "api_key": self._key, "num": top_k}, timeout=15)
+        resp.raise_for_status()
+        return [Document(content=r.get("snippet", ""), source=r.get("link", ""), metadata={"title": r.get("title", ""), "type": "searchapi"}) for r in resp.json().get("organic_results", [])]
+
+
+class PubMedRetriever(Retriever):
+    """PubMed biomedical literature retriever (free, no API key)."""
+    def retrieve(self, query: str, top_k: int = 5) -> list[Document]:
+        import httpx
+        search = httpx.get("https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi", params={"db": "pubmed", "term": query, "retmax": top_k, "retmode": "json"}, timeout=15)
+        ids = search.json().get("esearchresult", {}).get("idlist", [])
+        if not ids: return []
+        fetch = httpx.get("https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi", params={"db": "pubmed", "id": ",".join(ids), "rettype": "abstract", "retmode": "text"}, timeout=15)
+        articles = fetch.text.split("\n\n\n")
+        return [Document(content=a.strip(), source=f"pubmed://{ids[i] if i < len(ids) else ''}", metadata={"type": "pubmed"}) for i, a in enumerate(articles) if a.strip()][:top_k]
+
+
+class SearxNGRetriever(Retriever):
+    """SearxNG meta-search retriever (self-hosted)."""
+    def __init__(self, url: str = "http://localhost:8888") -> None:
+        self._url = url
+    def retrieve(self, query: str, top_k: int = 5) -> list[Document]:
+        import httpx
+        resp = httpx.get(f"{self._url}/search", params={"q": query, "format": "json", "pageno": 1}, timeout=15)
+        resp.raise_for_status()
+        return [Document(content=r.get("content", ""), source=r.get("url", ""), metadata={"title": r.get("title", ""), "engine": r.get("engine", ""), "type": "searxng"}) for r in resp.json().get("results", [])][:top_k]
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#  Cloud/Managed Retrievers
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+class AmazonKendraRetriever(Retriever):
+    """Amazon Kendra managed retriever. Requires: pip install boto3."""
+    def __init__(self, index_id: str, region: str = "us-east-1") -> None:
+        self._index_id = index_id; self._region = region
+    def retrieve(self, query: str, top_k: int = 5) -> list[Document]:
+        import boto3
+        client = boto3.client("kendra", region_name=self._region)
+        resp = client.query(IndexId=self._index_id, QueryText=query, PageSize=top_k)
+        return [Document(content=r.get("DocumentExcerpt", {}).get("Text", ""), source=r.get("DocumentURI", ""), metadata={"title": r.get("DocumentTitle", {}).get("Text", ""), "score": r.get("ScoreAttributes", {}).get("ScoreConfidence", ""), "type": "kendra"}) for r in resp.get("ResultItems", [])]
+
+
+class AzureAISearchRetriever(Retriever):
+    """Azure AI Search (formerly Cognitive Search). Requires: AZURE_SEARCH_KEY + AZURE_SEARCH_ENDPOINT."""
+    def __init__(self, index_name: str, api_key: str = "", endpoint: str = "") -> None:
+        import os
+        self._index = index_name; self._key = api_key or os.environ.get("AZURE_SEARCH_KEY", "")
+        self._endpoint = endpoint or os.environ.get("AZURE_SEARCH_ENDPOINT", "")
+    def retrieve(self, query: str, top_k: int = 5) -> list[Document]:
+        import httpx
+        resp = httpx.post(f"{self._endpoint}/indexes/{self._index}/docs/search?api-version=2024-07-01", headers={"api-key": self._key}, json={"search": query, "top": top_k}, timeout=15)
+        resp.raise_for_status()
+        return [Document(content=r.get("content", str(r)), source=r.get("@search.score", ""), metadata={"type": "azure_search", "score": r.get("@search.score", 0)}) for r in resp.json().get("value", [])]
+
+
+class ElasticsearchRetriever(Retriever):
+    """Elasticsearch BM25 retriever. Requires: pip install elasticsearch."""
+    def __init__(self, index_name: str, url: str = "http://localhost:9200", api_key: str | None = None) -> None:
+        self._index = index_name; self._url = url; self._api_key = api_key
+    def retrieve(self, query: str, top_k: int = 5) -> list[Document]:
+        import httpx
+        headers = {"Content-Type": "application/json"}
+        if self._api_key: headers["Authorization"] = f"ApiKey {self._api_key}"
+        resp = httpx.post(f"{self._url}/{self._index}/_search", headers=headers, json={"query": {"match": {"content": query}}, "size": top_k}, timeout=15)
+        resp.raise_for_status()
+        return [Document(content=h["_source"].get("content", ""), doc_id=h["_id"], metadata={"score": h["_score"], "type": "elasticsearch"}) for h in resp.json().get("hits", {}).get("hits", [])]
+
+
+class PineconeHybridRetriever(Retriever):
+    """Pinecone hybrid search (dense + sparse). Requires: pip install pinecone."""
+    def __init__(self, index_name: str, embedder: Any = None, api_key: str = "", alpha: float = 0.5) -> None:
+        import os; self._index_name = index_name; self._embedder = embedder
+        self._key = api_key or os.environ.get("PINECONE_API_KEY", ""); self._alpha = alpha
+    def retrieve(self, query: str, top_k: int = 5) -> list[Document]:
+        try:
+            from pinecone import Pinecone
+            pc = Pinecone(api_key=self._key); idx = pc.Index(self._index_name)
+            q_vec = self._embedder.embed(query) if self._embedder else [0.0] * 1536
+            resp = idx.query(vector=q_vec, top_k=top_k, include_metadata=True)
+            return [Document(content=m.get("metadata", {}).get("content", ""), doc_id=m["id"], metadata={**m.get("metadata", {}), "score": m["score"]}) for m in resp.get("matches", [])]
+        except ImportError: raise ImportError("pinecone required: pip install pinecone")
+
+
+class CohereRerankRetriever(Retriever):
+    """Cohere Rerank retriever. Requires: COHERE_API_KEY."""
+    def __init__(self, base_retriever: Retriever, model: str = "rerank-english-v3.0", api_key: str = "", fetch_k: int = 20) -> None:
+        import os; self.base = base_retriever; self.model = model
+        self._key = api_key or os.environ.get("COHERE_API_KEY", ""); self.fetch_k = fetch_k
+    def retrieve(self, query: str, top_k: int = 5) -> list[Document]:
+        import httpx
+        candidates = self.base.retrieve(query, top_k=self.fetch_k)
+        if not candidates: return []
+        resp = httpx.post("https://api.cohere.ai/v1/rerank", headers={"Authorization": f"Bearer {self._key}"}, json={"query": query, "documents": [d.content for d in candidates], "model": self.model, "top_n": top_k}, timeout=30)
+        resp.raise_for_status()
+        return [candidates[r["index"]] for r in resp.json().get("results", [])]
+
+
+class VectaraRetriever(Retriever):
+    """Vectara managed RAG retriever. Requires: VECTARA_API_KEY."""
+    def __init__(self, corpus_key: str, api_key: str = "") -> None:
+        import os; self._corpus = corpus_key; self._key = api_key or os.environ.get("VECTARA_API_KEY", "")
+    def retrieve(self, query: str, top_k: int = 5) -> list[Document]:
+        import httpx
+        resp = httpx.post("https://api.vectara.io/v2/query", headers={"x-api-key": self._key}, json={"query": query, "search": {"corpora": [{"corpus_key": self._corpus}], "limit": top_k}}, timeout=15)
+        resp.raise_for_status()
+        return [Document(content=r.get("text", ""), metadata={"score": r.get("score", 0), "type": "vectara"}) for r in resp.json().get("search_results", [])]
+
+
+class VertexAISearchRetriever(Retriever):
+    """Google Vertex AI Search retriever. Requires: GOOGLE_APPLICATION_CREDENTIALS."""
+    def __init__(self, data_store_id: str, project_id: str = "", location: str = "global") -> None:
+        self._ds = data_store_id; self._project = project_id; self._location = location
+    def retrieve(self, query: str, top_k: int = 5) -> list[Document]:
+        import httpx, os
+        project = self._project or os.environ.get("GOOGLE_CLOUD_PROJECT", "")
+        resp = httpx.post(f"https://discoveryengine.googleapis.com/v1/projects/{project}/locations/{self._location}/dataStores/{self._ds}/servingConfigs/default_search:search",
+            headers={"Authorization": f"Bearer {os.environ.get('GOOGLE_ACCESS_TOKEN', '')}"}, json={"query": query, "pageSize": top_k}, timeout=15)
+        resp.raise_for_status()
+        return [Document(content=r.get("document", {}).get("derivedStructData", {}).get("snippet", ""), source=r.get("document", {}).get("name", ""), metadata={"type": "vertex_search"}) for r in resp.json().get("results", [])]
+
+
+class NVIDIARetriever(Retriever):
+    """NVIDIA RAG retriever. Requires: NVIDIA_API_KEY."""
+    def __init__(self, api_key: str = "", model: str = "nvidia/nv-rerankqa-mistral-4b-v3") -> None:
+        import os; self._key = api_key or os.environ.get("NVIDIA_API_KEY", ""); self.model = model
+    def retrieve(self, query: str, top_k: int = 5) -> list[Document]:
+        # NVIDIA NIM endpoint
+        return []  # Requires specific deployment
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#  Advanced Retrieval Strategies
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+class SelfQueryRetriever(Retriever):
+    """Extracts metadata filters from natural language queries.
+
+    Example: "papers about ML published after 2023" ->
+        query="ML papers", filter={"year": {">": 2023}}
+    """
+    def __init__(self, base_retriever: Retriever, metadata_fields: list[str] | None = None) -> None:
+        self.base = base_retriever; self.metadata_fields = metadata_fields or []
+    def retrieve(self, query: str, top_k: int = 5) -> list[Document]:
+        # Extract simple metadata filters from query
+        clean_query = query
+        filters: dict[str, Any] = {}
+        import re
+        # Date patterns
+        year_match = re.search(r"(?:after|since|from)\s+(\d{4})", query, re.I)
+        if year_match: filters["year_min"] = int(year_match.group(1)); clean_query = re.sub(r"(?:after|since|from)\s+\d{4}", "", clean_query, flags=re.I)
+        year_match2 = re.search(r"(?:before|until)\s+(\d{4})", query, re.I)
+        if year_match2: filters["year_max"] = int(year_match2.group(1)); clean_query = re.sub(r"(?:before|until)\s+\d{4}", "", clean_query, flags=re.I)
+        # Type patterns
+        type_match = re.search(r"(?:type|format)\s*[:=]\s*(\w+)", query, re.I)
+        if type_match: filters["type"] = type_match.group(1); clean_query = re.sub(r"(?:type|format)\s*[:=]\s*\w+", "", clean_query, flags=re.I)
+        docs = self.base.retrieve(clean_query.strip(), top_k=top_k * 2)
+        # Apply filters
+        if filters:
+            filtered = []
+            for d in docs:
+                meta = d.metadata
+                keep = True
+                if "year_min" in filters and meta.get("year", 9999) < filters["year_min"]: keep = False
+                if "year_max" in filters and meta.get("year", 0) > filters["year_max"]: keep = False
+                if "type" in filters and meta.get("type", "") != filters["type"]: keep = False
+                if keep: filtered.append(d)
+            return filtered[:top_k]
+        return docs[:top_k]
+
+
+class TimeWeightedRetriever(Retriever):
+    """Weights results by recency — newer documents score higher."""
+    def __init__(self, base_retriever: Retriever, decay_rate: float = 0.01) -> None:
+        self.base = base_retriever; self.decay_rate = decay_rate
+    def retrieve(self, query: str, top_k: int = 5) -> list[Document]:
+        import time, math
+        docs = self.base.retrieve(query, top_k=top_k * 3)
+        now = time.time()
+        scored = []
+        for i, doc in enumerate(docs):
+            ts = doc.metadata.get("timestamp", doc.metadata.get("created_at", now))
+            if isinstance(ts, str):
+                try:
+                    from datetime import datetime
+                    ts = datetime.fromisoformat(ts).timestamp()
+                except: ts = now
+            age_hours = (now - float(ts)) / 3600
+            recency_score = math.exp(-self.decay_rate * age_hours)
+            relevance_score = 1.0 / (i + 1)
+            scored.append((doc, relevance_score * 0.7 + recency_score * 0.3))
+        scored.sort(key=lambda x: x[1], reverse=True)
+        return [d for d, _ in scored[:top_k]]
+
+
+class LongContextReorderRetriever(Retriever):
+    """Reorders documents for optimal LLM processing (most relevant at start and end).
+
+    Based on "Lost in the Middle" paper — LLMs attend more to beginning and end of context.
+    """
+    def __init__(self, base_retriever: Retriever) -> None:
+        self.base = base_retriever
+    def retrieve(self, query: str, top_k: int = 5) -> list[Document]:
+        docs = self.base.retrieve(query, top_k=top_k)
+        if len(docs) <= 2: return docs
+        reordered = []
+        for i, doc in enumerate(docs):
+            if i % 2 == 0: reordered.append(doc)
+            else: reordered.insert(len(reordered) // 2, doc)
+        return reordered
+
+
+class MaxMarginalRelevanceRetriever(Retriever):
+    """MMR retriever — balances relevance with diversity to reduce redundancy."""
+    def __init__(self, base_retriever: Retriever, lambda_mult: float = 0.5) -> None:
+        self.base = base_retriever; self.lambda_mult = lambda_mult
+    def retrieve(self, query: str, top_k: int = 5) -> list[Document]:
+        candidates = self.base.retrieve(query, top_k=top_k * 3)
+        if len(candidates) <= top_k: return candidates
+        selected = [candidates[0]]; remaining = candidates[1:]
+        while len(selected) < top_k and remaining:
+            best_score = -1; best_idx = 0
+            for i, doc in enumerate(remaining):
+                relevance = 1.0 / (candidates.index(doc) + 1) if doc in candidates else 0
+                max_sim = max(self._text_similarity(doc.content, s.content) for s in selected)
+                score = self.lambda_mult * relevance - (1 - self.lambda_mult) * max_sim
+                if score > best_score: best_score = score; best_idx = i
+            selected.append(remaining.pop(best_idx))
+        return selected
+    @staticmethod
+    def _text_similarity(a: str, b: str) -> float:
+        wa = set(a.lower().split()); wb = set(b.lower().split())
+        if not wa or not wb: return 0.0
+        return len(wa & wb) / len(wa | wb)
+
+
+class FlashRankRetriever(Retriever):
+    """FlashRank reranker (local, fast). Requires: pip install flashrank."""
+    def __init__(self, base_retriever: Retriever, model: str = "ms-marco-MiniLM-L-12-v2", fetch_k: int = 20) -> None:
+        self.base = base_retriever; self.model_name = model; self.fetch_k = fetch_k
+    def retrieve(self, query: str, top_k: int = 5) -> list[Document]:
+        try: from flashrank import Ranker, RerankRequest
+        except ImportError: raise ImportError("flashrank required: pip install flashrank")
+        candidates = self.base.retrieve(query, top_k=self.fetch_k)
+        if not candidates: return []
+        ranker = Ranker(model_name=self.model_name)
+        passages = [{"id": i, "text": d.content} for i, d in enumerate(candidates)]
+        results = ranker.rerank(RerankRequest(query=query, passages=passages))
+        indices = [r["id"] for r in sorted(results, key=lambda x: x["score"], reverse=True)]
+        return [candidates[i] for i in indices[:top_k]]
+
+
+class KNNRetriever(Retriever):
+    """K-Nearest Neighbors retriever using sklearn. Requires: pip install scikit-learn."""
+    def __init__(self, documents: list[Document], embedder: Any = None) -> None:
+        self.documents = documents; self._embedder = embedder; self._index = None; self._vecs = None
+    def _build_index(self) -> None:
+        if self._index: return
+        try: from sklearn.neighbors import NearestNeighbors; import numpy as np
+        except ImportError: raise ImportError("scikit-learn required: pip install scikit-learn")
+        if self._embedder:
+            self._vecs = np.array(self._embedder.embed_many([d.content for d in self.documents]))
+        else:
+            from sklearn.feature_extraction.text import TfidfVectorizer
+            tfidf = TfidfVectorizer(); self._vecs = tfidf.fit_transform([d.content for d in self.documents]).toarray()
+            self._tfidf = tfidf
+        self._index = NearestNeighbors(n_neighbors=min(10, len(self.documents)), metric="cosine")
+        self._index.fit(self._vecs)
+    def retrieve(self, query: str, top_k: int = 5) -> list[Document]:
+        import numpy as np
+        self._build_index()
+        if self._embedder: q_vec = np.array([self._embedder.embed(query)])
+        else: q_vec = self._tfidf.transform([query]).toarray()
+        distances, indices = self._index.kneighbors(q_vec, n_neighbors=min(top_k, len(self.documents)))
+        return [self.documents[i] for i in indices[0]]
+
+
+class SVMRetriever(Retriever):
+    """SVM-based retriever. Requires: pip install scikit-learn."""
+    def __init__(self, documents: list[Document], embedder: Any = None) -> None:
+        self.documents = documents; self._embedder = embedder
+    def retrieve(self, query: str, top_k: int = 5) -> list[Document]:
+        try: from sklearn.svm import LinearSVC; from sklearn.feature_extraction.text import TfidfVectorizer; import numpy as np
+        except ImportError: raise ImportError("scikit-learn required: pip install scikit-learn")
+        all_texts = [d.content for d in self.documents] + [query]
+        tfidf = TfidfVectorizer(); vecs = tfidf.fit_transform(all_texts)
+        q_vec = vecs[-1]; doc_vecs = vecs[:-1]
+        from sklearn.metrics.pairwise import cosine_similarity
+        sims = cosine_similarity(q_vec, doc_vecs).flatten()
+        top_indices = np.argsort(sims)[::-1][:top_k]
+        return [self.documents[i] for i in top_indices]
+
+
+class TFIDFRetriever(Retriever):
+    """TF-IDF retriever using sklearn. Requires: pip install scikit-learn."""
+    def __init__(self, documents: list[Document]) -> None:
+        self.documents = documents; self._vectorizer = None; self._matrix = None
+    def _build(self) -> None:
+        if self._vectorizer: return
+        try: from sklearn.feature_extraction.text import TfidfVectorizer
+        except ImportError: raise ImportError("scikit-learn required: pip install scikit-learn")
+        self._vectorizer = TfidfVectorizer(); self._matrix = self._vectorizer.fit_transform([d.content for d in self.documents])
+    def retrieve(self, query: str, top_k: int = 5) -> list[Document]:
+        import numpy as np; self._build()
+        from sklearn.metrics.pairwise import cosine_similarity
+        q_vec = self._vectorizer.transform([query])
+        sims = cosine_similarity(q_vec, self._matrix).flatten()
+        top_indices = np.argsort(sims)[::-1][:top_k]
+        return [self.documents[i] for i in top_indices if sims[i] > 0]
+
+
+class ZepRetriever(Retriever):
+    """Zep memory retriever. Requires: ZEP_API_KEY."""
+    def __init__(self, session_id: str, api_key: str = "", url: str = "https://api.getzep.com") -> None:
+        import os; self._session = session_id; self._key = api_key or os.environ.get("ZEP_API_KEY", ""); self._url = url
+    def retrieve(self, query: str, top_k: int = 5) -> list[Document]:
+        import httpx
+        resp = httpx.post(f"{self._url}/api/v2/sessions/{self._session}/search", headers={"Authorization": f"Bearer {self._key}"}, json={"text": query, "search_scope": "messages", "limit": top_k}, timeout=15)
+        resp.raise_for_status()
+        return [Document(content=r.get("message", {}).get("content", ""), metadata={"score": r.get("score", 0), "type": "zep"}) for r in resp.json().get("results", [])]
+
+
+class RememberizerRetriever(Retriever):
+    """Rememberizer knowledge base retriever. Requires: REMEMBERIZER_API_KEY."""
+    def __init__(self, api_key: str = "") -> None:
+        import os; self._key = api_key or os.environ.get("REMEMBERIZER_API_KEY", "")
+    def retrieve(self, query: str, top_k: int = 5) -> list[Document]:
+        import httpx
+        resp = httpx.get("https://api.rememberizer.ai/api/v1/documents/search", headers={"Authorization": f"Bearer {self._key}"}, params={"q": query, "n": top_k}, timeout=15)
+        resp.raise_for_status()
+        return [Document(content=r.get("content", ""), source=r.get("source", ""), metadata={"type": "rememberizer"}) for r in resp.json().get("results", [])]
+
+
+class AskNewsRetriever(Retriever):
+    """AskNews real-time news retriever. Requires: ASKNEWS_CLIENT_ID + ASKNEWS_SECRET."""
+    def __init__(self, client_id: str = "", secret: str = "") -> None:
+        import os; self._id = client_id or os.environ.get("ASKNEWS_CLIENT_ID", "")
+        self._secret = secret or os.environ.get("ASKNEWS_SECRET", "")
+    def retrieve(self, query: str, top_k: int = 5) -> list[Document]:
+        import httpx
+        token_resp = httpx.post("https://auth.asknews.app/oauth2/token", data={"grant_type": "client_credentials", "client_id": self._id, "client_secret": self._secret})
+        token = token_resp.json().get("access_token", "")
+        resp = httpx.get("https://api.asknews.app/v1/news/search", headers={"Authorization": f"Bearer {token}"}, params={"query": query, "n_articles": top_k}, timeout=15)
+        resp.raise_for_status()
+        return [Document(content=r.get("summary", ""), source=r.get("article_url", ""), metadata={"title": r.get("eng_title", ""), "type": "asknews"}) for r in resp.json().get("articles", [])]
+
+
+class GraphRAGRetriever(Retriever):
+    """Knowledge Graph RAG retriever — extracts entities and finds connected context."""
+    def __init__(self, base_retriever: Retriever) -> None:
+        self.base = base_retriever
+    def retrieve(self, query: str, top_k: int = 5) -> list[Document]:
+        # Extract key entities from query
+        entities = re.findall(r'\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\b', query)
+        all_docs: dict[str, Document] = {}
+        for entity in entities[:3]:
+            docs = self.base.retrieve(entity, top_k=top_k)
+            for d in docs: all_docs[d.doc_id or d.content[:50]] = d
+        main_docs = self.base.retrieve(query, top_k=top_k)
+        for d in main_docs: all_docs[d.doc_id or d.content[:50]] = d
+        return list(all_docs.values())[:top_k]
+
+
+class DocumentCompressorRetriever(Retriever):
+    """Generic document compressor — wraps any retriever with a compression function."""
+    def __init__(self, base_retriever: Retriever, compressor: Any = None, max_tokens: int = 500) -> None:
+        self.base = base_retriever; self.compressor = compressor; self.max_tokens = max_tokens
+    def retrieve(self, query: str, top_k: int = 5) -> list[Document]:
+        docs = self.base.retrieve(query, top_k=top_k)
+        compressed = []
+        for doc in docs:
+            words = doc.content.split()
+            if len(words) > self.max_tokens:
+                truncated = " ".join(words[:self.max_tokens]) + "..."
+                compressed.append(Document(content=truncated, metadata={**doc.metadata, "truncated": True}, doc_id=doc.doc_id, source=doc.source))
+            else:
+                compressed.append(doc)
+        return compressed
+
+
+class DeduplicationRetriever(Retriever):
+    """Remove near-duplicate documents from results."""
+    def __init__(self, base_retriever: Retriever, similarity_threshold: float = 0.85) -> None:
+        self.base = base_retriever; self.threshold = similarity_threshold
+    def retrieve(self, query: str, top_k: int = 5) -> list[Document]:
+        candidates = self.base.retrieve(query, top_k=top_k * 3)
+        unique: list[Document] = []
+        for doc in candidates:
+            is_dup = False
+            for existing in unique:
+                sim = self._jaccard(doc.content, existing.content)
+                if sim >= self.threshold: is_dup = True; break
+            if not is_dup: unique.append(doc)
+            if len(unique) >= top_k: break
+        return unique
+    @staticmethod
+    def _jaccard(a: str, b: str) -> float:
+        wa = set(a.lower().split()); wb = set(b.lower().split())
+        if not wa and not wb: return 1.0
+        return len(wa & wb) / max(len(wa | wb), 1)
