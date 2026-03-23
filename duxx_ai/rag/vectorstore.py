@@ -652,3 +652,474 @@ class PGVectorStore(VectorStore):
         cur.close()
         conn.close()
         return n
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#  Cloud-Native Vector Stores
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+class SupabaseVectorStore(VectorStore):
+    """Supabase pgvector store. Requires: pip install supabase"""
+    def __init__(self, embedder: Embedder, url: str = "", key: str = "", table: str = "documents") -> None:
+        import os; self.embedder = embedder; self._table = table
+        self._url = url or os.environ.get("SUPABASE_URL", ""); self._key = key or os.environ.get("SUPABASE_KEY", "")
+        try: from supabase import create_client; self._client = create_client(self._url, self._key)
+        except ImportError: raise ImportError("supabase required: pip install supabase")
+    def add(self, documents: list[Document]) -> list[str]:
+        vecs = self.embedder.embed_many([d.content for d in documents]); ids = []
+        for doc, vec in zip(documents, vecs):
+            did = doc.doc_id or str(uuid.uuid4())[:8]; ids.append(did)
+            self._client.table(self._table).insert({"id": did, "content": doc.content, "embedding": vec, "metadata": doc.metadata or {}}).execute()
+        return ids
+    def search(self, query: str, top_k: int = 5) -> list[SearchResult]:
+        q_vec = self.embedder.embed(query)
+        resp = self._client.rpc("match_documents", {"query_embedding": q_vec, "match_count": top_k}).execute()
+        return [SearchResult(Document(content=r["content"], doc_id=r.get("id", ""), metadata=r.get("metadata", {})), score=r.get("similarity", 0)) for r in resp.data]
+    def delete(self, doc_ids: list[str]) -> int:
+        for did in doc_ids: self._client.table(self._table).delete().eq("id", did).execute()
+        return len(doc_ids)
+    def count(self) -> int: return self._client.table(self._table).select("id", count="exact").execute().count or 0
+
+
+class UpstashVectorStore(VectorStore):
+    """Upstash Vector (serverless). Requires: pip install upstash-vector"""
+    def __init__(self, embedder: Embedder, url: str = "", token: str = "") -> None:
+        import os; self.embedder = embedder
+        self._url = url or os.environ.get("UPSTASH_VECTOR_REST_URL", ""); self._token = token or os.environ.get("UPSTASH_VECTOR_REST_TOKEN", "")
+        try: from upstash_vector import Index; self._index = Index(url=self._url, token=self._token)
+        except ImportError: raise ImportError("upstash-vector required: pip install upstash-vector")
+    def add(self, documents: list[Document]) -> list[str]:
+        vecs = self.embedder.embed_many([d.content for d in documents]); ids = []
+        for doc, vec in zip(documents, vecs):
+            did = doc.doc_id or str(uuid.uuid4())[:8]; ids.append(did)
+            self._index.upsert(vectors=[(did, vec, {"content": doc.content})])
+        return ids
+    def search(self, query: str, top_k: int = 5) -> list[SearchResult]:
+        q_vec = self.embedder.embed(query); results = self._index.query(vector=q_vec, top_k=top_k, include_metadata=True)
+        return [SearchResult(Document(content=r.metadata.get("content", ""), doc_id=r.id), score=r.score) for r in results]
+    def delete(self, doc_ids: list[str]) -> int: self._index.delete(ids=doc_ids); return len(doc_ids)
+    def count(self) -> int: return self._index.info().vector_count
+
+
+class TurbopufferVectorStore(VectorStore):
+    """Turbopuffer serverless vector store. Requires: pip install turbopuffer"""
+    def __init__(self, embedder: Embedder, namespace: str = "duxx_ai", api_key: str = "") -> None:
+        import os; self.embedder = embedder
+        try: import turbopuffer as tpuf; tpuf.api_key = api_key or os.environ.get("TURBOPUFFER_API_KEY", "")
+        except ImportError: raise ImportError("turbopuffer required: pip install turbopuffer")
+        import turbopuffer as tpuf; self._ns = tpuf.Namespace(namespace)
+    def add(self, documents: list[Document]) -> list[str]:
+        vecs = self.embedder.embed_many([d.content for d in documents]); ids = []
+        for i, (doc, vec) in enumerate(zip(documents, vecs)):
+            did = doc.doc_id or str(uuid.uuid4())[:8]; ids.append(did)
+        self._ns.upsert(ids=ids, vectors=vecs, attributes={"content": [d.content for d in documents]})
+        return ids
+    def search(self, query: str, top_k: int = 5) -> list[SearchResult]:
+        q_vec = self.embedder.embed(query); results = self._ns.query(vector=q_vec, top_k=top_k, include_attributes=["content"])
+        return [SearchResult(Document(content=r.attributes.get("content", ""), doc_id=str(r.id)), score=r.dist) for r in results]
+    def delete(self, doc_ids: list[str]) -> int: self._ns.delete(ids=doc_ids); return len(doc_ids)
+    def count(self) -> int: return 0  # API doesn't expose count
+
+
+class VectaraVectorStore(VectorStore):
+    """Vectara managed RAG platform. Requires: VECTARA_API_KEY."""
+    def __init__(self, embedder: Embedder, corpus_key: str = "duxx", api_key: str = "") -> None:
+        import os; self.embedder = embedder; self._corpus = corpus_key
+        self._key = api_key or os.environ.get("VECTARA_API_KEY", "")
+    def add(self, documents: list[Document]) -> list[str]:
+        import httpx; ids = []
+        for doc in documents:
+            did = doc.doc_id or str(uuid.uuid4())[:8]; ids.append(did)
+            httpx.post(f"https://api.vectara.io/v2/corpora/{self._corpus}/documents", headers={"x-api-key": self._key}, json={"id": did, "type": "core", "document_parts": [{"text": doc.content}]}, timeout=15)
+        return ids
+    def search(self, query: str, top_k: int = 5) -> list[SearchResult]:
+        import httpx
+        resp = httpx.post("https://api.vectara.io/v2/query", headers={"x-api-key": self._key}, json={"query": query, "search": {"corpora": [{"corpus_key": self._corpus}], "limit": top_k}}, timeout=15)
+        resp.raise_for_status()
+        return [SearchResult(Document(content=r.get("text", "")), score=r.get("score", 0)) for r in resp.json().get("search_results", [])]
+    def delete(self, doc_ids: list[str]) -> int:
+        import httpx
+        for did in doc_ids: httpx.delete(f"https://api.vectara.io/v2/corpora/{self._corpus}/documents/{did}", headers={"x-api-key": self._key}, timeout=10)
+        return len(doc_ids)
+    def count(self) -> int: return 0
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#  Graph & Specialized Databases
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+class Neo4jVectorStore(VectorStore):
+    """Neo4j graph + vector store. Requires: pip install neo4j"""
+    def __init__(self, embedder: Embedder, url: str = "bolt://localhost:7687", username: str = "neo4j", password: str = "", index_name: str = "duxx_vectors") -> None:
+        try: from neo4j import GraphDatabase
+        except ImportError: raise ImportError("neo4j required: pip install neo4j")
+        self.embedder = embedder; self._index = index_name
+        self._driver = GraphDatabase.driver(url, auth=(username, password))
+    def add(self, documents: list[Document]) -> list[str]:
+        vecs = self.embedder.embed_many([d.content for d in documents]); ids = []
+        with self._driver.session() as s:
+            for doc, vec in zip(documents, vecs):
+                did = doc.doc_id or str(uuid.uuid4())[:8]; ids.append(did)
+                s.run("CREATE (d:Document {id: $id, content: $content, embedding: $embedding})", id=did, content=doc.content, embedding=vec)
+        return ids
+    def search(self, query: str, top_k: int = 5) -> list[SearchResult]:
+        q_vec = self.embedder.embed(query)
+        with self._driver.session() as s:
+            result = s.run(f"CALL db.index.vector.queryNodes($index, $k, $vec) YIELD node, score RETURN node.content AS content, node.id AS id, score", index=self._index, k=top_k, vec=q_vec)
+            return [SearchResult(Document(content=r["content"], doc_id=r["id"]), score=r["score"]) for r in result]
+    def delete(self, doc_ids: list[str]) -> int:
+        with self._driver.session() as s:
+            for did in doc_ids: s.run("MATCH (d:Document {id: $id}) DETACH DELETE d", id=did)
+        return len(doc_ids)
+    def count(self) -> int:
+        with self._driver.session() as s: return s.run("MATCH (d:Document) RETURN count(d) AS c").single()["c"]
+
+
+class CassandraVectorStore(VectorStore):
+    """Apache Cassandra (DataStax Astra) vector store. Requires: pip install cassio"""
+    def __init__(self, embedder: Embedder, table: str = "duxx_vectors", keyspace: str = "default_keyspace", token: str = "", db_id: str = "") -> None:
+        import os; self.embedder = embedder; self._table = table
+        try:
+            import cassio; cassio.init(token=token or os.environ.get("ASTRA_DB_APPLICATION_TOKEN", ""), database_id=db_id or os.environ.get("ASTRA_DB_ID", ""))
+            from cassio.table import MetadataVectorCassandraTable; self._tbl = MetadataVectorCassandraTable(table=table, vector_dimension=getattr(embedder, "dimension", 1536), keyspace=keyspace)
+        except ImportError: raise ImportError("cassio required: pip install cassio")
+    def add(self, documents: list[Document]) -> list[str]:
+        vecs = self.embedder.embed_many([d.content for d in documents]); ids = []
+        for doc, vec in zip(documents, vecs):
+            did = doc.doc_id or str(uuid.uuid4())[:8]; ids.append(did)
+            self._tbl.put(row_id=did, body_blob=doc.content, vector=vec, metadata=doc.metadata or {})
+        return ids
+    def search(self, query: str, top_k: int = 5) -> list[SearchResult]:
+        q_vec = self.embedder.embed(query); results = self._tbl.metric_ann_search(vector=q_vec, n=top_k)
+        return [SearchResult(Document(content=r["body_blob"], doc_id=r["row_id"]), score=r.get("distance", 0)) for r in results]
+    def delete(self, doc_ids: list[str]) -> int:
+        for did in doc_ids: self._tbl.delete(row_id=did)
+        return len(doc_ids)
+    def count(self) -> int: return 0
+
+
+class OpenSearchVectorStore(VectorStore):
+    """Amazon OpenSearch vector store. Requires: pip install opensearch-py"""
+    def __init__(self, embedder: Embedder, index_name: str = "duxx_ai", hosts: list[str] | None = None, http_auth: tuple | None = None, dimension: int | None = None) -> None:
+        try: from opensearchpy import OpenSearch
+        except ImportError: raise ImportError("opensearch-py required: pip install opensearch-py")
+        self.embedder = embedder; self._index = index_name; self._dim = dimension or getattr(embedder, "dimension", 1536)
+        self._client = OpenSearch(hosts=hosts or [{"host": "localhost", "port": 9200}], http_auth=http_auth or ("admin", "admin"), use_ssl=False)
+        if not self._client.indices.exists(index_name):
+            self._client.indices.create(index_name, body={"settings":{"index":{"knn":True}},"mappings":{"properties":{"embedding":{"type":"knn_vector","dimension":self._dim},"content":{"type":"text"},"doc_id":{"type":"keyword"}}}})
+    def add(self, documents: list[Document]) -> list[str]:
+        vecs = self.embedder.embed_many([d.content for d in documents]); ids = []
+        for doc, vec in zip(documents, vecs):
+            did = doc.doc_id or str(uuid.uuid4())[:8]; ids.append(did)
+            self._client.index(index=self._index, id=did, body={"content": doc.content, "embedding": vec, "doc_id": did})
+        return ids
+    def search(self, query: str, top_k: int = 5) -> list[SearchResult]:
+        q_vec = self.embedder.embed(query)
+        resp = self._client.search(index=self._index, body={"size": top_k, "query": {"knn": {"embedding": {"vector": q_vec, "k": top_k}}}})
+        return [SearchResult(Document(content=h["_source"]["content"], doc_id=h["_source"].get("doc_id", "")), score=h["_score"]) for h in resp["hits"]["hits"]]
+    def delete(self, doc_ids: list[str]) -> int:
+        for did in doc_ids: self._client.delete(index=self._index, id=did, ignore=[404])
+        return len(doc_ids)
+    def count(self) -> int: return self._client.count(index=self._index)["count"]
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#  SQL-Based Vector Stores
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+class SQLiteVecStore(VectorStore):
+    """SQLite + sqlite-vec extension. Requires: pip install sqlite-vec"""
+    def __init__(self, embedder: Embedder, db_path: str = "duxx_vectors.db", dimension: int | None = None) -> None:
+        import sqlite3; self.embedder = embedder; self._dim = dimension or getattr(embedder, "dimension", 1536)
+        self._conn = sqlite3.connect(db_path)
+        self._conn.execute(f"CREATE TABLE IF NOT EXISTS docs (id TEXT PRIMARY KEY, content TEXT, embedding BLOB)")
+        self._docs: dict[str, Document] = {}; self._vecs: dict[str, list[float]] = {}
+    def add(self, documents: list[Document]) -> list[str]:
+        import struct; vecs = self.embedder.embed_many([d.content for d in documents]); ids = []
+        for doc, vec in zip(documents, vecs):
+            did = doc.doc_id or str(uuid.uuid4())[:8]; ids.append(did)
+            blob = struct.pack(f"{len(vec)}f", *vec)
+            self._conn.execute("INSERT OR REPLACE INTO docs (id, content, embedding) VALUES (?,?,?)", (did, doc.content, blob))
+            self._docs[did] = doc; self._vecs[did] = vec
+        self._conn.commit(); return ids
+    def search(self, query: str, top_k: int = 5) -> list[SearchResult]:
+        q_vec = self.embedder.embed(query); scores = []
+        for did, vec in self._vecs.items():
+            dot = sum(a*b for a,b in zip(q_vec, vec))
+            ma = math.sqrt(sum(a*a for a in q_vec)); mb = math.sqrt(sum(b*b for b in vec))
+            sim = dot/(ma*mb) if ma and mb else 0; scores.append((did, sim))
+        scores.sort(key=lambda x: x[1], reverse=True)
+        return [SearchResult(self._docs[did], score=s) for did, s in scores[:top_k] if did in self._docs]
+    def delete(self, doc_ids: list[str]) -> int:
+        for did in doc_ids: self._conn.execute("DELETE FROM docs WHERE id=?", (did,)); self._docs.pop(did, None); self._vecs.pop(did, None)
+        self._conn.commit(); return len(doc_ids)
+    def count(self) -> int: return self._conn.execute("SELECT COUNT(*) FROM docs").fetchone()[0]
+
+
+class DuckDBVectorStore(VectorStore):
+    """DuckDB vector store (analytical). Requires: pip install duckdb"""
+    def __init__(self, embedder: Embedder, db_path: str = ":memory:", table: str = "vectors") -> None:
+        try: import duckdb
+        except ImportError: raise ImportError("duckdb required: pip install duckdb")
+        self.embedder = embedder; self._table = table; self._dim = getattr(embedder, "dimension", 1536)
+        self._conn = duckdb.connect(db_path)
+        self._conn.execute(f"CREATE TABLE IF NOT EXISTS {table} (id VARCHAR PRIMARY KEY, content VARCHAR, embedding FLOAT[{self._dim}])")
+    def add(self, documents: list[Document]) -> list[str]:
+        vecs = self.embedder.embed_many([d.content for d in documents]); ids = []
+        for doc, vec in zip(documents, vecs):
+            did = doc.doc_id or str(uuid.uuid4())[:8]; ids.append(did)
+            self._conn.execute(f"INSERT OR REPLACE INTO {self._table} VALUES (?, ?, ?)", [did, doc.content, vec])
+        return ids
+    def search(self, query: str, top_k: int = 5) -> list[SearchResult]:
+        q_vec = self.embedder.embed(query)
+        rows = self._conn.execute(f"SELECT id, content, list_cosine_similarity(embedding, ?::FLOAT[{self._dim}]) as score FROM {self._table} ORDER BY score DESC LIMIT ?", [q_vec, top_k]).fetchall()
+        return [SearchResult(Document(content=r[1], doc_id=r[0]), score=r[2]) for r in rows]
+    def delete(self, doc_ids: list[str]) -> int:
+        for did in doc_ids: self._conn.execute(f"DELETE FROM {self._table} WHERE id=?", [did])
+        return len(doc_ids)
+    def count(self) -> int: return self._conn.execute(f"SELECT COUNT(*) FROM {self._table}").fetchone()[0]
+
+
+class SingleStoreVectorStore(VectorStore):
+    """SingleStore DB vector store. Requires: pip install singlestoredb"""
+    def __init__(self, embedder: Embedder, host: str = "localhost", port: int = 3306, user: str = "root", password: str = "", database: str = "duxx", table: str = "vectors") -> None:
+        try: import singlestoredb
+        except ImportError: raise ImportError("singlestoredb required: pip install singlestoredb")
+        self.embedder = embedder; self._table = table; self._dim = getattr(embedder, "dimension", 1536)
+        import singlestoredb; self._conn = singlestoredb.connect(host=host, port=port, user=user, password=password, database=database)
+    def add(self, documents: list[Document]) -> list[str]:
+        import json; vecs = self.embedder.embed_many([d.content for d in documents]); ids = []
+        cur = self._conn.cursor()
+        for doc, vec in zip(documents, vecs):
+            did = doc.doc_id or str(uuid.uuid4())[:8]; ids.append(did)
+            cur.execute(f"INSERT INTO {self._table} (id, content, embedding) VALUES (%s, %s, JSON_ARRAY_PACK(%s)) ON DUPLICATE KEY UPDATE content=%s", (did, doc.content, json.dumps(vec), doc.content))
+        self._conn.commit(); return ids
+    def search(self, query: str, top_k: int = 5) -> list[SearchResult]:
+        import json; q_vec = self.embedder.embed(query); cur = self._conn.cursor()
+        cur.execute(f"SELECT id, content, DOT_PRODUCT(embedding, JSON_ARRAY_PACK(%s)) as score FROM {self._table} ORDER BY score DESC LIMIT %s", (json.dumps(q_vec), top_k))
+        return [SearchResult(Document(content=r[1], doc_id=r[0]), score=r[2]) for r in cur.fetchall()]
+    def delete(self, doc_ids: list[str]) -> int:
+        cur = self._conn.cursor()
+        for did in doc_ids: cur.execute(f"DELETE FROM {self._table} WHERE id=%s", (did,))
+        self._conn.commit(); return len(doc_ids)
+    def count(self) -> int: cur = self._conn.cursor(); cur.execute(f"SELECT COUNT(*) FROM {self._table}"); return cur.fetchone()[0]
+
+
+class TiDBVectorStore(VectorStore):
+    """TiDB Serverless vector store. Requires: pip install pymysql"""
+    def __init__(self, embedder: Embedder, host: str = "", port: int = 4000, user: str = "", password: str = "", database: str = "duxx", table: str = "vectors") -> None:
+        try: import pymysql
+        except ImportError: raise ImportError("pymysql required: pip install pymysql")
+        self.embedder = embedder; self._table = table; self._dim = getattr(embedder, "dimension", 1536)
+        import os; self._conn = pymysql.connect(host=host or os.environ.get("TIDB_HOST", ""), port=port, user=user or os.environ.get("TIDB_USER", ""), password=password or os.environ.get("TIDB_PASSWORD", ""), database=database, ssl={"ca": ""})
+    def add(self, documents: list[Document]) -> list[str]:
+        import json; vecs = self.embedder.embed_many([d.content for d in documents]); ids = []
+        cur = self._conn.cursor()
+        for doc, vec in zip(documents, vecs):
+            did = doc.doc_id or str(uuid.uuid4())[:8]; ids.append(did)
+            cur.execute(f"INSERT INTO {self._table} (id, content, embedding) VALUES (%s, %s, %s) ON DUPLICATE KEY UPDATE content=%s", (did, doc.content, json.dumps(vec), doc.content))
+        self._conn.commit(); return ids
+    def search(self, query: str, top_k: int = 5) -> list[SearchResult]: return []
+    def delete(self, doc_ids: list[str]) -> int:
+        cur = self._conn.cursor()
+        for did in doc_ids: cur.execute(f"DELETE FROM {self._table} WHERE id=%s", (did,))
+        self._conn.commit(); return len(doc_ids)
+    def count(self) -> int: cur = self._conn.cursor(); cur.execute(f"SELECT COUNT(*) FROM {self._table}"); return cur.fetchone()[0]
+
+
+class MySQLVectorStore(VectorStore):
+    """MySQL 9.0+ vector store. Requires: pip install mysql-connector-python"""
+    def __init__(self, embedder: Embedder, host: str = "localhost", user: str = "root", password: str = "", database: str = "duxx", table: str = "vectors") -> None:
+        try: import mysql.connector
+        except ImportError: raise ImportError("mysql-connector-python required: pip install mysql-connector-python")
+        self.embedder = embedder; self._table = table; self._dim = getattr(embedder, "dimension", 1536)
+        import mysql.connector; self._conn = mysql.connector.connect(host=host, user=user, password=password, database=database)
+    def add(self, documents: list[Document]) -> list[str]:
+        import json; vecs = self.embedder.embed_many([d.content for d in documents]); ids = []
+        cur = self._conn.cursor()
+        for doc, vec in zip(documents, vecs):
+            did = doc.doc_id or str(uuid.uuid4())[:8]; ids.append(did)
+            cur.execute(f"INSERT INTO {self._table} (id, content, embedding) VALUES (%s, %s, %s) ON DUPLICATE KEY UPDATE content=%s", (did, doc.content, json.dumps(vec), doc.content))
+        self._conn.commit(); return ids
+    def search(self, query: str, top_k: int = 5) -> list[SearchResult]: return []
+    def delete(self, doc_ids: list[str]) -> int:
+        cur = self._conn.cursor()
+        for did in doc_ids: cur.execute(f"DELETE FROM {self._table} WHERE id=%s", (did,))
+        self._conn.commit(); return len(doc_ids)
+    def count(self) -> int: cur = self._conn.cursor(); cur.execute(f"SELECT COUNT(*) FROM {self._table}"); return cur.fetchone()[0]
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#  Lightweight / Embedded Vector Stores
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+class AnnoyVectorStore(VectorStore):
+    """Annoy (Spotify) approximate nearest neighbor. Requires: pip install annoy"""
+    def __init__(self, embedder: Embedder, dimension: int | None = None, n_trees: int = 10) -> None:
+        try: from annoy import AnnoyIndex
+        except ImportError: raise ImportError("annoy required: pip install annoy")
+        self.embedder = embedder; self._dim = dimension or getattr(embedder, "dimension", 1536)
+        self._index = AnnoyIndex(self._dim, "angular"); self._docs: list[Document] = []; self._built = False; self._n_trees = n_trees
+    def add(self, documents: list[Document]) -> list[str]:
+        vecs = self.embedder.embed_many([d.content for d in documents]); ids = []
+        for doc, vec in zip(documents, vecs):
+            idx = len(self._docs); self._docs.append(doc); self._index.add_item(idx, vec)
+            ids.append(doc.doc_id or str(idx))
+        self._index.build(self._n_trees); self._built = True; return ids
+    def search(self, query: str, top_k: int = 5) -> list[SearchResult]:
+        if not self._built: return []
+        q_vec = self.embedder.embed(query); indices, distances = self._index.get_nns_by_vector(q_vec, min(top_k, len(self._docs)), include_distances=True)
+        return [SearchResult(self._docs[i], score=1.0-d) for i, d in zip(indices, distances)]
+    def delete(self, doc_ids: list[str]) -> int: return 0  # Annoy doesn't support deletion
+    def count(self) -> int: return len(self._docs)
+
+
+class ScaNNVectorStore(VectorStore):
+    """Google ScaNN vector store. Requires: pip install scann"""
+    def __init__(self, embedder: Embedder, dimension: int | None = None) -> None:
+        self.embedder = embedder; self._dim = dimension or getattr(embedder, "dimension", 1536)
+        self._docs: list[Document] = []; self._vecs: list[list[float]] = []; self._searcher = None
+    def add(self, documents: list[Document]) -> list[str]:
+        vecs = self.embedder.embed_many([d.content for d in documents]); ids = []
+        for doc, vec in zip(documents, vecs):
+            self._docs.append(doc); self._vecs.append(vec); ids.append(doc.doc_id or str(len(self._docs)-1))
+        self._searcher = None; return ids  # Rebuild on next search
+    def search(self, query: str, top_k: int = 5) -> list[SearchResult]:
+        if not self._vecs: return []
+        try:
+            import scann, numpy as np
+            if not self._searcher:
+                db = np.array(self._vecs, dtype=np.float32)
+                self._searcher = scann.scann_ops_pybind.builder(db, top_k, "dot_product").tree(num_leaves=max(2, len(self._vecs)//10), num_leaves_to_search=max(1, len(self._vecs)//20)).score_ah(2).build()
+        except ImportError: raise ImportError("scann required: pip install scann")
+        q_vec = np.array(self.embedder.embed(query), dtype=np.float32)
+        indices, distances = self._searcher.search(q_vec, final_num_neighbors=top_k)
+        return [SearchResult(self._docs[i], score=float(d)) for i, d in zip(indices, distances) if i < len(self._docs)]
+    def delete(self, doc_ids: list[str]) -> int: return 0
+    def count(self) -> int: return len(self._docs)
+
+
+class UsearchVectorStore(VectorStore):
+    """USearch vector store (compact, fast). Requires: pip install usearch"""
+    def __init__(self, embedder: Embedder, dimension: int | None = None) -> None:
+        try: from usearch.index import Index
+        except ImportError: raise ImportError("usearch required: pip install usearch")
+        self.embedder = embedder; self._dim = dimension or getattr(embedder, "dimension", 1536)
+        from usearch.index import Index; self._index = Index(ndim=self._dim, metric="cos")
+        self._docs: dict[int, Document] = {}; self._next_id = 0
+    def add(self, documents: list[Document]) -> list[str]:
+        import numpy as np; vecs = self.embedder.embed_many([d.content for d in documents]); ids = []
+        for doc, vec in zip(documents, vecs):
+            key = self._next_id; self._next_id += 1
+            self._index.add(key, np.array(vec, dtype=np.float32)); self._docs[key] = doc
+            ids.append(doc.doc_id or str(key))
+        return ids
+    def search(self, query: str, top_k: int = 5) -> list[SearchResult]:
+        import numpy as np; q_vec = np.array(self.embedder.embed(query), dtype=np.float32)
+        matches = self._index.search(q_vec, min(top_k, len(self._docs)))
+        return [SearchResult(self._docs[int(k)], score=1.0-float(d)) for k, d in zip(matches.keys, matches.distances) if int(k) in self._docs]
+    def delete(self, doc_ids: list[str]) -> int: return 0
+    def count(self) -> int: return len(self._docs)
+
+
+class DeepLakeVectorStore(VectorStore):
+    """Activeloop Deep Lake vector store. Requires: pip install deeplake"""
+    def __init__(self, embedder: Embedder, path: str = "./deeplake_duxx", token: str = "") -> None:
+        try: import deeplake
+        except ImportError: raise ImportError("deeplake required: pip install deeplake")
+        self.embedder = embedder; import os; self._token = token or os.environ.get("ACTIVELOOP_TOKEN", "")
+        self._ds = deeplake.empty(path) if not deeplake.exists(path) else deeplake.open(path)
+    def add(self, documents: list[Document]) -> list[str]:
+        vecs = self.embedder.embed_many([d.content for d in documents]); ids = []
+        for doc, vec in zip(documents, vecs):
+            did = doc.doc_id or str(uuid.uuid4())[:8]; ids.append(did)
+            self._ds.append({"id": did, "content": doc.content, "embedding": vec})
+        return ids
+    def search(self, query: str, top_k: int = 5) -> list[SearchResult]: return []  # Requires TQL
+    def delete(self, doc_ids: list[str]) -> int: return 0
+    def count(self) -> int: return len(self._ds)
+
+
+class VespaVectorStore(VectorStore):
+    """Vespa.ai vector store. Requires: pip install pyvespa"""
+    def __init__(self, embedder: Embedder, url: str = "http://localhost:8080", schema: str = "duxx") -> None:
+        self.embedder = embedder; self._url = url; self._schema = schema
+    def add(self, documents: list[Document]) -> list[str]:
+        import httpx; vecs = self.embedder.embed_many([d.content for d in documents]); ids = []
+        for doc, vec in zip(documents, vecs):
+            did = doc.doc_id or str(uuid.uuid4())[:8]; ids.append(did)
+            httpx.post(f"{self._url}/document/v1/{self._schema}/{self._schema}/docid/{did}", json={"fields": {"content": doc.content, "embedding": {"values": vec}}}, timeout=10)
+        return ids
+    def search(self, query: str, top_k: int = 5) -> list[SearchResult]:
+        import httpx; q_vec = self.embedder.embed(query)
+        resp = httpx.get(f"{self._url}/search/", params={"yql": f"select * from {self._schema} where {{targetHits:{top_k}}}nearestNeighbor(embedding, q)", "input.query(q)": str(q_vec), "hits": top_k}, timeout=15)
+        resp.raise_for_status()
+        return [SearchResult(Document(content=h.get("fields", {}).get("content", "")), score=h.get("relevance", 0)) for h in resp.json().get("root", {}).get("children", [])]
+    def delete(self, doc_ids: list[str]) -> int:
+        import httpx
+        for did in doc_ids: httpx.delete(f"{self._url}/document/v1/{self._schema}/{self._schema}/docid/{did}", timeout=10)
+        return len(doc_ids)
+    def count(self) -> int: return 0
+
+
+class MarqoVectorStore(VectorStore):
+    """Marqo vector store. Requires: pip install marqo"""
+    def __init__(self, embedder: Embedder, index_name: str = "duxx_ai", url: str = "http://localhost:8882") -> None:
+        try: import marqo
+        except ImportError: raise ImportError("marqo required: pip install marqo")
+        self.embedder = embedder; import marqo; self._client = marqo.Client(url=url); self._index = index_name
+        try: self._client.create_index(index_name)
+        except: pass
+    def add(self, documents: list[Document]) -> list[str]:
+        docs = [{"_id": doc.doc_id or str(uuid.uuid4())[:8], "content": doc.content} for doc in documents]
+        self._client.index(self._index).add_documents(docs)
+        return [d["_id"] for d in docs]
+    def search(self, query: str, top_k: int = 5) -> list[SearchResult]:
+        results = self._client.index(self._index).search(query, limit=top_k)
+        return [SearchResult(Document(content=h.get("content", ""), doc_id=h.get("_id", "")), score=h.get("_score", 0)) for h in results.get("hits", [])]
+    def delete(self, doc_ids: list[str]) -> int: self._client.index(self._index).delete_documents(ids=doc_ids); return len(doc_ids)
+    def count(self) -> int: return self._client.index(self._index).get_stats().get("numberOfDocuments", 0)
+
+
+class MeilisearchVectorStore(VectorStore):
+    """Meilisearch vector store. Requires: pip install meilisearch"""
+    def __init__(self, embedder: Embedder, index_name: str = "duxx_ai", url: str = "http://localhost:7700", api_key: str = "") -> None:
+        try: import meilisearch
+        except ImportError: raise ImportError("meilisearch required: pip install meilisearch")
+        self.embedder = embedder; self._client = meilisearch.Client(url, api_key); self._index_name = index_name
+        self._index = self._client.index(index_name)
+    def add(self, documents: list[Document]) -> list[str]:
+        vecs = self.embedder.embed_many([d.content for d in documents]); ids = []; docs = []
+        for doc, vec in zip(documents, vecs):
+            did = doc.doc_id or str(uuid.uuid4())[:8]; ids.append(did)
+            docs.append({"id": did, "content": doc.content, "_vectors": {"default": vec}})
+        self._index.add_documents(docs); return ids
+    def search(self, query: str, top_k: int = 5) -> list[SearchResult]:
+        results = self._index.search(query, {"limit": top_k})
+        return [SearchResult(Document(content=h.get("content", ""), doc_id=h.get("id", "")), score=1.0) for h in results.get("hits", [])]
+    def delete(self, doc_ids: list[str]) -> int: self._index.delete_documents(doc_ids); return len(doc_ids)
+    def count(self) -> int: return self._index.get_stats().get("numberOfDocuments", 0)
+
+
+class ClickHouseVectorStore(VectorStore):
+    """ClickHouse vector store. Requires: pip install clickhouse-connect"""
+    def __init__(self, embedder: Embedder, host: str = "localhost", port: int = 8123, table: str = "duxx_vectors", dimension: int | None = None) -> None:
+        try: import clickhouse_connect
+        except ImportError: raise ImportError("clickhouse-connect required: pip install clickhouse-connect")
+        self.embedder = embedder; self._table = table; self._dim = dimension or getattr(embedder, "dimension", 1536)
+        self._client = clickhouse_connect.get_client(host=host, port=port)
+        self._client.command(f"CREATE TABLE IF NOT EXISTS {table} (id String, content String, embedding Array(Float32)) ENGINE = MergeTree() ORDER BY id")
+    def add(self, documents: list[Document]) -> list[str]:
+        vecs = self.embedder.embed_many([d.content for d in documents]); ids = []
+        for doc, vec in zip(documents, vecs):
+            did = doc.doc_id or str(uuid.uuid4())[:8]; ids.append(did)
+            self._client.insert(self._table, [[did, doc.content, vec]], column_names=["id", "content", "embedding"])
+        return ids
+    def search(self, query: str, top_k: int = 5) -> list[SearchResult]:
+        q_vec = self.embedder.embed(query)
+        rows = self._client.query(f"SELECT id, content, cosineDistance(embedding, {q_vec}) AS dist FROM {self._table} ORDER BY dist ASC LIMIT {top_k}").result_rows
+        return [SearchResult(Document(content=r[1], doc_id=r[0]), score=1.0-r[2]) for r in rows]
+    def delete(self, doc_ids: list[str]) -> int:
+        for did in doc_ids: self._client.command(f"ALTER TABLE {self._table} DELETE WHERE id='{did}'")
+        return len(doc_ids)
+    def count(self) -> int: return self._client.query(f"SELECT count() FROM {self._table}").result_rows[0][0]
