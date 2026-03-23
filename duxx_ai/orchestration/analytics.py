@@ -527,3 +527,259 @@ class WorkflowAnalyzer:
             "nodes": [{"id": n, **self.node_metadata.get(n, {})} for n in self.nodes],
             "edges": [{"source": s, "target": t, "weight": self.edge_weights.get((s, t), 1.0)} for s, t in self.edges],
         }
+
+    def to_graphml(self) -> str:
+        """Export as GraphML XML format."""
+        if not HAS_NETWORKX: raise ImportError("networkx required")
+        from io import BytesIO
+        buf = BytesIO(); nx.write_graphml(self._G, buf); return buf.getvalue().decode()
+
+    def to_gml(self) -> str:
+        """Export as GML (Graph Modelling Language)."""
+        if not HAS_NETWORKX: raise ImportError("networkx required")
+        from io import BytesIO
+        buf = BytesIO(); nx.write_gml(self._G, buf); return buf.getvalue().decode()
+
+    def to_gexf(self) -> str:
+        """Export as GEXF (Gephi format)."""
+        if not HAS_NETWORKX: raise ImportError("networkx required")
+        from io import BytesIO
+        buf = BytesIO(); nx.write_gexf(self._G, buf); return buf.getvalue().decode()
+
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    #  Advanced Graph Algorithms (NetworkX-powered)
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    def max_flow(self, source: str, target: str) -> tuple[float, dict]:
+        """Compute maximum flow between source and target. Useful for capacity planning."""
+        if not HAS_NETWORKX: return (0, {})
+        try:
+            flow_value, flow_dict = nx.maximum_flow(self._G, source, target, capacity="weight")
+            return (flow_value, flow_dict)
+        except Exception: return (0, {})
+
+    def min_cut(self, source: str, target: str) -> tuple[float, tuple]:
+        """Find minimum cut between source and target. Identifies weakest link."""
+        if not HAS_NETWORKX: return (0, (set(), set()))
+        try:
+            cut_value, partition = nx.minimum_cut(self._G, source, target, capacity="weight")
+            return (cut_value, (set(partition[0]), set(partition[1])))
+        except Exception: return (0, (set(), set()))
+
+    def bridges(self) -> list[tuple[str, str]]:
+        """Find bridge edges whose removal disconnects the graph."""
+        if not HAS_NETWORKX: return []
+        try: return list(nx.bridges(self._G.to_undirected()))
+        except Exception: return []
+
+    def articulation_points(self) -> list[str]:
+        """Find articulation points (nodes whose removal disconnects graph)."""
+        if not HAS_NETWORKX: return []
+        try: return list(nx.articulation_points(self._G.to_undirected()))
+        except Exception: return []
+
+    def strongly_connected_components(self) -> list[set[str]]:
+        """Find strongly connected components (tightly coupled agent groups)."""
+        if not HAS_NETWORKX: return []
+        return [set(c) for c in nx.strongly_connected_components(self._G)]
+
+    def weakly_connected_components(self) -> list[set[str]]:
+        """Find weakly connected components."""
+        if not HAS_NETWORKX: return []
+        return [set(c) for c in nx.weakly_connected_components(self._G)]
+
+    def find_cycles(self) -> list[list[str]]:
+        """Find all simple cycles in the graph (loop detection)."""
+        if not HAS_NETWORKX: return []
+        try: return [list(c) for c in nx.simple_cycles(self._G)]
+        except Exception: return []
+
+    def transitive_reduction(self) -> list[tuple[str, str]]:
+        """Compute transitive reduction — remove redundant edges."""
+        if not HAS_NETWORKX: return list(self.edges)
+        try: tr = nx.transitive_reduction(self._G); return list(tr.edges())
+        except Exception: return list(self.edges)
+
+    def transitive_closure(self) -> list[tuple[str, str]]:
+        """Compute transitive closure — all reachable pairs."""
+        if not HAS_NETWORKX: return list(self.edges)
+        try: tc = nx.transitive_closure(self._G); return list(tc.edges())
+        except Exception: return list(self.edges)
+
+    def ancestors(self, node: str) -> set[str]:
+        """Find all ancestors (upstream nodes) of a node."""
+        if not HAS_NETWORKX: return set()
+        try: return nx.ancestors(self._G, node)
+        except Exception: return set()
+
+    def descendants(self, node: str) -> set[str]:
+        """Find all descendants (downstream nodes) of a node."""
+        if not HAS_NETWORKX: return set()
+        try: return nx.descendants(self._G, node)
+        except Exception: return set()
+
+    def graph_coloring(self, strategy: str = "largest_first") -> dict[str, int]:
+        """Color graph nodes — assign resources without conflicts.
+        Nodes with same color can share resources safely."""
+        if not HAS_NETWORKX: return {n: 0 for n in self.nodes}
+        try: return nx.coloring.greedy_color(self._G.to_undirected(), strategy=strategy)
+        except Exception: return {n: i for i, n in enumerate(self.nodes)}
+
+    def dominating_set(self) -> set[str]:
+        """Find minimum dominating set — fewest nodes to cover all others."""
+        if not HAS_NETWORKX: return set(self.nodes)
+        try: return nx.dominating_set(self._G.to_undirected())
+        except Exception: return set(self.nodes)
+
+    def minimum_spanning_tree(self) -> list[tuple[str, str]]:
+        """Find minimum spanning tree — most efficient connection structure."""
+        if not HAS_NETWORKX: return list(self.edges)
+        try: mst = nx.minimum_spanning_tree(self._G.to_undirected()); return list(mst.edges())
+        except Exception: return list(self.edges)
+
+    def hits(self) -> tuple[dict[str, float], dict[str, float]]:
+        """HITS algorithm — find hub and authority scores.
+        Hubs = nodes that route to many others. Authorities = nodes many route to."""
+        if not HAS_NETWORKX: return ({}, {})
+        try:
+            hubs, auths = nx.hits(self._G)
+            return (dict(hubs), dict(auths))
+        except Exception: return ({}, {})
+
+    def link_prediction(self, method: str = "jaccard") -> list[tuple[str, str, float]]:
+        """Predict likely new connections between agents."""
+        if not HAS_NETWORKX: return []
+        G_und = self._G.to_undirected()
+        non_edges = list(nx.non_edges(G_und))[:50]  # Limit for performance
+        try:
+            if method == "jaccard":
+                preds = nx.jaccard_coefficient(G_und, non_edges)
+            elif method == "adamic_adar":
+                preds = nx.adamic_adar_index(G_und, non_edges)
+            elif method == "preferential":
+                preds = nx.preferential_attachment(G_und, non_edges)
+            else:
+                preds = nx.jaccard_coefficient(G_und, non_edges)
+            return [(u, v, float(p)) for u, v, p in preds if p > 0]
+        except Exception: return []
+
+    def efficiency(self) -> dict[str, float]:
+        """Compute graph efficiency metrics."""
+        if not HAS_NETWORKX: return {"local": 0, "global": 0}
+        G_und = self._G.to_undirected()
+        try:
+            return {"local": nx.local_efficiency(G_und), "global": nx.global_efficiency(G_und)}
+        except Exception: return {"local": 0, "global": 0}
+
+    def rich_club_coefficient(self) -> dict[int, float]:
+        """Measure if high-degree nodes preferentially connect to each other."""
+        if not HAS_NETWORKX: return {}
+        try: return dict(nx.rich_club_coefficient(self._G.to_undirected(), normalized=False))
+        except Exception: return {}
+
+    def structural_holes(self) -> dict[str, float]:
+        """Find structural holes — brokerage opportunities between groups.
+        Lower constraint = more brokerage power."""
+        if not HAS_NETWORKX: return {}
+        try: return dict(nx.constraint(self._G.to_undirected()))
+        except Exception: return {}
+
+    def small_world_metrics(self) -> dict[str, float]:
+        """Compute small-world metrics (sigma, omega)."""
+        if not HAS_NETWORKX: return {"sigma": 0, "omega": 0}
+        G_und = self._G.to_undirected()
+        if len(G_und.nodes) < 4: return {"sigma": 0, "omega": 0}
+        try:
+            s = nx.sigma(G_und, niter=10, nrand=5)
+            o = nx.omega(G_und, niter=10, nrand=5)
+            return {"sigma": s, "omega": o}
+        except Exception: return {"sigma": 0, "omega": 0}
+
+    def graph_similarity(self, other: WorkflowAnalyzer) -> float:
+        """Compute similarity between two workflow graphs using SimRank."""
+        if not HAS_NETWORKX or not other._G: return 0.0
+        try:
+            sim = nx.simrank_similarity(self._G)
+            return sum(sum(v.values()) for v in sim.values()) / max(len(sim) ** 2, 1)
+        except Exception: return 0.0
+
+    def node_classification(self, labeled: dict[str, str]) -> dict[str, str]:
+        """Classify unlabeled nodes from labeled ones using harmonic function.
+        Useful for propagating agent roles through workflow."""
+        if not HAS_NETWORKX: return {}
+        try:
+            G = self._G.to_undirected()
+            label_map = {}
+            unique_labels = list(set(labeled.values()))
+            for node in G.nodes:
+                if node in labeled:
+                    G.nodes[node]["label"] = unique_labels.index(labeled[node])
+                else:
+                    G.nodes[node]["label"] = -1
+            # Simple label propagation
+            result = {}
+            for node in G.nodes:
+                if node in labeled:
+                    result[node] = labeled[node]
+                else:
+                    neighbor_labels = [labeled.get(n) for n in G.neighbors(node) if n in labeled]
+                    if neighbor_labels:
+                        from collections import Counter
+                        most_common = Counter(neighbor_labels).most_common(1)[0][0]
+                        result[node] = most_common
+            return result
+        except Exception: return {}
+
+    def diameter(self) -> int:
+        """Graph diameter — longest shortest path."""
+        if not HAS_NETWORKX: return len(self.nodes)
+        try: return nx.diameter(self._G.to_undirected())
+        except Exception: return len(self.nodes)
+
+    def radius(self) -> int:
+        """Graph radius — minimum eccentricity."""
+        if not HAS_NETWORKX: return 0
+        try: return nx.radius(self._G.to_undirected())
+        except Exception: return 0
+
+    def center_nodes(self) -> list[str]:
+        """Find center nodes (minimum eccentricity)."""
+        if not HAS_NETWORKX: return []
+        try: return list(nx.center(self._G.to_undirected()))
+        except Exception: return []
+
+    def periphery_nodes(self) -> list[str]:
+        """Find periphery nodes (maximum eccentricity)."""
+        if not HAS_NETWORKX: return []
+        try: return list(nx.periphery(self._G.to_undirected()))
+        except Exception: return []
+
+    def clustering_coefficient(self) -> dict[str, float]:
+        """Compute clustering coefficient for each node."""
+        if not HAS_NETWORKX: return {}
+        try: return dict(nx.clustering(self._G.to_undirected()))
+        except Exception: return {}
+
+    def average_clustering(self) -> float:
+        """Average clustering coefficient of the graph."""
+        if not HAS_NETWORKX: return 0.0
+        try: return nx.average_clustering(self._G.to_undirected())
+        except Exception: return 0.0
+
+    def density(self) -> float:
+        """Graph density (0-1)."""
+        if not HAS_NETWORKX: return 0.0
+        return nx.density(self._G)
+
+    def is_bipartite(self) -> bool:
+        """Check if graph is bipartite (can be split into two independent sets)."""
+        if not HAS_NETWORKX: return False
+        try: return nx.is_bipartite(self._G.to_undirected())
+        except Exception: return False
+
+    def topological_generations(self) -> list[list[str]]:
+        """Get nodes grouped by topological level (for parallel scheduling)."""
+        if not HAS_NETWORKX: return [self.nodes]
+        if not nx.is_directed_acyclic_graph(self._G): return [self.nodes]
+        try: return [list(gen) for gen in nx.topological_generations(self._G)]
+        except Exception: return [self.nodes]
