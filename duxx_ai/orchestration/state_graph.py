@@ -85,22 +85,98 @@ class Override:
 
 # ── Interrupt ──
 
+_interrupt_counter = 0
+
 class FlowPause(Exception):
-    """Raised when pause() is called to pause execution."""
-    def __init__(self, value: Any = None):
+    """Raised when pause()/interrupt() is called to pause execution."""
+    def __init__(self, value: Any = None, interrupt_id: str | None = None):
+        global _interrupt_counter
+        _interrupt_counter += 1
         self.value = value
+        self.id = interrupt_id or f"int_{_interrupt_counter}"
+        self.resume_value: Any = None
         super().__init__(f"Graph interrupted: {value}")
 
 
-def pause(value: Any = None) -> None:
+class InterruptResult:
+    """Container for multiple parallel interrupt results."""
+    def __init__(self, interrupts: list[FlowPause]):
+        self.interrupts = interrupts
+        self._by_id = {i.id: i for i in interrupts}
+
+    def __len__(self) -> int:
+        return len(self.interrupts)
+
+    def __iter__(self):
+        return iter(self.interrupts)
+
+    def __getitem__(self, key):
+        if isinstance(key, int):
+            return self.interrupts[key]
+        return self._by_id[key]
+
+    @property
+    def values(self) -> list[Any]:
+        return [i.value for i in self.interrupts]
+
+    @property
+    def ids(self) -> list[str]:
+        return [i.id for i in self.interrupts]
+
+
+def pause(value: Any = None, interrupt_id: str | None = None) -> None:
     """Pause graph execution and request human/external input.
+
+    Args:
+        value: Data to send to the caller (question, context, etc.)
+        interrupt_id: Optional ID for this interrupt (used in parallel interrupts)
 
     Usage:
         def review_node(state):
             answer = interrupt("Do you approve this?")
             return {"approved": answer == "yes"}
     """
-    raise FlowPause(value)
+    raise FlowPause(value, interrupt_id)
+
+
+def interrupt(value: Any = None, interrupt_id: str | None = None) -> Any:
+    """Pause graph execution and request human/external input.
+
+    This is a convenience alias for pause() with the same behavior.
+    When the graph is resumed, the resume value becomes the return value.
+
+    Args:
+        value: Data to send to the caller (question, context for the human)
+        interrupt_id: Optional ID for parallel interrupt mapping
+
+    Usage in nodes:
+        def approval_node(state):
+            approved = interrupt("Approve this action?")
+            if approved:
+                return {"status": "approved"}
+            return {"status": "rejected"}
+
+    Usage in tools (requires tool to be async):
+        @tool
+        async def send_email(to: str, subject: str, body: str):
+            response = interrupt({
+                "action": "send_email",
+                "to": to, "subject": subject, "body": body,
+                "message": "Approve sending this email?"
+            })
+            if response.get("action") == "approve":
+                return f"Email sent to {to}"
+            return "Email cancelled by user"
+
+    Resuming with parallel interrupts:
+        # When multiple nodes interrupt in parallel, resume with ID mapping:
+        result = await graph.invoke(state, config)
+        # result contains InterruptResult with multiple interrupts
+
+        resume_map = {i.id: f"answer for {i.value}" for i in result.interrupts}
+        final = await graph.invoke(Command(resume=resume_map), config)
+    """
+    raise FlowPause(value, interrupt_id)
 
 
 # ── Stream Parts ──
