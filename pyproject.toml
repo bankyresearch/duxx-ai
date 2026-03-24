@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "duxx-ai"
-version = "0.28.0"
+version = "0.29.0"
 description = "Enterprise Agentic AI SDK — Build, fine-tune, orchestrate, and govern AI agents at scale"
 readme = "README.md"
 license = {text = "Apache-2.0"}
@@ -71,13 +71,13 @@ exclude = ["duxx_ai.cloud*"]
 
 [tool.ruff]
 line-length = 100
-target-version = "0.28.0"
+target-version = "0.29.0"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W", "UP"]
 
 [tool.mypy]
-python_version = "0.28.0"
+python_version = "0.29.0"
 strict = true
 
 [tool.pytest.ini_options]
