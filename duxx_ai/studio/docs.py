@@ -527,12 +527,32 @@ DOCS_TEMPLATE = """<!DOCTYPE html>
         <a class="sidebar-link" onclick="navigateTo('agentic-rag')">Agentic RAG</a>
     </div>
     <div class="sidebar-section">
+        <div class="sidebar-section-title">Autonomous Agent</div>
+        <a class="sidebar-link" onclick="navigateTo('autonomous')">Overview &amp; Architecture</a>
+        <a class="sidebar-link" onclick="navigateTo('autonomous-achieve')">achieve() — Run Autonomously</a>
+        <a class="sidebar-link" onclick="navigateTo('autonomous-strategies')">Reasoning Strategies</a>
+        <a class="sidebar-link" onclick="navigateTo('autonomous-reflection')">Self-Reflection</a>
+        <a class="sidebar-link" onclick="navigateTo('autonomous-budget')">Budget &amp; Limits</a>
+        <a class="sidebar-link" onclick="navigateTo('autonomous-checkpoint')">Checkpoint &amp; Resume</a>
+        <a class="sidebar-link" onclick="navigateTo('autonomous-stream')">Streaming Events</a>
+        <a class="sidebar-link" onclick="navigateTo('autonomous-examples')">Full Examples</a>
+    </div>
+    <div class="sidebar-section">
         <div class="sidebar-section-title">Deep Agent</div>
         <a class="sidebar-link" onclick="navigateTo('deep-agent')">Deep Agent Architecture</a>
         <a class="sidebar-link" onclick="navigateTo('vfs')">Virtual File System</a>
         <a class="sidebar-link" onclick="navigateTo('planning')">Planning Tool</a>
         <a class="sidebar-link" onclick="navigateTo('graph-analytics')">Graph Analytics</a>
         <a class="sidebar-link" onclick="navigateTo('a2a')">A2A Protocol</a>
+    </div>
+    <div class="sidebar-section">
+        <div class="sidebar-section-title">Reinforcement Learning</div>
+        <a class="sidebar-link" onclick="navigateTo('rl-overview')">RL Overview</a>
+        <a class="sidebar-link" onclick="navigateTo('rl-environments')">Environments</a>
+        <a class="sidebar-link" onclick="navigateTo('rl-rewards')">Reward Functions</a>
+        <a class="sidebar-link" onclick="navigateTo('rl-training')">Training (GRPO/PPO)</a>
+        <a class="sidebar-link" onclick="navigateTo('rl-agent')">RLAgent (Self-Improving)</a>
+        <a class="sidebar-link" onclick="navigateTo('rl-examples')">Full Examples</a>
     </div>
     <div class="sidebar-section">
         <div class="sidebar-section-title">Advanced Graph Engine</div>
@@ -2077,6 +2097,330 @@ result = <span class="kw">await</span> rag.query(<span class="string">"What was 
 <span class="kw">print</span>(f<span class="string">"Confidence: {result.confidence}"</span>)</code></pre>
 </div>
 
+<!-- ══════ AUTONOMOUS AGENT ══════ -->
+
+<div id="page-autonomous" class="page">
+<h1>Autonomous Agent</h1>
+<p class="lead">A fully self-directed agent that plans, executes, reflects, and self-corrects. Given a high-level goal, it autonomously decides what to do, evaluates its own work, and adapts until the goal is achieved.</p>
+
+<h2>Architecture</h2>
+<p>Unlike a basic <code>Agent</code> (reactive: user asks &rarr; agent responds), the <code>AutonomousAgent</code> is <strong>goal-directed</strong>. It runs an autonomous loop:</p>
+
+<pre><code><span class="cm">Goal &rarr; Plan &rarr; Execute &rarr; Reflect &rarr; Adapt &rarr; (loop until done)</span></code></pre>
+
+<h3>Key Components</h3>
+<ul>
+<li><strong>PlanStep</strong> &mdash; A single actionable step with status, quality score, retries, and tool tracking</li>
+<li><strong>Belief</strong> &mdash; What the agent knows (facts), doesn't know (unknowns), and assumes</li>
+<li><strong>ExecutionBudget</strong> &mdash; Resource limits: max steps, cost, tokens, time</li>
+<li><strong>Reflection</strong> &mdash; Self-assessment with quality score, issues, and suggestions</li>
+<li><strong>ExecutionTrace</strong> &mdash; Full observability trace of the entire run</li>
+</ul>
+
+<h3>Quick Start</h3>
+<pre><code><span class="kw">from</span> duxx_ai.core.autonomous <span class="kw">import</span> AutonomousAgent
+
+agent = AutonomousAgent(
+    name=<span class="str">"researcher"</span>,
+    system_prompt=<span class="str">"You are a senior research analyst."</span>,
+    llm_provider=<span class="str">"openai"</span>,
+    llm_model=<span class="str">"gpt-4o"</span>,
+)
+
+<span class="cm"># Give it a goal — it figures out the rest</span>
+result = <span class="kw">await</span> agent.achieve(<span class="str">"Analyze the competitive landscape of AI agent frameworks"</span>)
+
+<span class="fn">print</span>(result.final_answer)   <span class="cm"># The synthesized answer</span>
+<span class="fn">print</span>(result.status)         <span class="cm"># 'achieved', 'failed', 'budget_exceeded'</span>
+<span class="fn">print</span>(result.to_dict())      <span class="cm"># Full execution trace</span></code></pre>
+</div>
+
+<div id="page-autonomous-achieve" class="page">
+<h1>achieve() &mdash; Run Autonomously</h1>
+<p class="lead">The main entry point. Provide a goal and optional constraints &mdash; the agent handles everything else.</p>
+
+<h2>Basic Usage</h2>
+<pre><code>result = <span class="kw">await</span> agent.achieve(<span class="str">"Build a market analysis report for AAPL"</span>)</code></pre>
+
+<h2>With Budget Constraints</h2>
+<pre><code>result = <span class="kw">await</span> agent.achieve(
+    <span class="str">"Analyze Apple's financial health and create a buy/sell recommendation"</span>,
+    max_steps=<span class="num">15</span>,          <span class="cm"># Stop after 15 steps</span>
+    max_cost=<span class="num">0.50</span>,          <span class="cm"># Max $0.50 LLM spend</span>
+    max_time=<span class="num">300</span>,           <span class="cm"># Max 5 minutes wall clock</span>
+    quality_threshold=<span class="num">0.8</span>,  <span class="cm"># Minimum quality score 80%</span>
+)</code></pre>
+
+<h2>With Financial Tools</h2>
+<pre><code><span class="kw">from</span> duxx_ai.core.autonomous <span class="kw">import</span> AutonomousAgent
+<span class="kw">from</span> duxx_ai.tools.finagent <span class="kw">import</span> get_financial_tools
+
+agent = AutonomousAgent(
+    name=<span class="str">"analyst"</span>,
+    system_prompt=<span class="str">"You are a senior financial analyst with 20 years experience."</span>,
+    tools=get_financial_tools(),  <span class="cm"># 43 financial tools</span>
+    llm_provider=<span class="str">"openai"</span>,
+    llm_model=<span class="str">"gpt-4o"</span>,
+)
+
+result = <span class="kw">await</span> agent.achieve(
+    <span class="str">"Compare MSFT vs GOOGL: fundamentals, technicals, and which is a better buy"</span>,
+    max_steps=<span class="num">20</span>,
+    quality_threshold=<span class="num">0.8</span>,
+)
+
+<span class="cm"># Inspect the execution</span>
+<span class="fn">print</span>(f<span class="str">"Steps: {len(result.plan)}"</span>)
+<span class="fn">print</span>(f<span class="str">"Quality: {result.belief.confidence:.0%}"</span>)
+<span class="fn">print</span>(f<span class="str">"Cost: ${result.budget.cost_used:.4f}"</span>)
+<span class="fn">print</span>(f<span class="str">"Tokens: {result.budget.tokens_used:,}"</span>)
+<span class="fn">print</span>(result.final_answer)</code></pre>
+
+<h2>Return Value: ExecutionTrace</h2>
+<p>The <code>achieve()</code> method returns an <code>ExecutionTrace</code> with:</p>
+<table class="doc-table"><thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead><tbody>
+<tr><td><code>goal</code></td><td>str</td><td>Original goal</td></tr>
+<tr><td><code>status</code></td><td>GoalStatus</td><td><code>achieved</code>, <code>failed</code>, <code>budget_exceeded</code>, <code>timeout</code>, <code>paused</code></td></tr>
+<tr><td><code>plan</code></td><td>list[PlanStep]</td><td>All planned &amp; executed steps with results and scores</td></tr>
+<tr><td><code>reflections</code></td><td>list[Reflection]</td><td>Self-assessments after each step</td></tr>
+<tr><td><code>belief</code></td><td>Belief</td><td>Known facts, unknowns, assumptions, confidence</td></tr>
+<tr><td><code>budget</code></td><td>ExecutionBudget</td><td>Steps, cost, tokens used vs limits</td></tr>
+<tr><td><code>final_answer</code></td><td>str</td><td>Synthesized answer from all steps</td></tr>
+<tr><td><code>to_dict()</code></td><td>dict</td><td>Full JSON-serializable trace</td></tr>
+</tbody></table>
+</div>
+
+<div id="page-autonomous-strategies" class="page">
+<h1>Reasoning Strategies</h1>
+<p class="lead">The AutonomousAgent supports 5 reasoning strategies. Choose the one that best fits your task.</p>
+
+<pre><code><span class="kw">from</span> duxx_ai.core.autonomous <span class="kw">import</span> AutonomousAgent, ReasoningStrategy
+
+<span class="cm"># ReAct (default) — Reasoning + Acting loop</span>
+agent = AutonomousAgent(strategy=ReasoningStrategy.REACT)
+
+<span class="cm"># Chain-of-Thought — Step-by-step reasoning</span>
+agent = AutonomousAgent(strategy=ReasoningStrategy.CHAIN_OF_THOUGHT)
+
+<span class="cm"># Tree-of-Thought — Explore multiple reasoning paths</span>
+agent = AutonomousAgent(strategy=ReasoningStrategy.TREE_OF_THOUGHT)
+
+<span class="cm"># Reflexion — Reflect on past attempts to improve</span>
+agent = AutonomousAgent(strategy=ReasoningStrategy.REFLEXION)
+
+<span class="cm"># Plan-and-Solve — Explicit planning before execution</span>
+agent = AutonomousAgent(strategy=ReasoningStrategy.PLAN_AND_SOLVE)</code></pre>
+
+<table class="doc-table"><thead><tr><th>Strategy</th><th>Best For</th><th>Description</th></tr></thead><tbody>
+<tr><td><code>REACT</code></td><td>Tool-heavy tasks</td><td>Reason about what to do, act, observe, repeat. Default and most versatile.</td></tr>
+<tr><td><code>CHAIN_OF_THOUGHT</code></td><td>Complex reasoning</td><td>Think step-by-step before acting. Better for math, logic, analysis.</td></tr>
+<tr><td><code>TREE_OF_THOUGHT</code></td><td>Creative / exploratory</td><td>Explore multiple paths, pick the best. Good for open-ended tasks.</td></tr>
+<tr><td><code>REFLEXION</code></td><td>Learning from failures</td><td>After each attempt, reflect on what went wrong and improve.</td></tr>
+<tr><td><code>PLAN_AND_SOLVE</code></td><td>Multi-step research</td><td>Create detailed plan upfront, then execute systematically.</td></tr>
+</tbody></table>
+</div>
+
+<div id="page-autonomous-reflection" class="page">
+<h1>Self-Reflection</h1>
+<p class="lead">After every step, the agent uses a separate critic model to assess quality, find errors, and suggest improvements. This drives self-correction.</p>
+
+<h2>How It Works</h2>
+<ol>
+<li>Agent executes a step and produces a result</li>
+<li>A <strong>reflection agent</strong> (can use a cheaper model) evaluates the result</li>
+<li>It scores quality 0.0&ndash;1.0 and identifies issues</li>
+<li>If quality is low or errors found: agent <strong>retries</strong> or <strong>replans</strong></li>
+</ol>
+
+<h2>Using a Cheaper Reflection Model</h2>
+<pre><code><span class="cm"># Use GPT-4o for execution, GPT-4o-mini for reflection (saves cost)</span>
+agent = AutonomousAgent(
+    llm_model=<span class="str">"gpt-4o"</span>,
+    reflection_model=<span class="str">"gpt-4o-mini"</span>,  <span class="cm"># Cheaper model for self-assessment</span>
+)</code></pre>
+
+<h2>Reflection Callback</h2>
+<pre><code><span class="kw">def</span> <span class="fn">on_reflect</span>(reflection):
+    <span class="fn">print</span>(f<span class="str">"Quality: {reflection.quality_score:.0%}"</span>)
+    <span class="fn">print</span>(f<span class="str">"Issues: {reflection.issues_found}"</span>)
+    <span class="fn">print</span>(f<span class="str">"Retry: {reflection.should_retry}"</span>)
+    <span class="fn">print</span>(f<span class="str">"Replan: {reflection.should_replan}"</span>)
+
+agent = AutonomousAgent(on_reflection=on_reflect)
+result = <span class="kw">await</span> agent.achieve(<span class="str">"Research quantum computing breakthroughs in 2025"</span>)</code></pre>
+
+<h2>Belief State</h2>
+<p>The agent tracks what it knows, doesn't know, and assumes:</p>
+<pre><code>result = <span class="kw">await</span> agent.achieve(<span class="str">"Analyze Tesla's autonomous driving strategy"</span>)
+
+<span class="fn">print</span>(result.belief.known_facts)   <span class="cm"># ["Tesla FSD v12 uses end-to-end neural nets", ...]</span>
+<span class="fn">print</span>(result.belief.unknowns)      <span class="cm"># ["Exact regulatory timeline", ...]</span>
+<span class="fn">print</span>(result.belief.assumptions)   <span class="cm"># ["Current pricing model continues", ...]</span>
+<span class="fn">print</span>(result.belief.confidence)    <span class="cm"># 0.82</span></code></pre>
+</div>
+
+<div id="page-autonomous-budget" class="page">
+<h1>Budget &amp; Limits</h1>
+<p class="lead">Control resource consumption with hard limits on steps, cost, tokens, and time.</p>
+
+<pre><code>result = <span class="kw">await</span> agent.achieve(
+    <span class="str">"Write a comprehensive industry analysis"</span>,
+    max_steps=<span class="num">30</span>,           <span class="cm"># Maximum 30 execution steps</span>
+    max_cost=<span class="num">2.00</span>,           <span class="cm"># Maximum $2.00 in LLM costs</span>
+    max_time=<span class="num">600</span>,            <span class="cm"># Maximum 10 minutes</span>
+    quality_threshold=<span class="num">0.7</span>,  <span class="cm"># Minimum 70% quality to accept</span>
+)
+
+<span class="cm"># Check what was used</span>
+<span class="fn">print</span>(f<span class="str">"Steps: {result.budget.steps_used}/{result.budget.max_steps}"</span>)
+<span class="fn">print</span>(f<span class="str">"Cost: ${result.budget.cost_used:.4f}/${result.budget.max_cost}"</span>)
+<span class="fn">print</span>(f<span class="str">"Tokens: {result.budget.tokens_used:,}/{result.budget.max_tokens:,}"</span>)
+<span class="fn">print</span>(f<span class="str">"Remaining: {result.budget.remaining()}"</span>)
+
+<span class="cm"># Check why it stopped</span>
+<span class="fn">print</span>(result.status)  <span class="cm"># 'achieved', 'budget_exceeded', 'timeout'</span></code></pre>
+
+<h2>Default Limits</h2>
+<table class="doc-table"><thead><tr><th>Limit</th><th>Default</th><th>Description</th></tr></thead><tbody>
+<tr><td><code>max_steps</code></td><td>30</td><td>Total execution steps (plan + execute + replan)</td></tr>
+<tr><td><code>max_cost</code></td><td>$5.00</td><td>Maximum USD spend on LLM API calls</td></tr>
+<tr><td><code>max_tokens</code></td><td>500,000</td><td>Maximum tokens consumed</td></tr>
+<tr><td><code>max_time</code></td><td>600s</td><td>Maximum wall-clock seconds</td></tr>
+<tr><td><code>max_retries_per_step</code></td><td>3</td><td>Max retry attempts per step before giving up</td></tr>
+<tr><td><code>quality_threshold</code></td><td>0.7</td><td>Minimum quality score to accept final answer</td></tr>
+</tbody></table>
+</div>
+
+<div id="page-autonomous-checkpoint" class="page">
+<h1>Checkpoint &amp; Resume</h1>
+<p class="lead">Save execution state at any point and resume later &mdash; even across process restarts.</p>
+
+<pre><code><span class="cm"># Run starts, saves checkpoints automatically</span>
+result = <span class="kw">await</span> agent.achieve(<span class="str">"Multi-day research project"</span>, max_steps=<span class="num">50</span>)
+
+<span class="cm"># List available checkpoints</span>
+<span class="fn">print</span>(agent.checkpoints)
+<span class="cm"># ['cp_abc123_1', 'cp_abc123_2', 'cp_abc123_3', ...]</span>
+
+<span class="cm"># Resume from a specific checkpoint</span>
+result = <span class="kw">await</span> agent.resume(<span class="str">"cp_abc123_5"</span>)
+<span class="fn">print</span>(result.final_answer)</code></pre>
+
+<h2>How Checkpoints Work</h2>
+<ul>
+<li>A checkpoint is saved <strong>after every step</strong></li>
+<li>Contains the full execution state: plan, results, beliefs, budget</li>
+<li>Resume continues from exactly where it stopped</li>
+<li>Budget tracking carries over (no double-spending)</li>
+</ul>
+</div>
+
+<div id="page-autonomous-stream" class="page">
+<h1>Streaming Events</h1>
+<p class="lead">Stream execution events in real-time as the agent works.</p>
+
+<pre><code><span class="kw">async for</span> event <span class="kw">in</span> agent.achieve_stream(<span class="str">"Analyze market trends"</span>, max_steps=<span class="num">10</span>):
+    <span class="kw">if</span> event[<span class="str">"type"</span>] == <span class="str">"step_complete"</span>:
+        step = event[<span class="str">"step"</span>]
+        <span class="fn">print</span>(f<span class="str">"Step done: {step['description']} (quality: {step['quality_score']:.0%})"</span>)
+
+    <span class="kw">elif</span> event[<span class="str">"type"</span>] == <span class="str">"reflection"</span>:
+        <span class="fn">print</span>(f<span class="str">"Reflection: {event['quality']:.0%} — {event['assessment']}"</span>)
+
+    <span class="kw">elif</span> event[<span class="str">"type"</span>] == <span class="str">"complete"</span>:
+        trace = event[<span class="str">"trace"</span>]
+        <span class="fn">print</span>(f<span class="str">"Done! Status: {trace['status']}, Steps: {trace['budget']['steps']}"</span>)</code></pre>
+
+<h2>Event Types</h2>
+<table class="doc-table"><thead><tr><th>Event Type</th><th>When</th><th>Data</th></tr></thead><tbody>
+<tr><td><code>step_complete</code></td><td>After each step finishes</td><td>Step details, result, quality score</td></tr>
+<tr><td><code>reflection</code></td><td>After each reflection</td><td>Quality score, assessment text</td></tr>
+<tr><td><code>complete</code></td><td>When goal achieved or stopped</td><td>Full execution trace</td></tr>
+</tbody></table>
+</div>
+
+<div id="page-autonomous-examples" class="page">
+<h1>Full Examples</h1>
+<p class="lead">Complete examples of autonomous agents for different domains.</p>
+
+<h2>1. Financial Research Agent</h2>
+<pre><code><span class="kw">from</span> duxx_ai.core.autonomous <span class="kw">import</span> AutonomousAgent, ReasoningStrategy
+<span class="kw">from</span> duxx_ai.tools.finagent <span class="kw">import</span> get_financial_tools
+
+agent = AutonomousAgent(
+    name=<span class="str">"wall-street-analyst"</span>,
+    system_prompt=<span class="str">"You are a Wall Street analyst. Use real data to support every claim."</span>,
+    tools=get_financial_tools(),
+    strategy=ReasoningStrategy.PLAN_AND_SOLVE,
+)
+
+result = <span class="kw">await</span> agent.achieve(
+    <span class="str">"Create a comprehensive investment thesis for NVIDIA (NVDA). "</span>
+    <span class="str">"Include financials, competitive moat, risks, and a 12-month price target."</span>,
+    max_steps=<span class="num">20</span>,
+    max_cost=<span class="num">1.00</span>,
+    quality_threshold=<span class="num">0.85</span>,
+)
+
+<span class="fn">print</span>(f<span class="str">"Status: {result.status.value}"</span>)
+<span class="fn">print</span>(f<span class="str">"Steps: {len(result.plan)}, Cost: ${result.budget.cost_used:.4f}"</span>)
+<span class="fn">print</span>(result.final_answer)</code></pre>
+
+<h2>2. Code Review Agent</h2>
+<pre><code><span class="kw">from</span> duxx_ai.core.autonomous <span class="kw">import</span> AutonomousAgent
+<span class="kw">from</span> duxx_ai.tools.builtin <span class="kw">import</span> get_builtin_tools
+
+agent = AutonomousAgent(
+    name=<span class="str">"code-reviewer"</span>,
+    system_prompt=<span class="str">"You are a senior software engineer. Review code for bugs, security, and best practices."</span>,
+    tools=get_builtin_tools([<span class="str">"read_file"</span>, <span class="str">"list_files"</span>, <span class="str">"python_exec"</span>]),
+    strategy=ReasoningStrategy.REFLEXION,
+)
+
+result = <span class="kw">await</span> agent.achieve(
+    <span class="str">"Review all Python files in ./src/ for security vulnerabilities, "</span>
+    <span class="str">"code smells, and suggest improvements."</span>,
+    max_steps=<span class="num">15</span>,
+)</code></pre>
+
+<h2>3. Deep Research Agent with Step Callbacks</h2>
+<pre><code><span class="kw">from</span> duxx_ai.core.autonomous <span class="kw">import</span> AutonomousAgent
+
+<span class="kw">def</span> <span class="fn">on_step</span>(step):
+    status = <span class="str">"&#10003;"</span> <span class="kw">if</span> step.status == <span class="str">"completed"</span> <span class="kw">else</span> <span class="str">"&#10007;"</span>
+    <span class="fn">print</span>(f<span class="str">"  {status} {step.description} (quality: {step.quality_score:.0%})"</span>)
+
+<span class="kw">def</span> <span class="fn">on_reflect</span>(reflection):
+    <span class="kw">if</span> reflection.should_retry:
+        <span class="fn">print</span>(f<span class="str">"  ⟳ Retrying: {reflection.issues_found}"</span>)
+    <span class="kw">if</span> reflection.should_replan:
+        <span class="fn">print</span>(f<span class="str">"  ↻ Replanning: {reflection.suggestions}"</span>)
+
+agent = AutonomousAgent(
+    name=<span class="str">"researcher"</span>,
+    tools=get_financial_tools([<span class="str">"stock_price"</span>, <span class="str">"company_profile"</span>, <span class="str">"market_news"</span>]),
+    on_step_complete=on_step,
+    on_reflection=on_reflect,
+)
+
+result = <span class="kw">await</span> agent.achieve(<span class="str">"What are the top 3 AI stocks to buy in 2026?"</span>)</code></pre>
+
+<h2>4. Multi-Agent with Autonomous Subagents</h2>
+<pre><code><span class="kw">from</span> duxx_ai.core.autonomous <span class="kw">import</span> AutonomousAgent
+
+<span class="cm"># Create specialized autonomous agents</span>
+researcher = AutonomousAgent(name=<span class="str">"researcher"</span>, tools=research_tools)
+analyst = AutonomousAgent(name=<span class="str">"analyst"</span>, tools=analysis_tools)
+writer = AutonomousAgent(name=<span class="str">"writer"</span>)
+
+<span class="cm"># Each runs autonomously on their part</span>
+research = <span class="kw">await</span> researcher.achieve(<span class="str">"Gather all data on EV market trends"</span>)
+analysis = <span class="kw">await</span> analyst.achieve(f<span class="str">"Analyze this data: {research.final_answer[:2000]}"</span>)
+report = <span class="kw">await</span> writer.achieve(f<span class="str">"Write an executive report: {analysis.final_answer[:2000]}"</span>)
+
+<span class="fn">print</span>(report.final_answer)</code></pre>
+</div>
+
 <!-- ══════ DEEP AGENT ══════ -->
 
 <div id="page-deep-agent" class="page">
@@ -2373,6 +2717,495 @@ responses = <span class="kw">await</span> protocol.broadcast(<span class="string
 
 <span class="cm"># Delegate by capability</span>
 result = <span class="kw">await</span> protocol.delegate(<span class="string">"manager"</span>, <span class="string">"Write Q4 summary"</span>, capability=<span class="string">"writing"</span>)</code></pre>
+</div>
+
+<!-- ══════ REINFORCEMENT LEARNING ══════ -->
+
+<div id="page-rl-overview" class="page">
+<h1>Reinforcement Learning</h1>
+<p class="lead">Train LLM agents through environment interaction. Duxx AI's RL module provides Gymnasium-style environments, composable rewards, 5 training algorithms, and a self-improving RLAgent.</p>
+
+<h2>Architecture</h2>
+<pre><code><span class="cm">Agent &harr; Environment Loop:</span>
+<span class="cm">  1. Environment.reset() &rarr; Observation</span>
+<span class="cm">  2. Agent decides Action from Observation</span>
+<span class="cm">  3. Environment.step(Action) &rarr; (Observation, Reward, Done)</span>
+<span class="cm">  4. Collect into Trajectory</span>
+<span class="cm">  5. Train policy using Rewards (GRPO/PPO/REINFORCE/DPO)</span>
+<span class="cm">  6. Repeat &mdash; agent improves over time</span></code></pre>
+
+<h2>Installation</h2>
+<pre><code>pip install duxx-ai</code></pre>
+
+<h2>Quick Start</h2>
+<pre><code><span class="kw">from</span> duxx_ai.rl.core <span class="kw">import</span> rollout
+<span class="kw">from</span> duxx_ai.rl.environments <span class="kw">import</span> ReasoningEnv
+
+<span class="cm"># Create environment</span>
+env = ReasoningEnv(category=<span class="str">"math"</span>)
+
+<span class="cm"># Define agent (any async function that takes text, returns text)</span>
+<span class="kw">async def</span> <span class="fn">my_agent</span>(observation: str) -> str:
+    <span class="kw">return</span> <span class="str">"42"</span>  <span class="cm"># Your LLM call here</span>
+
+<span class="cm"># Run one episode</span>
+episode = <span class="kw">await</span> rollout(my_agent, env)
+<span class="fn">print</span>(f<span class="str">"Reward: {episode.total_reward}, Steps: {episode.total_steps}"</span>)</code></pre>
+
+<h2>Module Structure</h2>
+<table class="doc-table"><thead><tr><th>Module</th><th>Contents</th></tr></thead><tbody>
+<tr><td><code>duxx_ai.rl.core</code></td><td>RLEnvironment, Observation, Action, StepResult, RewardFunction, RewardComposer, TrajectoryBuffer, Episode, rollout, batch_rollout</td></tr>
+<tr><td><code>duxx_ai.rl.training</code></td><td>GRPOTrainer, PPOTrainer, REINFORCETrainer, DPOTrainer, BestOfNTrainer</td></tr>
+<tr><td><code>duxx_ai.rl.environments</code></td><td>CodingEnv, ReasoningEnv, NumberGuessEnv, BlackjackEnv, MazeEnv, QAEnv, ToolUseEnv, ConversationEnv</td></tr>
+<tr><td><code>duxx_ai.rl.agent</code></td><td>RLAgent (self-improving agent with experience replay)</td></tr>
+</tbody></table>
+</div>
+
+<div id="page-rl-environments" class="page">
+<h1>RL Environments</h1>
+<p class="lead">8 built-in Gymnasium-style environments for training and evaluating LLM agents. Each implements <code>reset()</code> and <code>step(action)</code>.</p>
+
+<h2>List All Environments</h2>
+<pre><code><span class="kw">from</span> duxx_ai.rl.environments <span class="kw">import</span> list_environments, create_environment
+
+<span class="kw">for</span> env <span class="kw">in</span> list_environments():
+    <span class="fn">print</span>(f<span class="str">"{env['name']}: {env['doc']}"</span>)
+
+<span class="cm"># Create by name</span>
+env = create_environment(<span class="str">"coding"</span>, difficulty=<span class="str">"easy"</span>)</code></pre>
+
+<h2>1. CodingEnv</h2>
+<p>Agent writes Python code to solve problems. Tests are run automatically.</p>
+<pre><code><span class="kw">from</span> duxx_ai.rl.environments <span class="kw">import</span> CodingEnv
+
+env = CodingEnv(difficulty=<span class="str">"easy"</span>)  <span class="cm"># easy, medium, hard</span>
+obs = <span class="kw">await</span> env._do_reset()
+<span class="fn">print</span>(obs.text)  <span class="cm"># "Write a function double(n) that returns n * 2."</span>
+
+result = <span class="kw">await</span> env._do_step(Action(text=<span class="str">"def double(n): return n * 2"</span>))
+<span class="fn">print</span>(result.reward)  <span class="cm"># 1.0 if tests pass</span></code></pre>
+
+<h2>2. ReasoningEnv</h2>
+<p>Math, logic, and word puzzles with verifiable answers.</p>
+<pre><code><span class="kw">from</span> duxx_ai.rl.environments <span class="kw">import</span> ReasoningEnv
+
+env = ReasoningEnv(category=<span class="str">"math"</span>)  <span class="cm"># math, logic, word</span>
+obs = <span class="kw">await</span> env._do_reset()
+<span class="fn">print</span>(obs.text)  <span class="cm"># "What is 17 * 23?"</span>
+
+result = <span class="kw">await</span> env._do_step(Action(text=<span class="str">"391"</span>))
+<span class="fn">print</span>(result.reward)  <span class="cm"># 1.0 for correct, -0.1 for incorrect</span></code></pre>
+
+<h2>3. BlackjackEnv</h2>
+<p>Classic card game. Agent decides hit or stand.</p>
+<pre><code><span class="kw">from</span> duxx_ai.rl.environments <span class="kw">import</span> BlackjackEnv
+
+env = BlackjackEnv()
+obs = <span class="kw">await</span> env._do_reset()
+<span class="fn">print</span>(obs.text)  <span class="cm"># "Your hand: [7, 9] (value: 16). Dealer shows: 5. Hit or stand?"</span>
+
+result = <span class="kw">await</span> env._do_step(Action(text=<span class="str">"stand"</span>))
+<span class="fn">print</span>(result.reward)  <span class="cm"># 1.0 win, -1.0 lose, 0.0 push</span></code></pre>
+
+<h2>4. MazeEnv</h2>
+<p>Navigate a text-based maze from (0,0) to (N-1,N-1).</p>
+<pre><code><span class="kw">from</span> duxx_ai.rl.environments <span class="kw">import</span> MazeEnv
+
+env = MazeEnv(size=<span class="num">5</span>)
+obs = <span class="kw">await</span> env._do_reset()
+result = <span class="kw">await</span> env._do_step(Action(text=<span class="str">"right"</span>))  <span class="cm"># up, down, left, right</span></code></pre>
+
+<h2>5. QAEnv</h2>
+<p>Factual question answering with automatic verification.</p>
+<pre><code><span class="kw">from</span> duxx_ai.rl.environments <span class="kw">import</span> QAEnv
+
+env = QAEnv()
+obs = <span class="kw">await</span> env._do_reset()  <span class="cm"># "What is the capital of France?"</span>
+result = <span class="kw">await</span> env._do_step(Action(text=<span class="str">"Paris"</span>))  <span class="cm"># reward: 1.0</span></code></pre>
+
+<h2>6. ToolUseEnv</h2>
+<p>Train agents to select the correct tool for a given task.</p>
+<pre><code><span class="kw">from</span> duxx_ai.rl.environments <span class="kw">import</span> ToolUseEnv
+
+env = ToolUseEnv()
+obs = <span class="kw">await</span> env._do_reset()  <span class="cm"># "Task: Calculate 847 * 293. Which tool?"</span>
+result = <span class="kw">await</span> env._do_step(Action(text=<span class="str">"calculator"</span>))  <span class="cm"># reward: 1.0</span></code></pre>
+
+<h2>7. ConversationEnv</h2>
+<p>Goal-directed multi-turn dialogue. Agent must achieve a conversational objective.</p>
+<pre><code><span class="kw">from</span> duxx_ai.rl.environments <span class="kw">import</span> ConversationEnv
+
+env = ConversationEnv()
+obs = <span class="kw">await</span> env._do_reset()
+<span class="cm"># "GOAL: Get the user's name and email. User: I'm a new customer."</span></code></pre>
+
+<h2>8. NumberGuessEnv</h2>
+<p>Binary search game with higher/lower hints.</p>
+<pre><code><span class="kw">from</span> duxx_ai.rl.environments <span class="kw">import</span> NumberGuessEnv
+
+env = NumberGuessEnv(max_number=<span class="num">100</span>)
+obs = <span class="kw">await</span> env._do_reset()  <span class="cm"># "Guess a number between 1 and 100"</span></code></pre>
+
+<h2>Custom Environment</h2>
+<pre><code><span class="kw">from</span> duxx_ai.rl.core <span class="kw">import</span> RLEnvironment, Observation, Action, StepResult
+<span class="kw">import</span> random
+
+<span class="kw">class</span> <span class="fn">SentimentEnv</span>(RLEnvironment):
+    <span class="str"># Agent must classify text sentiment correctly.</span>
+
+    TEXTS = [
+        (<span class="str">"I love this product!"</span>, <span class="str">"positive"</span>),
+        (<span class="str">"Terrible experience."</span>, <span class="str">"negative"</span>),
+        (<span class="str">"It's okay I guess."</span>, <span class="str">"neutral"</span>),
+    ]
+
+    <span class="kw">async def</span> <span class="fn">reset</span>(self, **kwargs):
+        self._text, self._label = random.choice(self.TEXTS)
+        <span class="kw">return</span> Observation(text=f<span class="str">"Classify sentiment (positive/negative/neutral): {self._text}"</span>)
+
+    <span class="kw">async def</span> <span class="fn">step</span>(self, action):
+        correct = self._label <span class="kw">in</span> action.text.lower()
+        <span class="kw">return</span> StepResult(
+            observation=Observation(text=<span class="str">"Correct!"</span> <span class="kw">if</span> correct <span class="kw">else</span> f<span class="str">"Wrong. Answer: {self._label}"</span>),
+            reward=<span class="num">1.0</span> <span class="kw">if</span> correct <span class="kw">else</span> <span class="num">-0.5</span>,
+            done=<span class="kw">True</span>,
+            info={<span class="str">"correct"</span>: correct},
+        )</code></pre>
+</div>
+
+<div id="page-rl-rewards" class="page">
+<h1>Reward Functions</h1>
+<p class="lead">8 composable reward functions that can be combined with weighted composition. Build custom rewards by subclassing <code>RewardFunction</code>.</p>
+
+<h2>Built-in Rewards</h2>
+<table class="doc-table"><thead><tr><th>Reward</th><th>Signal</th><th>Use Case</th></tr></thead><tbody>
+<tr><td><code>CorrectnessReward</code></td><td>1.0 if <code>info["correct"]</code></td><td>Q&A, coding, factual tasks</td></tr>
+<tr><td><code>SuccessReward</code></td><td>1.0 if done with positive reward</td><td>Any task with clear success</td></tr>
+<tr><td><code>StepPenalty</code></td><td>Small negative per step (-0.01)</td><td>Encourage efficiency</td></tr>
+<tr><td><code>LengthReward</code></td><td>Reward near target length</td><td>Control response verbosity</td></tr>
+<tr><td><code>ToolUseReward</code></td><td>Reward for using tools</td><td>Encourage tool usage</td></tr>
+<tr><td><code>FormatReward</code></td><td>Reward for correct format (JSON, list)</td><td>Structured output training</td></tr>
+<tr><td><code>CompletionReward</code></td><td>Bonus for finishing early</td><td>Efficiency training</td></tr>
+<tr><td><code>ConstantReward</code></td><td>Fixed value</td><td>Baseline/testing</td></tr>
+</tbody></table>
+
+<h2>Compose Rewards</h2>
+<pre><code><span class="kw">from</span> duxx_ai.rl.core <span class="kw">import</span> RewardComposer, CorrectnessReward, StepPenalty, CompletionReward
+
+composer = RewardComposer([
+    (CorrectnessReward(), <span class="num">0.6</span>),   <span class="cm"># 60% weight: did it get the right answer?</span>
+    (StepPenalty(<span class="num">-0.05</span>), <span class="num">0.2</span>),     <span class="cm"># 20% weight: penalize extra steps</span>
+    (CompletionReward(), <span class="num">0.2</span>),     <span class="cm"># 20% weight: bonus for finishing efficiently</span>
+])
+
+<span class="cm"># Use with rollout</span>
+episode = <span class="kw">await</span> rollout(agent_fn, env, reward_fn=composer)
+
+<span class="cm"># Get per-component breakdown</span>
+total, breakdown = composer.compute_with_breakdown(action, result, state)
+<span class="fn">print</span>(breakdown)  <span class="cm"># {"correctness": 1.0, "step_penalty": -0.05, "completion": 0.75}</span></code></pre>
+
+<h2>Custom Reward Function</h2>
+<pre><code><span class="kw">from</span> duxx_ai.rl.core <span class="kw">import</span> RewardFunction, Action, StepResult, EnvState
+
+<span class="kw">class</span> <span class="fn">KeywordReward</span>(RewardFunction):
+    <span class="str"># Reward for including specific keywords in the response.</span>
+    name = <span class="str">"keywords"</span>
+
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, keywords: list[str]):
+        self.keywords = keywords
+
+    <span class="kw">def</span> <span class="fn">compute</span>(self, action: Action, result: StepResult, state: EnvState) -> float:
+        text = action.text.lower()
+        hits = sum(<span class="num">1</span> <span class="kw">for</span> k <span class="kw">in</span> self.keywords <span class="kw">if</span> k.lower() <span class="kw">in</span> text)
+        <span class="kw">return</span> hits / max(len(self.keywords), <span class="num">1</span>)
+
+<span class="cm"># Use it</span>
+composer = RewardComposer([
+    (CorrectnessReward(), <span class="num">0.5</span>),
+    (KeywordReward([<span class="str">"because"</span>, <span class="str">"therefore"</span>, <span class="str">"evidence"</span>]), <span class="num">0.3</span>),
+    (StepPenalty(), <span class="num">0.2</span>),
+])</code></pre>
+</div>
+
+<div id="page-rl-training" class="page">
+<h1>Training (GRPO / PPO)</h1>
+<p class="lead">5 training algorithms for improving LLM agent behavior through reinforcement learning.</p>
+
+<h2>Training Algorithms</h2>
+<table class="doc-table"><thead><tr><th>Trainer</th><th>Algorithm</th><th>Best For</th></tr></thead><tbody>
+<tr><td><code>GRPOTrainer</code></td><td>Group Relative Policy Optimization</td><td>LLM fine-tuning, no value network needed</td></tr>
+<tr><td><code>PPOTrainer</code></td><td>Proximal Policy Optimization</td><td>Stable training with clipping</td></tr>
+<tr><td><code>REINFORCETrainer</code></td><td>Vanilla Policy Gradient</td><td>Simple, high variance, good baseline</td></tr>
+<tr><td><code>DPOTrainer</code></td><td>Direct Preference Optimization</td><td>Offline RL from preference pairs</td></tr>
+<tr><td><code>BestOfNTrainer</code></td><td>Best-of-N Sampling</td><td>Inference-time scaling, no gradient</td></tr>
+</tbody></table>
+
+<h2>GRPO Training</h2>
+<pre><code><span class="kw">from</span> duxx_ai.rl.training <span class="kw">import</span> GRPOTrainer, TrainingConfig
+<span class="kw">from</span> duxx_ai.rl.environments <span class="kw">import</span> CodingEnv
+
+trainer = GRPOTrainer(
+    agent_fn=agent.run,
+    env=<span class="kw">lambda</span>: CodingEnv(difficulty=<span class="str">"easy"</span>),
+    reward_fn=composer,
+    config=TrainingConfig(
+        n_episodes=<span class="num">100</span>,
+        n_epochs=<span class="num">3</span>,
+        group_size=<span class="num">4</span>,        <span class="cm"># 4 completions per prompt</span>
+        max_concurrency=<span class="num">5</span>,   <span class="cm"># 5 parallel rollouts</span>
+    ),
+)
+
+result = <span class="kw">await</span> trainer.train()
+<span class="fn">print</span>(result.to_dict())</code></pre>
+
+<h2>PPO Training</h2>
+<pre><code><span class="kw">from</span> duxx_ai.rl.training <span class="kw">import</span> PPOTrainer, TrainingConfig
+
+trainer = PPOTrainer(
+    agent_fn=agent.run,
+    env=<span class="kw">lambda</span>: ReasoningEnv(category=<span class="str">"math"</span>),
+    config=TrainingConfig(
+        n_episodes=<span class="num">200</span>,
+        n_epochs=<span class="num">5</span>,
+        clip_epsilon=<span class="num">0.2</span>,     <span class="cm"># PPO clipping</span>
+        value_coeff=<span class="num">0.5</span>,      <span class="cm"># Value loss weight</span>
+        entropy_coeff=<span class="num">0.01</span>,   <span class="cm"># Exploration bonus</span>
+        gae_lambda=<span class="num">0.95</span>,      <span class="cm"># GAE lambda</span>
+    ),
+)
+
+result = <span class="kw">await</span> trainer.train()</code></pre>
+
+<h2>DPO Training (Offline)</h2>
+<pre><code><span class="kw">from</span> duxx_ai.rl.training <span class="kw">import</span> DPOTrainer
+
+trainer = DPOTrainer(
+    agent_fn=agent.run,
+    env=<span class="kw">lambda</span>: QAEnv(),
+    beta=<span class="num">0.1</span>,  <span class="cm"># DPO temperature</span>
+)
+result = <span class="kw">await</span> trainer.train()</code></pre>
+
+<h2>Training Config</h2>
+<table class="doc-table"><thead><tr><th>Parameter</th><th>Default</th><th>Description</th></tr></thead><tbody>
+<tr><td><code>n_episodes</code></td><td>100</td><td>Episodes per training iteration</td></tr>
+<tr><td><code>n_epochs</code></td><td>3</td><td>Passes over collected data</td></tr>
+<tr><td><code>batch_size</code></td><td>16</td><td>Mini-batch size</td></tr>
+<tr><td><code>learning_rate</code></td><td>1e-5</td><td>Policy learning rate</td></tr>
+<tr><td><code>gamma</code></td><td>0.99</td><td>Discount factor</td></tr>
+<tr><td><code>group_size</code></td><td>4</td><td>GRPO completions per prompt</td></tr>
+<tr><td><code>clip_epsilon</code></td><td>0.2</td><td>PPO clipping range</td></tr>
+<tr><td><code>gae_lambda</code></td><td>0.95</td><td>GAE lambda for PPO</td></tr>
+<tr><td><code>max_concurrency</code></td><td>5</td><td>Parallel rollout workers</td></tr>
+</tbody></table>
+
+<h2>Trajectory Collection</h2>
+<pre><code><span class="kw">from</span> duxx_ai.rl.core <span class="kw">import</span> rollout, batch_rollout, TrajectoryBuffer
+
+<span class="cm"># Single episode</span>
+episode = <span class="kw">await</span> rollout(agent.run, env)
+<span class="fn">print</span>(episode.total_reward, episode.total_steps, episode.success)
+
+<span class="cm"># Batch collection (concurrent)</span>
+buffer = <span class="kw">await</span> batch_rollout(
+    agent_fn=agent.run,
+    env_factory=<span class="kw">lambda</span>: CodingEnv(),
+    n_episodes=<span class="num">100</span>,
+    max_concurrency=<span class="num">10</span>,
+)
+<span class="fn">print</span>(buffer.stats())
+<span class="cm"># {"episodes": 100, "success_rate": "72.0%", "reward_mean": 0.65, ...}</span>
+
+<span class="cm"># Best and worst episodes</span>
+best = buffer.best_episodes(n=<span class="num">5</span>)
+worst = buffer.worst_episodes(n=<span class="num">5</span>)
+
+<span class="cm"># Convert to training data</span>
+data = buffer.to_training_data()
+<span class="cm"># [{"prompt": "...", "completion": "...", "reward": 0.8}, ...]</span></code></pre>
+</div>
+
+<div id="page-rl-agent" class="page">
+<h1>RLAgent (Self-Improving)</h1>
+<p class="lead">An agent that learns from its own experience. Combines Duxx AI's Agent with RL training loops and automatic prompt optimization.</p>
+
+<h2>Basic Usage</h2>
+<pre><code><span class="kw">from</span> duxx_ai.rl.agent <span class="kw">import</span> RLAgent
+<span class="kw">from</span> duxx_ai.rl.environments <span class="kw">import</span> CodingEnv
+<span class="kw">from</span> duxx_ai.rl.core <span class="kw">import</span> RewardComposer, CorrectnessReward, StepPenalty
+
+agent = RLAgent(
+    name=<span class="str">"code-learner"</span>,
+    env=CodingEnv(difficulty=<span class="str">"easy"</span>),
+    reward_fn=RewardComposer([
+        (CorrectnessReward(), <span class="num">0.8</span>),
+        (StepPenalty(), <span class="num">0.2</span>),
+    ]),
+    llm_model=<span class="str">"gpt-4o-mini"</span>,
+)
+
+<span class="cm"># Train &mdash; agent improves through experience</span>
+result = <span class="kw">await</span> agent.train(n_episodes=<span class="num">50</span>, n_epochs=<span class="num">3</span>)
+<span class="fn">print</span>(f<span class="str">"Success: {result.final_success_rate:.0%}"</span>)
+
+<span class="cm"># Use the improved agent</span>
+answer = <span class="kw">await</span> agent.act(<span class="str">"Write a function to reverse a string"</span>)</code></pre>
+
+<h2>Self-Improving Prompt</h2>
+<p>The agent automatically analyzes its best and worst episodes to improve its system prompt:</p>
+<pre><code><span class="cm"># After training, manually trigger improvement</span>
+new_prompt = <span class="kw">await</span> agent.self_improve()
+<span class="fn">print</span>(new_prompt)
+<span class="fn">print</span>(f<span class="str">"Prompt versions: {len(agent._system_prompt_history)}"</span>)
+
+<span class="cm"># Or set auto-improvement interval</span>
+agent = RLAgent(
+    ...,
+    config=RLAgentConfig(self_improve_interval=<span class="num">50</span>),  <span class="cm"># Improve every 50 episodes</span>
+)</code></pre>
+
+<h2>Best-of-N Inference</h2>
+<p>Generate N responses and pick the best (inference-time scaling):</p>
+<pre><code><span class="cm"># Generate 4 responses, return highest-reward one</span>
+best_answer = <span class="kw">await</span> agent.act_best_of_n(<span class="str">"Explain quantum computing"</span>, n=<span class="num">4</span>)</code></pre>
+
+<h2>Evaluation</h2>
+<pre><code>stats = <span class="kw">await</span> agent.evaluate(n_episodes=<span class="num">20</span>)
+<span class="fn">print</span>(stats)
+<span class="cm"># {"success_rate": "85.0%", "reward_mean": 0.72, "steps_mean": 2.1, ...}</span></code></pre>
+
+<h2>Choose Training Algorithm</h2>
+<pre><code><span class="cm"># GRPO (default)</span>
+result = <span class="kw">await</span> agent.train(n_episodes=<span class="num">100</span>, trainer_type=<span class="str">"grpo"</span>)
+
+<span class="cm"># PPO</span>
+result = <span class="kw">await</span> agent.train(n_episodes=<span class="num">100</span>, trainer_type=<span class="str">"ppo"</span>)
+
+<span class="cm"># REINFORCE</span>
+result = <span class="kw">await</span> agent.train(n_episodes=<span class="num">100</span>, trainer_type=<span class="str">"reinforce"</span>)
+
+<span class="cm"># DPO (offline, from preference pairs)</span>
+result = <span class="kw">await</span> agent.train(n_episodes=<span class="num">100</span>, trainer_type=<span class="str">"dpo"</span>)</code></pre>
+
+<h2>Full Stats</h2>
+<pre><code><span class="fn">print</span>(agent.get_stats())
+<span class="cm"># {</span>
+<span class="cm">#   "name": "code-learner",</span>
+<span class="cm">#   "model": "gpt-4o-mini",</span>
+<span class="cm">#   "total_experience": 300,</span>
+<span class="cm">#   "experience_stats": {"success_rate": "78.0%", "reward_mean": 0.68},</span>
+<span class="cm">#   "prompt_versions": 3,</span>
+<span class="cm">#   "training_runs": 2,</span>
+<span class="cm"># }</span></code></pre>
+</div>
+
+<div id="page-rl-examples" class="page">
+<h1>RL Full Examples</h1>
+<p class="lead">Complete end-to-end examples for training agents with reinforcement learning.</p>
+
+<h2>Example 1: Train a Math Solver</h2>
+<pre><code><span class="kw">from</span> duxx_ai.rl.agent <span class="kw">import</span> RLAgent
+<span class="kw">from</span> duxx_ai.rl.environments <span class="kw">import</span> ReasoningEnv
+<span class="kw">from</span> duxx_ai.rl.core <span class="kw">import</span> RewardComposer, CorrectnessReward, StepPenalty
+
+agent = RLAgent(
+    name=<span class="str">"math-solver"</span>,
+    env=ReasoningEnv(category=<span class="str">"math"</span>),
+    reward_fn=RewardComposer([
+        (CorrectnessReward(), <span class="num">0.9</span>),
+        (StepPenalty(<span class="num">-0.1</span>), <span class="num">0.1</span>),
+    ]),
+    system_prompt=<span class="str">"You are a math expert. Answer with just the number."</span>,
+)
+
+<span class="cm"># Before training</span>
+before = <span class="kw">await</span> agent.evaluate(n_episodes=<span class="num">20</span>)
+<span class="fn">print</span>(f<span class="str">"Before: {before['success_rate']}"</span>)
+
+<span class="cm"># Train</span>
+result = <span class="kw">await</span> agent.train(n_episodes=<span class="num">100</span>, n_epochs=<span class="num">3</span>)
+
+<span class="cm"># After training</span>
+after = <span class="kw">await</span> agent.evaluate(n_episodes=<span class="num">20</span>)
+<span class="fn">print</span>(f<span class="str">"After: {after['success_rate']}"</span>)
+<span class="fn">print</span>(f<span class="str">"Improvement: {result.to_dict()}"</span>)</code></pre>
+
+<h2>Example 2: Train a Code Generator with GRPO</h2>
+<pre><code><span class="kw">from</span> duxx_ai.rl.training <span class="kw">import</span> GRPOTrainer, TrainingConfig
+<span class="kw">from</span> duxx_ai.rl.environments <span class="kw">import</span> CodingEnv
+<span class="kw">from</span> duxx_ai.rl.core <span class="kw">import</span> RewardComposer, CorrectnessReward, CompletionReward, FormatReward
+<span class="kw">from</span> duxx_ai <span class="kw">import</span> Agent, AgentConfig
+
+<span class="cm"># Create agent</span>
+agent = Agent(config=AgentConfig(
+    name=<span class="str">"coder"</span>,
+    system_prompt=<span class="str">"Write clean Python code. Return ONLY code, no markdown."</span>,
+))
+
+<span class="cm"># Multi-signal rewards</span>
+rewards = RewardComposer([
+    (CorrectnessReward(), <span class="num">0.7</span>),   <span class="cm"># Tests pass</span>
+    (CompletionReward(), <span class="num">0.2</span>),    <span class="cm"># Finish efficiently</span>
+    (FormatReward(<span class="str">"json"</span>), <span class="num">0.1</span>),  <span class="cm"># Clean format</span>
+])
+
+<span class="cm"># Train with GRPO</span>
+trainer = GRPOTrainer(
+    agent_fn=agent.run,
+    env=<span class="kw">lambda</span>: CodingEnv(difficulty=<span class="str">"medium"</span>),
+    reward_fn=rewards,
+    config=TrainingConfig(n_episodes=<span class="num">200</span>, group_size=<span class="num">4</span>),
+)
+result = <span class="kw">await</span> trainer.train()</code></pre>
+
+<h2>Example 3: Train a Blackjack Player</h2>
+<pre><code><span class="kw">from</span> duxx_ai.rl.agent <span class="kw">import</span> RLAgent
+<span class="kw">from</span> duxx_ai.rl.environments <span class="kw">import</span> BlackjackEnv
+
+agent = RLAgent(
+    name=<span class="str">"blackjack-pro"</span>,
+    env=BlackjackEnv(),
+    system_prompt=<span class="str">"You are a blackjack player. Reply 'hit' or 'stand' based on your hand value and the dealer's card."</span>,
+    trainer_type=<span class="str">"reinforce"</span>,
+)
+
+result = <span class="kw">await</span> agent.train(n_episodes=<span class="num">500</span>, n_epochs=<span class="num">5</span>)
+<span class="fn">print</span>(f<span class="str">"Win rate: {result.final_success_rate:.0%}"</span>)
+
+<span class="cm"># Self-improve based on experience</span>
+<span class="kw">await</span> agent.self_improve()
+<span class="fn">print</span>(agent.config.system_prompt)  <span class="cm"># Optimized prompt</span></code></pre>
+
+<h2>Example 4: Custom Environment + Custom Rewards</h2>
+<pre><code><span class="kw">from</span> duxx_ai.rl.core <span class="kw">import</span> RLEnvironment, Observation, Action, StepResult
+<span class="kw">from</span> duxx_ai.rl.core <span class="kw">import</span> RewardFunction, RewardComposer, rollout
+<span class="kw">import</span> random
+
+<span class="cm"># Custom environment</span>
+<span class="kw">class</span> <span class="fn">PasswordEnv</span>(RLEnvironment):
+    <span class="str"># Agent must generate a strong password.</span>
+
+    <span class="kw">async def</span> <span class="fn">reset</span>(self, **kwargs):
+        <span class="kw">return</span> Observation(text=<span class="str">"Generate a strong password (12+ chars, mixed case, numbers, symbols)."</span>)
+
+    <span class="kw">async def</span> <span class="fn">step</span>(self, action):
+        pw = action.text.strip()
+        score = <span class="num">0</span>
+        <span class="kw">if</span> len(pw) >= <span class="num">12</span>: score += <span class="num">0.3</span>
+        <span class="kw">if</span> <span class="fn">any</span>(c.isupper() <span class="kw">for</span> c <span class="kw">in</span> pw): score += <span class="num">0.2</span>
+        <span class="kw">if</span> <span class="fn">any</span>(c.isdigit() <span class="kw">for</span> c <span class="kw">in</span> pw): score += <span class="num">0.2</span>
+        <span class="kw">if</span> <span class="fn">any</span>(c <span class="kw">in</span> <span class="str">"!@#$%^&*"</span> <span class="kw">for</span> c <span class="kw">in</span> pw): score += <span class="num">0.3</span>
+        <span class="kw">return</span> StepResult(
+            observation=Observation(text=f<span class="str">"Score: {score:.0%}"</span>),
+            reward=score, done=<span class="kw">True</span>,
+            info={<span class="str">"correct"</span>: score >= <span class="num">0.8</span>},
+        )
+
+<span class="cm"># Run rollout</span>
+episode = <span class="kw">await</span> rollout(agent.run, PasswordEnv())
+<span class="fn">print</span>(f<span class="str">"Reward: {episode.total_reward}"</span>)</code></pre>
 </div>
 
 <!-- ══════ ADVANCED GRAPH ENGINE ══════ -->
