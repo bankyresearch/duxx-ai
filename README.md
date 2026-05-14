@@ -144,6 +144,45 @@ memory.store("procedural", "report_steps", ["gather", "analyze", "write"])
 memory.store("shared", "team_context", {"project": "Alpha"})
 ```
 
+### Pluggable memory backend (v0.31+)
+
+As of v0.31, `MemoryManager` accepts a pluggable storage backend.
+Default is the same in-process dict + JSON-file store you've always
+used. Two new options ship for production:
+
+| Backend | Install | Use when |
+|---|---|---|
+| `InProcessBackend` (default) | (no extras) | Dev, tests, single-process scripts |
+| `DuxxBackend` | `pip install duxx-ai[duxxdb]` | Embedded, sub-ms hybrid recall, persistence — same Python process |
+| `DuxxServerBackend` | `pip install duxx-ai[duxxdb-server]` | Multi-worker fleets sharing memory through a `duxx-server` daemon |
+
+```python
+from duxx_ai.memory import MemoryManager, MemoryEntry
+from duxx_ai.memory.storage import DuxxBackend          # embedded
+# from duxx_ai.memory.storage import DuxxServerBackend  # remote daemon
+
+memory = MemoryManager(
+    backend=DuxxBackend(dim=1536),
+    agent_id="alice",
+)
+
+memory.remember(
+    "I lost my wallet at the cafe",
+    memory_type="episodic",
+    embedding=embedding_fn("I lost my wallet at the cafe"),
+)
+
+hits = memory.recall("wallet", k=5,
+                     query_embedding=embedding_fn("wallet"))
+for h in hits:
+    print(h.content)
+```
+
+The pair forms the **Duxx Stack** — duxx-ai is the framework half,
+[DuxxDB](https://github.com/bankyresearch/duxxdb) is the storage
+engine half, both Apache 2.0. See the
+[Duxx Stack integration design](https://github.com/bankyresearch/duxxdb/blob/master/docs/DUXX_STACK_INTEGRATION.md).
+
 ### Enterprise Governance
 ```python
 from duxx_ai.governance import GuardrailChain, RBACManager

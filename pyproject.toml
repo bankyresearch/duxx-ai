@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "duxx-ai"
-version = "0.30.0"
-description = "Enterprise Agentic AI SDK — Build, fine-tune, orchestrate, and govern AI agents at scale"
+version = "0.31.0"
+description = "Enterprise Agentic AI SDK — Build, fine-tune, orchestrate, and govern AI agents at scale. Pluggable memory via DuxxDB."
 readme = "README.md"
 license = {text = "Apache-2.0"}
 requires-python = ">=3.10"
@@ -49,7 +49,20 @@ tools = [
     "yfinance>=0.2",
     "pdfplumber>=0.10",
 ]
-all = ["duxx-ai[finetune,tools]"]
+# Phase A of the Duxx Stack: embed DuxxDB directly via the duxxdb wheel.
+# Sub-ms hybrid recall, persistence (`storage="dir:..."`), importance-decay
+# eviction. The 0.1.1 floor is required for MemoryStore.open_at /
+# set_max_rows / forget -- earlier 0.1.0 wheels only exposed
+# dim / recall / remember.
+duxxdb = [
+    "duxxdb>=0.1.1,<0.2.0",
+]
+# Talk to a remote duxx-server daemon over RESP via redis-py. Good for
+# multi-worker fleets and shared agent state.
+duxxdb-server = [
+    "redis>=5.0",
+]
+all = ["duxx-ai[finetune,tools,duxxdb,duxxdb-server]"]
 dev = [
     "pytest>=7.0",
     "pytest-asyncio>=0.23",
