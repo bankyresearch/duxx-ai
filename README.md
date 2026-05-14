@@ -231,6 +231,36 @@ metrics = evaluator.evaluate(agent, test_cases=[
 print(f"Accuracy: {metrics.accuracy}, Latency: {metrics.avg_latency}ms")
 ```
 
+#### Persist traces to DuxxDB (v0.31+)
+
+For a production-grade trace store with tree-aware queries, thread
+reconstruction, and live `PSUBSCRIBE trace.*` tailing, use the
+`DuxxExporter` against a running `duxx-server`:
+
+```python
+# pip install redis>=5
+from duxx_ai.observability import Tracer
+from duxx_ai.observability.duxx_exporter import DuxxExporter
+
+exporter = DuxxExporter(
+    url="redis://:$DUXX_TOKEN@localhost:6379",
+    thread_id="user-42-session",   # optional, enables TRACE.THREAD
+)
+tracer = Tracer(exporters=[exporter])
+```
+
+From any RESP client you can then run:
+
+```bash
+redis-cli -p 6379 TRACE.GET    <trace_id>         # full tree
+redis-cli -p 6379 TRACE.SUBTREE <span_id>          # descendants
+redis-cli -p 6379 TRACE.THREAD  user-42-session    # multi-turn convo
+redis-cli -p 6379 PSUBSCRIBE   "trace.*"           # live tail
+```
+
+DuxxDB is the Rust storage engine half of the **Duxx Stack**
+(Apache 2.0, https://github.com/bankyresearch/duxxdb).
+
 ### Adaptive Model Router
 ```python
 from duxx_ai.router import AdaptiveRouter
