@@ -70,19 +70,21 @@ def test_store_then_recall_in_memory() -> None:
 
 
 def test_persistent_storage_survives_close_and_reopen() -> None:
-    """Requires a duxxdb wheel that exposes ``MemoryStore.open_at``.
+    """Persist with ``storage="dir:..."``, drop the backend, then open
+    the same dir from a fresh backend instance and confirm the row
+    survives.
 
-    The first public Python wheel (v0.1.0) only surfaces
-    ``dim/recall/remember``; ``open_at`` exists in the Rust core but
-    has not been PyO3-bound yet. Slated for duxxdb v0.1.1.
+    Requires ``duxxdb>=0.1.1`` (added the ``open_at`` PyO3 binding).
+    Older wheels skip with a clear upgrade hint; the pyproject extra
+    pins ``>=0.1.0,<0.2.0`` to keep the install surface forgiving.
     """
 
     import duxxdb  # type: ignore[import-not-found]
 
     if not hasattr(duxxdb.MemoryStore, "open_at"):
         pytest.skip(
-            "the installed duxxdb wheel does not expose "
-            "MemoryStore.open_at; planned for duxxdb v0.1.1"
+            "duxxdb < 0.1.1 does not expose MemoryStore.open_at; "
+            "upgrade with: pip install -U 'duxxdb>=0.1.1'"
         )
 
     from duxx_ai.memory.storage.duxx_local import DuxxBackend

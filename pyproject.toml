@@ -50,9 +50,12 @@ tools = [
     "pdfplumber>=0.10",
 ]
 # Phase A of the Duxx Stack: embed DuxxDB directly via the duxxdb wheel.
-# Sub-ms hybrid recall, persistence, importance-decay eviction.
+# Sub-ms hybrid recall, persistence (`storage="dir:..."`), importance-decay
+# eviction. The 0.1.1 floor is required for MemoryStore.open_at /
+# set_max_rows / forget -- earlier 0.1.0 wheels only exposed
+# dim / recall / remember.
 duxxdb = [
-    "duxxdb>=0.1.0,<0.2.0",
+    "duxxdb>=0.1.1,<0.2.0",
 ]
 # Talk to a remote duxx-server daemon over RESP via redis-py. Good for
 # multi-worker fleets and shared agent state.
