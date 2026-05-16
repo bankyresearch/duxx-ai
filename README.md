@@ -78,6 +78,7 @@ scaffolds, some are experimental. Honest status per module:
 | `core` | **Stable** | Agent, AgentConfig, Tool decorator, Message, Role |
 | `memory` | **Stable** with `DuxxBackend` / experimental in-process | Five-tier memory (working, episodic, semantic, procedural, shared) over a pluggable backend |
 | `observability.tracer` | **Stable** with `DuxxExporter` | OTel-shape spans + a DuxxDB exporter for persistence and tree-aware queries |
+| `debug` | **Beta** (new) | Causal trace replay debugger. `CapturingChat` records; `TraceReplayer` re-executes with per-step overrides. See [Causal trace replay](#causal-trace-replay-debugger). |
 | `orchestration.graph` | **Beta** | DAG graphs with conditional edges and reducers |
 | `orchestration.crew` | **Beta** | Multi-agent runners (sequential, parallel, hierarchical) |
 | `tools` | **Beta** | 40+ built-in tools across email / calendar / DB / API / docs / finance / security / devops / analytics |
@@ -409,6 +410,95 @@ module + tests + design notes.
 
 ---
 
+## Causal trace replay (debugger)
+
+`duxx_ai.debug` is a time-travel debugger for captured agent runs.
+Wrap your chat/tool callables in `CapturingChat` / `CapturingTool`
+during normal operation; every invocation flows to DuxxDB under a
+stable `trace_id`. Later, open the trace in `TraceReplayer`,
+inspect every step, and re-execute with per-step overrides
+(swap model, swap prompt, inject output, set temperature, skip).
+
+```python
+from duxx_ai.debug import (
+    CapturingChat,
+    TraceReplayer,
+    swap_prompt,
+    inject_output,
+)
+
+# Phase 1 — record during the agent's normal run
+chat = CapturingChat(
+    base=your_real_chat,
+    client=redis_client,
+    trace_id="trace-2024-11-12-abc",
+    model="gpt-4o-mini",
+    prompt_name="refund_classifier",
+    prompt_version=7,
+)
+chat([{"role": "user", "content": "I want a refund"}])
+
+# Phase 2 — debug the run later
+replayer = TraceReplayer(redis_client, "trace-2024-11-12-abc")
+
+# What did the agent do?
+for inv in replayer.invocations:
+    print(inv.idx, inv.kind, inv.model, inv.prompt_version)
+
+# What would v8 of the prompt have produced for this exact input?
+result = replayer.replay(
+    chat=your_real_chat,
+    overrides=[
+        swap_prompt(at_idx=0, prompt_name="refund_classifier",
+                    prompt_version=8),
+    ],
+)
+
+# Diff the alternate timeline against the original
+diff = result.diff()
+for step in diff.steps:
+    if step.differs:
+        print(f"idx={step.idx}\n  was: {step.original_output}"
+              f"\n  now: {step.replayed_output}")
+print(f"{diff.differing_count}/{len(diff.steps)} steps differ")
+```
+
+For an interactive REPL-style step debugger, use
+[`replayer.walk()`](duxx_ai/debug/replay.py) — yields one step at
+a time and accepts a custom output for each one (handy for tool
+calls or human-in-the-loop debugging).
+
+End-to-end demo: `examples/trace_replay_demo.py` (~1s, no real
+LLM or daemon). Shows the full workflow:
+
+1. A buggy tool returns the wrong city; the agent dutifully
+   reports the wrong answer.
+2. `TraceReplayer` lists every captured step.
+3. Two `inject_output` overrides — one for the tool, one for the
+   downstream summarizer — confirm the hypothesis: the tool
+   really was the only bug. Diff shows exactly which steps
+   changed.
+4. A counterfactual `swap_model` audit run tags every LLM step
+   with a different model for compliance / cost analysis.
+
+Why this is unique: LangSmith stores traces but can't
+re-execute them. LangGraph routes statically. The `REPLAY.*` wire
+protocol lives in DuxxDB at the storage layer, and `duxx_ai.debug`
+is the thin Pythonic interface on top. See
+[`duxx_ai/debug/`](duxx_ai/debug) for the module + tests.
+
+**Replay semantics — important:** Replay re-executes each
+captured step with the *captured input* plus any overrides. It
+does NOT re-derive downstream inputs from upstream outputs (that
+would require re-running the agent's plan-construction logic).
+To verify an end-to-end fix, override the broken step AND the
+inputs of downstream steps that depend on it. That's deliberate:
+it lets you pinpoint exactly which step is responsible without
+the surrounding context drifting on you. See the demo for the
+canonical pattern.
+
+---
+
 ## Layout
 
 ```
@@ -422,6 +512,10 @@ duxx_ai/
 │   ├── tracer.py         Tracer + console/json/otlp exporters
 │   ├── duxx_exporter.py  DuxxExporter for RESP-backed trace persistence
 │   └── evaluator.py      Local AgentEvaluator (use DuxxDB for persistent runs)
+├── debug/                Causal trace-replay debugger. CapturingChat
+│                         records each LLM/tool call; TraceReplayer
+│                         walks the run, edits any step (swap model /
+│                         prompt / inject / skip), and diffs.
 ├── orchestration/
 │   ├── graph.py          Graph + Node + Edge + reducers
 │   ├── crew.py           Crew + CrewAgent (sequential/parallel/hierarchical)
