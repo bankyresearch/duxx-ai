@@ -24,6 +24,7 @@ prod-vs-canary delta the loop needs to decide on promotion.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 from dataclasses import dataclass
@@ -112,6 +113,12 @@ class EvalRunRegistry:
         return dict(self._cache)
 
 
+# Cap for the input_text we persist into eval-score notes. Bigger
+# than the typical user message, small enough not to bloat the
+# eval table. Truncated text is still useful to the LLM rewriter.
+INPUT_TEXT_NOTE_CAP = 4096
+
+
 class TurnRecorder:
     """One ``EVAL.SCORE`` write per agent turn.
 
@@ -119,6 +126,20 @@ class TurnRecorder:
     (e.g. on retry) overwrites rather than double-counts. Best-effort
     on RESP errors — a logging WARNING is the worst case, the agent
     keeps serving traffic.
+
+    Two row-id strategies, in order of preference:
+
+    * **Idempotency key** (recommended). Callers pass
+      ``idempotency_key=`` on :meth:`record` — typically a request /
+      message id from upstream, or the SHA1 of the input. Retrying
+      the same turn produces the SAME ``row_id`` and ``EVAL.SCORE``
+      overwrites in place, so retries don't double-count.
+    * **Sequence fallback.** When no key is supplied we fall back to
+      a per-bucket counter (``live-<version>-<seq>``). This preserves
+      v0.2.x behavior for callers that never opted in, but DOES
+      double-count on retry — which is exactly the bug review
+      comment P2 flagged. Pass an idempotency key whenever you
+      have one.
     """
 
     def __init__(
@@ -127,12 +148,15 @@ class TurnRecorder:
         run_registry: EvalRunRegistry,
         *,
         drop_on_error: bool = True,
+        input_text_note_cap: int = INPUT_TEXT_NOTE_CAP,
     ) -> None:
         self._client = client
         self._runs = run_registry
         self._drop_on_error = drop_on_error
+        self._input_text_cap = max(0, int(input_text_note_cap))
         # row_id sequencer per (prompt, version) bucket so ids stay
-        # roughly chronological within a run.
+        # roughly chronological within a run when no idempotency key
+        # is supplied.
         self._row_seq: dict[tuple[str, int], int] = {}
 
     def record(
@@ -145,8 +169,12 @@ class TurnRecorder:
         output_text: str,
         score: float,
         notes: dict[str, Any] | None = None,
+        idempotency_key: str | None = None,
     ) -> TurnResult:
         """Score one turn and persist it to the eval registry.
+
+        Pass ``idempotency_key`` (request id / message id / hash of
+        the input) so retries overwrite rather than double-count.
 
         Returns the :class:`TurnResult` so the caller can log it to
         OpenTelemetry, surface it in the response, or feed it into
@@ -154,13 +182,26 @@ class TurnRecorder:
         """
         run_id = self._runs.run_id_for(prompt_name, prompt_version)
         cache_key = (prompt_name, prompt_version)
-        seq = self._row_seq.get(cache_key, 0)
-        self._row_seq[cache_key] = seq + 1
-        row_id = f"live-{cache_key[1]}-{seq}"
+        row_id = self._row_id_for(
+            cache_key=cache_key,
+            idempotency_key=idempotency_key,
+        )
 
         annotated = dict(notes or {})
         annotated.setdefault("prompt_tag", prompt_tag)
-        annotated.setdefault("input_text_len", len(input_text))
+        # Persist the ORIGINAL user input alongside the agent's
+        # output, capped to avoid bloat. The candidate-prompt
+        # generator reads this back at mining time so it can see
+        # WHAT the user asked, not just what the agent got wrong.
+        # (Review comment P1.)
+        if input_text:
+            annotated.setdefault(
+                "input_text",
+                input_text[: self._input_text_cap] if self._input_text_cap else "",
+            )
+            annotated.setdefault("input_text_len", len(input_text))
+        if idempotency_key is not None:
+            annotated.setdefault("idempotency_key", idempotency_key)
 
         try:
             self._client.execute_command(
@@ -190,6 +231,26 @@ class TurnRecorder:
             score=float(score),
             output_text=output_text,
         )
+
+    def _row_id_for(
+        self,
+        *,
+        cache_key: tuple[str, int],
+        idempotency_key: str | None,
+    ) -> str:
+        if idempotency_key:
+            # SHA1 keeps the row id short, ASCII-safe, and stable
+            # across processes — two replicas seeing the same
+            # idempotency key produce the same row_id, so the
+            # second EVAL.SCORE overwrites the first.
+            digest = hashlib.sha1(
+                idempotency_key.encode("utf-8"),
+                usedforsecurity=False,
+            ).hexdigest()[:16]
+            return f"idem-{cache_key[1]}-{digest}"
+        seq = self._row_seq.get(cache_key, 0)
+        self._row_seq[cache_key] = seq + 1
+        return f"live-{cache_key[1]}-{seq}"
 
 
 # ---------------------------------------------------------------- judges

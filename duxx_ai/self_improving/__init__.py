@@ -231,6 +231,7 @@ class SelfImprovingAgent:
         *,
         tenant: str = "default",
         history: list[dict] | None = None,
+        idempotency_key: str | None = None,
     ) -> str:
         """Serve one agent turn.
 
@@ -242,6 +243,15 @@ class SelfImprovingAgent:
 
         ``user_input`` and ``tenant`` together drive the
         traffic-split hash so retries land on the same arm.
+
+        Pass ``idempotency_key`` — typically your upstream request
+        / message id — and retries of the same turn will overwrite
+        the eval-score row in place rather than double-counting.
+        When omitted, every call gets a fresh row: duxx-ai can't
+        distinguish "retry of the same request" from "two distinct
+        users who happened to type the same thing", so we don't
+        auto-dedupe. Pass the key whenever your transport layer
+        already has one.
         """
         choice = self.router.pick(tenant=tenant, query=user_input)
         messages: list[dict] = [{"role": "system", "content": choice.content}]
@@ -262,6 +272,7 @@ class SelfImprovingAgent:
                 output_text="",
                 score=0.0,
                 notes={"error": "chat_call_failed"},
+                idempotency_key=idempotency_key,
             )
             raise
 
@@ -280,6 +291,7 @@ class SelfImprovingAgent:
             input_text=user_input,
             output_text=reply,
             score=score,
+            idempotency_key=idempotency_key,
         )
         return reply
 

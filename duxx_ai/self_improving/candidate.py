@@ -35,11 +35,19 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class FailureSample:
-    """One row inside a failure cluster, passed to candidate generators."""
+    """One row inside a failure cluster, passed to candidate generators.
+
+    Carries both the agent's wrong reply (``output_text``) AND the
+    original user input that triggered it (``input_text``). The
+    candidate generator NEEDS both: knowing what the user asked is
+    what lets the LLM rewriter propose a meaningful rule. Without
+    the input, the rewriter only sees repeated wrong answers.
+    """
 
     row_id: str
     score: float
     output_text: str
+    input_text: str = ""
 
 
 @dataclass
@@ -125,10 +133,20 @@ class LlmCandidateGenerator:
             return None
 
         sample = failures[: self._max_examples]
-        examples_block = "\n\n".join(
-            f"FAILURE {i + 1} (score={f.score:.2f}):\n{f.output_text}"
-            for i, f in enumerate(sample)
-        )
+        # Each failure example shows BOTH the user input that caused
+        # the failure AND the agent's wrong reply. The rewriter needs
+        # both to spot patterns (e.g. "users say 'return' instead of
+        # 'refund' and the agent then misclassifies").
+        def _fmt(idx: int, f: FailureSample) -> str:
+            inp = (f.input_text or "(input not captured)").strip()
+            out = (f.output_text or "(empty output)").strip()
+            return (
+                f"FAILURE {idx + 1} (score={f.score:.2f})\n"
+                f"  USER INPUT: {inp}\n"
+                f"  AGENT REPLY: {out}"
+            )
+
+        examples_block = "\n\n".join(_fmt(i, f) for i, f in enumerate(sample))
         messages = [
             {"role": "system", "content": self._system_prompt},
             {

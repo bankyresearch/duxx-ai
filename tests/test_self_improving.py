@@ -146,15 +146,23 @@ class FakeDuxxClient:
         if cmd == "EVAL.SCORE":
             run_id, row_id, score_s, output_text = a[0], a[1], a[2], a[3]
             notes = json.loads(a[4]) if len(a) > 4 and a[4] not in ("-", "") else {}
-            self.scores.setdefault(run_id, []).append(
-                _Score(
-                    run_id=run_id,
-                    row_id=row_id,
-                    score=float(score_s),
-                    output_text=output_text if output_text != "-" else "",
-                    notes=notes,
-                )
+            new_row = _Score(
+                run_id=run_id,
+                row_id=row_id,
+                score=float(score_s),
+                output_text=output_text if output_text != "-" else "",
+                notes=notes,
             )
+            # Match real-daemon semantics: EVAL.SCORE is upsert by
+            # (run_id, row_id). Two writes with the same row_id
+            # overwrite — that's how the idempotency-key path
+            # dedupes retries. Naive append() would double-count.
+            bucket = self.scores.setdefault(run_id, [])
+            for i, existing in enumerate(bucket):
+                if existing.row_id == row_id:
+                    bucket[i] = new_row
+                    return b"OK"
+            bucket.append(new_row)
             return b"OK"
 
         if cmd == "EVAL.SCORES":
@@ -529,3 +537,163 @@ def test_scorer_exception_records_zero_does_not_raise(seeded_client):
     reply = agent.run("question")
     assert reply == "any reply"
     assert agent.last_turn.score == 0.0
+
+
+# ---------------------------------------------------------------- idempotency
+
+
+def test_explicit_idempotency_key_overwrites_on_retry(seeded_client):
+    """Same idempotency_key on retry overwrites the same row instead of double-counting."""
+    agent = SelfImprovingAgent(
+        client=seeded_client,
+        prompt_name="refund_classifier",
+        chat=_make_chat("REFUND"),
+        scorer=lambda _i, _o: 1.0,
+        canary_traffic_pct=0.0,
+        autostart=False,
+    )
+    # Same request id twice — typical retry scenario.
+    agent.run("I want a refund", idempotency_key="req-42")
+    first_run_id = agent.last_turn.run_id
+    agent.run("I want a refund", idempotency_key="req-42")
+
+    # Only ONE row in the eval registry for that run, not two.
+    rows = seeded_client.scores[first_run_id]
+    assert len(rows) == 1, (
+        f"retry with the same idempotency_key should overwrite, "
+        f"got {len(rows)} rows"
+    )
+    assert rows[0].notes["idempotency_key"] == "req-42"
+
+
+def test_distinct_idempotency_keys_produce_distinct_rows(seeded_client):
+    """Two different turns get distinct rows."""
+    agent = SelfImprovingAgent(
+        client=seeded_client,
+        prompt_name="refund_classifier",
+        chat=_make_chat("REFUND"),
+        scorer=lambda _i, _o: 1.0,
+        canary_traffic_pct=0.0,
+        autostart=False,
+    )
+    agent.run("first question", idempotency_key="req-1")
+    agent.run("second question", idempotency_key="req-2")
+    rows = seeded_client.scores[agent.last_turn.run_id]
+    assert len(rows) == 2
+    assert rows[0].row_id != rows[1].row_id
+
+
+def test_no_idempotency_key_means_no_implicit_dedupe(seeded_client):
+    """Without an explicit key, every call gets a fresh row.
+
+    Auto-deduping on (tenant, input) hash would silently merge two
+    distinct users that happen to send the same text. Refuse to
+    guess; require the caller to opt in by passing a key.
+    """
+    agent = SelfImprovingAgent(
+        client=seeded_client,
+        prompt_name="refund_classifier",
+        chat=_make_chat("REFUND"),
+        scorer=lambda _i, _o: 1.0,
+        canary_traffic_pct=0.0,
+        autostart=False,
+    )
+    agent.run("identical input")
+    agent.run("identical input")  # no key — these are treated as distinct
+    rows = seeded_client.scores[agent.last_turn.run_id]
+    assert len(rows) == 2
+
+
+# ---------------------------------------------------------------- input preservation
+
+
+def test_recorder_persists_user_input_for_failures(seeded_client):
+    """TurnRecorder writes input_text into score notes so the
+    candidate generator can later see WHAT the user asked."""
+    agent = SelfImprovingAgent(
+        client=seeded_client,
+        prompt_name="refund_classifier",
+        chat=_make_chat("WRONG"),
+        scorer=lambda _i, _o: 0.1,  # all failures
+        canary_traffic_pct=0.0,
+        autostart=False,
+    )
+    agent.run("I'd like to return this item")
+    rows = seeded_client.scores[agent.last_turn.run_id]
+    assert len(rows) == 1
+    assert rows[0].notes["input_text"] == "I'd like to return this item"
+    assert rows[0].notes["input_text_len"] == len("I'd like to return this item")
+
+
+def test_input_text_cap_is_enforced():
+    """Very long inputs are truncated to the configured cap before persisting."""
+    client = FakeDuxxClient()
+    client.seed_prompt(
+        "refund_classifier",
+        "You are a refund classifier.",
+        tag="prod",
+    )
+    agent = SelfImprovingAgent(
+        client=client,
+        prompt_name="refund_classifier",
+        chat=_make_chat("REFUND"),
+        scorer=lambda _i, _o: 1.0,
+        canary_traffic_pct=0.0,
+        autostart=False,
+    )
+    # The default cap is 4096 chars. Build a 10 000-char input.
+    big = "x" * 10_000
+    agent.run(big, idempotency_key="big-1")
+    rows = client.scores[agent.last_turn.run_id]
+    persisted = rows[0].notes["input_text"]
+    assert len(persisted) == 4096
+    # Full length is preserved for debugging.
+    assert rows[0].notes["input_text_len"] == 10_000
+
+
+def test_failure_cluster_includes_user_inputs_for_candidate_generator(
+    seeded_client,
+):
+    """The loop must thread user inputs from EVAL.SCORES notes through to
+    FailureSample.input_text — that's the whole P1 fix."""
+    captured_failures: list = []
+
+    class _RecordingGen:
+        def propose(self, *, prompt_name, current_content, current_version, failures):
+            captured_failures.extend(failures)
+            # Decline so the loop doesn't actually mint a canary.
+            return None
+
+    agent = SelfImprovingAgent(
+        client=seeded_client,
+        prompt_name="refund_classifier",
+        chat=_make_chat("WRONG"),
+        scorer=lambda _i, _o: 0.1,  # all failing
+        candidate_generator=_RecordingGen(),
+        canary_traffic_pct=0.0,
+        autostart=False,
+    )
+    # Produce 3 distinct failing turns. Each should land in EVAL.SCORES
+    # with its input_text in notes.
+    for i, user_msg in enumerate(
+        [
+            "I want my money back",
+            "Please return my order",
+            "I'd like a full refund please",
+        ]
+    ):
+        agent.run(user_msg, idempotency_key=f"turn-{i}")
+
+    # Force a mining cycle by queueing the failing rows as a cluster.
+    prod_run = agent.eval_runs.run_id_for("refund_classifier", 1)
+    failure_rows = list(seeded_client.scores[prod_run])
+    seeded_client.queue_failure_cluster(prod_run, failure_rows)
+    agent.cycle_once()
+
+    # The candidate generator received FailureSample rows that
+    # KNOW the user input — not just the agent's wrong output.
+    assert len(captured_failures) == 3
+    user_msgs = {f.input_text for f in captured_failures}
+    assert "I want my money back" in user_msgs
+    assert "Please return my order" in user_msgs
+    assert "I'd like a full refund please" in user_msgs
