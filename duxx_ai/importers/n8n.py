@@ -21,7 +21,6 @@ from __future__ import annotations
 
 import json
 import logging
-import textwrap
 from pathlib import Path
 from typing import Any
 
@@ -399,8 +398,8 @@ def _generate_graph(workflow: N8nWorkflow) -> str:
     # Detect RAG pattern (has vectorstore + embeddings + loader + splitter)
     categories = {n.duxx_ai_category for n in workflow.nodes}
     is_rag = "vectorstore" in categories and "embeddings" in categories
-    has_loader = "loader" in categories
-    has_splitter = "splitter" in categories
+    _has_loader = "loader" in categories  # reserved for future loader-aware codegen
+    _has_splitter = "splitter" in categories  # reserved for future splitter-aware codegen
 
     # Build node definitions
     node_defs = []
@@ -523,7 +522,7 @@ async def {safe_name}(state: GraphState) -> GraphState:
     return state''')
 
         elif node.duxx_ai_category == "conditional":
-            cond_key = node.parameters.get("conditions", {})
+            _cond_key = node.parameters.get("conditions", {})  # reserved for future cond-routing
             node_defs.append(f'''
 async def {safe_name}(state: GraphState) -> GraphState:
     """Conditional: {node.name}"""

@@ -15,7 +15,6 @@ from typing import Any
 
 from duxx_ai.core.tool import Tool, tool
 
-
 # ---------------------------------------------------------------------------
 # Tools
 # ---------------------------------------------------------------------------
@@ -143,7 +142,7 @@ def extract_tables(file_path: str, format: str = "csv") -> str:
                     if data and len(data) > 1:
                         headers_row = [str(c) if c else f"col_{i}" for i, c in enumerate(data[0])]
                         rows = [
-                            dict(zip(headers_row, row))
+                            dict(zip(headers_row, row, strict=False))
                             for row in data[1:]
                         ]
                         output_parts.append(json.dumps(rows, indent=2))

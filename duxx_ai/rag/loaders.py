@@ -359,8 +359,11 @@ class ArxivLoader(DocumentLoader):
 class YouTubeLoader(DocumentLoader):
     """Load YouTube video transcripts. Requires: pip install youtube-transcript-api"""
     def __init__(self, video_url: str, languages: list[str] | None = None) -> None:
-        self.video_url = video_url; self.languages = languages or ["en"]
-        import re; match = re.search(r"(?:v=|youtu\.be/)([^&?]+)", video_url)
+        import re
+
+        self.video_url = video_url
+        self.languages = languages or ["en"]
+        match = re.search(r"(?:v=|youtu\.be/)([^&?]+)", video_url)
         self.video_id = match.group(1) if match else video_url
     def load(self) -> list[Document]:
         try:
@@ -476,9 +479,8 @@ class GoogleDriveLoader(DocumentLoader):
     def __init__(self, file_ids: list[str] | None = None, folder_id: str = "", credentials_path: str = "") -> None:
         self.file_ids = file_ids or []; self.folder_id = folder_id; self._creds_path = credentials_path
     def load(self) -> list[Document]:
-        try: from googleapiclient.discovery import build
+        try: from googleapiclient.discovery import build  # noqa: F401  (availability check)
         except ImportError: raise ImportError("google-api-python-client required: pip install google-api-python-client")
-        import os
         # Simplified: read exported text from file IDs
         docs = []
         for fid in self.file_ids:
@@ -783,7 +785,7 @@ class EPUBLoader(DocumentLoader):
     def load(self) -> list[Document]:
         try: import ebooklib; from ebooklib import epub
         except ImportError: raise ImportError("ebooklib required: pip install ebooklib")
-        import re; book = epub.read_epub(str(self.path)); docs = []; texts = []
+        import re; book = epub.read_epub(str(self.path)); texts = []
         for item in book.get_items_of_type(ebooklib.ITEM_DOCUMENT):
             html = item.get_body_content().decode("utf-8", errors="replace")
             text = re.sub(r"<[^>]+>", " ", html); text = re.sub(r"\s+", " ", text).strip()

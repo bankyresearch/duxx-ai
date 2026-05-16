@@ -7,7 +7,8 @@ parallel execution. Advanced channel system for typed state management.
 from __future__ import annotations
 
 import copy
-from typing import Any, Callable, Generic, TypeVar, get_type_hints
+from collections.abc import Callable
+from typing import Any, Generic, TypeVar
 
 T = TypeVar("T")
 
@@ -220,7 +221,6 @@ def merge_messages(left: list, right: list | Any, *, format: str | None = None) 
 
 def channel_from_annotation(annotation: Any) -> BaseChannel:
     """Create a channel from a type annotation, supporting Annotated[type, Channel]."""
-    import typing
     origin = getattr(annotation, "__origin__", None)
 
     # Handle Annotated[type, ChannelSpec]
@@ -231,7 +231,7 @@ def channel_from_annotation(annotation: Any) -> BaseChannel:
             if isinstance(meta, BaseChannel):
                 return meta
             if callable(meta) and meta is merge_messages:
-                return BinaryOperatorAggregate(add_messages, list, [])
+                return BinaryOperatorAggregate(merge_messages, list, [])
             if isinstance(meta, type) and issubclass(meta, BaseChannel):
                 return meta()
         return LastValue(base_type)

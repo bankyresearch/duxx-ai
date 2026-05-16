@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Any, AsyncIterator, Callable, Awaitable
+from collections.abc import AsyncIterator, Awaitable, Callable
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -123,7 +124,7 @@ class Agent:
 
         # Try fallback provider
         if self.fallback_provider and last_error:
-            logger.info(f"Primary LLM failed, trying fallback provider")
+            logger.info("Primary LLM failed, trying fallback provider")
             try:
                 return await self.fallback_provider.complete(conversation, tools=tools, system_prompt=system_prompt)
             except Exception as fallback_err:
@@ -341,7 +342,7 @@ class Agent:
             max_iterations=self.config.max_iterations,
         )
 
-        sub_tools = list((tools or list(self.tools.values())))
+        sub_tools = list(tools or list(self.tools.values()))
         sub_agent = Agent(
             config=sub_config,
             tools=sub_tools,

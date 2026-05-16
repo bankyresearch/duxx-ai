@@ -14,7 +14,6 @@ from typing import Any
 
 from duxx_ai.core.tool import Tool, tool
 
-
 # ---------------------------------------------------------------------------
 # Tools
 # ---------------------------------------------------------------------------
@@ -86,8 +85,8 @@ def scan_vulnerabilities(target: str, scan_type: str = "basic") -> str:
     }
 
     return (
-        f"[PLACEHOLDER] Vulnerability scan completed.\n"
-        f"Integrate with nmap, Trivy, or OWASP ZAP for real scanning.\n\n"
+        "[PLACEHOLDER] Vulnerability scan completed.\n"
+        "Integrate with nmap, Trivy, or OWASP ZAP for real scanning.\n\n"
         + json.dumps(result, indent=2)
     )
 
@@ -328,7 +327,7 @@ def check_ssl(domain: str) -> str:
 
     except socket.gaierror:
         return f"Error: could not resolve domain '{domain}'."
-    except socket.timeout:
+    except TimeoutError:
         return f"Error: connection to {domain}:443 timed out."
     except ssl.SSLCertVerificationError as e:
         return f"SSL verification error for {domain}: {e}"

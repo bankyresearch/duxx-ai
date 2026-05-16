@@ -11,7 +11,8 @@ See https://github.com/bankyresearch/duxxdb for the underlying engine.
 from __future__ import annotations
 
 import time
-from typing import TYPE_CHECKING, Any, Callable
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from duxx_ai.memory.manager import MemoryEntry
@@ -104,7 +105,7 @@ class DuxxBackend:
     # MemoryBackend protocol surface
     # ------------------------------------------------------------------
 
-    def store(self, entry: "MemoryEntry") -> str:
+    def store(self, entry: MemoryEntry) -> str:
         emb = entry.embedding or self._embed(entry.content)
         if emb is None:
             raise ValueError(
@@ -125,7 +126,7 @@ class DuxxBackend:
         self._stats["count"] = len(self._meta)
         return sid
 
-    def get(self, id: str) -> "MemoryEntry | None":
+    def get(self, id: str) -> MemoryEntry | None:
         entry = self._meta.get(id)
         if entry is None:
             return None
@@ -144,7 +145,7 @@ class DuxxBackend:
         memory_type: str | None = None,
         k: int = 10,
         query_embedding: list[float] | None = None,
-    ) -> list["MemoryEntry"]:
+    ) -> list[MemoryEntry]:
         self._stats["recalls"] = self._stats.get("recalls", 0) + 1
         emb = query_embedding if query_embedding is not None else self._embed(query)
         if emb is None:
@@ -213,7 +214,7 @@ class DuxxBackend:
             return None
         return list(self._embedder(text))
 
-    def _reconstruct(self, hit: Any) -> "MemoryEntry":
+    def _reconstruct(self, hit: Any) -> MemoryEntry:
         from duxx_ai.memory.manager import MemoryEntry  # local: avoid cycle
 
         return MemoryEntry(

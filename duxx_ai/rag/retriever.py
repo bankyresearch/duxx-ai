@@ -5,9 +5,10 @@ from __future__ import annotations
 import re
 from abc import ABC, abstractmethod
 from collections import Counter
+from typing import Any
 
 from duxx_ai.rag.loaders import Document
-from duxx_ai.rag.vectorstore import VectorStore, SearchResult
+from duxx_ai.rag.vectorstore import VectorStore
 
 
 class Retriever(ABC):
@@ -225,7 +226,7 @@ class RerankerRetriever(Retriever):
         model = CrossEncoder(self.model or "cross-encoder/ms-marco-MiniLM-L-6-v2")
         pairs = [(query, doc.content) for doc in docs]
         scores = model.predict(pairs)
-        ranked = sorted(zip(docs, scores), key=lambda x: x[1], reverse=True)
+        ranked = sorted(zip(docs, scores, strict=False), key=lambda x: x[1], reverse=True)
         return [doc for doc, _ in ranked[:top_k]]
 
 
@@ -345,7 +346,7 @@ class WebSearchRetriever(Retriever):
         import httpx
         resp = httpx.get(f"https://html.duckduckgo.com/html/?q={query}", headers={"User-Agent": "DuxxAI/1.0"}, timeout=15, follow_redirects=True)
         import re; results = re.findall(r'class="result__snippet">(.*?)</a>', resp.text, re.DOTALL)
-        docs = [];
+        docs = []
         for r in results[:top_k]:
             text = re.sub(r"<[^>]+>", "", r).strip()
             if text: docs.append(Document(content=text, source="duckduckgo", metadata={"type": "web_search"}))
@@ -366,7 +367,7 @@ class EnsembleRetriever(Retriever):
         self.weights = weights or [1.0 / len(retrievers)] * len(retrievers)
     def retrieve(self, query: str, top_k: int = 5) -> list[Document]:
         all_docs: dict[str, Document] = {}; scores: dict[str, float] = {}
-        for retriever, weight in zip(self.retrievers, self.weights):
+        for retriever, weight in zip(self.retrievers, self.weights, strict=False):
             docs = retriever.retrieve(query, top_k=top_k * 2)
             for rank, doc in enumerate(docs):
                 key = doc.doc_id or doc.content[:100]
@@ -624,7 +625,9 @@ class VertexAISearchRetriever(Retriever):
     def __init__(self, data_store_id: str, project_id: str = "", location: str = "global") -> None:
         self._ds = data_store_id; self._project = project_id; self._location = location
     def retrieve(self, query: str, top_k: int = 5) -> list[Document]:
-        import httpx, os
+        import os
+
+        import httpx
         project = self._project or os.environ.get("GOOGLE_CLOUD_PROJECT", "")
         resp = httpx.post(f"https://discoveryengine.googleapis.com/v1/projects/{project}/locations/{self._location}/dataStores/{self._ds}/servingConfigs/default_search:search",
             headers={"Authorization": f"Bearer {os.environ.get('GOOGLE_ACCESS_TOKEN', '')}"}, json={"query": query, "pageSize": top_k}, timeout=15)
@@ -686,7 +689,8 @@ class TimeWeightedRetriever(Retriever):
     def __init__(self, base_retriever: Retriever, decay_rate: float = 0.01) -> None:
         self.base = base_retriever; self.decay_rate = decay_rate
     def retrieve(self, query: str, top_k: int = 5) -> list[Document]:
-        import time, math
+        import math
+        import time
         docs = self.base.retrieve(query, top_k=top_k * 3)
         now = time.time()
         scored = []
@@ -792,8 +796,12 @@ class SVMRetriever(Retriever):
     def __init__(self, documents: list[Document], embedder: Any = None) -> None:
         self.documents = documents; self._embedder = embedder
     def retrieve(self, query: str, top_k: int = 5) -> list[Document]:
-        try: from sklearn.svm import LinearSVC; from sklearn.feature_extraction.text import TfidfVectorizer; import numpy as np
-        except ImportError: raise ImportError("scikit-learn required: pip install scikit-learn")
+        try:
+            from sklearn.svm import LinearSVC  # noqa: F401  (availability check)
+            from sklearn.feature_extraction.text import TfidfVectorizer
+            import numpy as np
+        except ImportError:
+            raise ImportError("scikit-learn required: pip install scikit-learn")
         all_texts = [d.content for d in self.documents] + [query]
         tfidf = TfidfVectorizer(); vecs = tfidf.fit_transform(all_texts)
         q_vec = vecs[-1]; doc_vecs = vecs[:-1]

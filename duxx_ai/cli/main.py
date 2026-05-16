@@ -29,7 +29,6 @@ def cli() -> None:
 def run(config_path: str, user_input: str, verbose: bool) -> None:
     """Run an agent from a YAML/JSON config file."""
     from duxx_ai.core.agent import Agent, AgentConfig
-    from duxx_ai.core.llm import LLMConfig
     from duxx_ai.tools.builtin import get_builtin_tools
 
     config_file = Path(config_path)
@@ -131,7 +130,7 @@ def finetune_train(model: str, dataset: str, output: str, epochs: int, method: s
     with console.status("[bold green]Training...[/bold green]"):
         result = pipeline.train(dataset)
 
-    console.print(f"[green]Training complete![/green]")
+    console.print("[green]Training complete![/green]")
     console.print(f"  Model: {result.model_path}")
     console.print(f"  Loss: {result.final_loss:.4f}")
     console.print(f"  Time: {result.total_time_seconds:.1f}s")
@@ -197,8 +196,8 @@ def templates_info(template_name: str) -> None:
 @click.option("--provider", "-p", default="openai", help="LLM provider")
 def templates_run(template_name: str, user_input: str, model: str, provider: str) -> None:
     """Run a template agent with a message."""
-    from duxx_ai.templates import TEMPLATES
     from duxx_ai.core.llm import LLMConfig
+    from duxx_ai.templates import TEMPLATES
 
     cls = TEMPLATES.get(template_name)
     if cls is None:

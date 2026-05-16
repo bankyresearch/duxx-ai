@@ -25,7 +25,6 @@ import pytest
 
 from duxx_ai.observability.tracer import Span, SpanEvent, Trace, Tracer
 
-
 # --------------------------------------------------------------------------
 # Fake redis client — captures every TRACE.RECORD command so the test
 # can inspect the wire shape without a real server.

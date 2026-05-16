@@ -1,6 +1,5 @@
 """Tests for core BankyAI components."""
 
-import asyncio
 
 import pytest
 

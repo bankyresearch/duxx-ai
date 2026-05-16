@@ -15,10 +15,8 @@ from __future__ import annotations
 
 import json
 from datetime import datetime, timezone
-from typing import Any
 
 from duxx_ai.core.tool import Tool, tool
-
 
 # ---------------------------------------------------------------------------
 # Tools
@@ -121,8 +119,8 @@ def generate_report(
 
     if format == "json":
         return (
-            f"[PLACEHOLDER] Report generated.\n"
-            f"Configure analytics backend for real data.\n\n"
+            "[PLACEHOLDER] Report generated.\n"
+            "Configure analytics backend for real data.\n\n"
             + json.dumps(sample_data, indent=2)
         )
     elif format == "csv":
@@ -254,8 +252,8 @@ def query_metrics(
     }
 
     return (
-        f"[PLACEHOLDER] Metric query completed.\n"
-        f"Configure analytics backend for real time-series data.\n\n"
+        "[PLACEHOLDER] Metric query completed.\n"
+        "Configure analytics backend for real time-series data.\n\n"
         + json.dumps(result, indent=2)
     )
 

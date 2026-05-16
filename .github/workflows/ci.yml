@@ -1,0 +1,89 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # --------------------------------------------------------------------------
+  # CI-blocking lane: pytest + ruff on real-correctness rules.
+  # mypy is informational and reported separately so type-coverage tightening
+  # can ship incrementally without gating every PR on the whole codebase.
+  # --------------------------------------------------------------------------
+  test:
+    name: pytest + ruff (Python ${{ matrix.python }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Pin to the floor + ceiling of the supported range so regressions on
+        # either end show up immediately. Intermediate versions trade CI cost
+        # for value badly here -- 3.10 and 3.13 catch ~all real breakage.
+        python: ["3.10", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ matrix.python }}-${{ hashFiles('pyproject.toml') }}
+          restore-keys: |
+            pip-${{ matrix.python }}-
+
+      - name: Install package + dev extras
+        run: |
+          python -m pip install --upgrade pip
+          # The duxxdb extra is the new memory backend introduced in
+          # v0.31; pin to >=0.1.1 because earlier wheels lacked the
+          # PyO3 bindings the tests exercise.
+          pip install -e ".[dev,duxxdb]"
+
+      - name: Ruff (real-correctness rules)
+        run: |
+          ruff --version
+          ruff check .
+
+      - name: Pytest
+        run: |
+          pytest --version
+          pytest tests/ -q --maxfail=5
+
+  # --------------------------------------------------------------------------
+  # Informational: full ruff statistics + mypy. Never fails the build; just
+  # surfaces the count so we know which categories are next to clean.
+  # --------------------------------------------------------------------------
+  lint-stats:
+    name: lint + type stats (informational)
+    runs-on: ubuntu-latest
+    continue-on-error: true  # Never gate PRs on this lane.
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install lint + type tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install ruff mypy
+          pip install -e ".[dev]"
+      - name: Ruff full ruleset (informational)
+        run: |
+          ruff check . --select E --select W --select N --select I --select UP --select B --statistics || true
+      - name: Mypy (informational)
+        run: |
+          mypy duxx_ai/ --ignore-missing-imports --follow-imports=silent || true

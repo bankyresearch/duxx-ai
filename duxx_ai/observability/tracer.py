@@ -6,8 +6,9 @@ import json
 import logging
 import time
 import uuid
+from collections.abc import Generator
 from contextlib import contextmanager
-from typing import Any, Generator
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -139,15 +140,17 @@ class OTelExporter(TracerExporter):
     def _init_otel(self) -> None:
         try:
             from opentelemetry import trace as otel_trace
-            from opentelemetry.sdk.trace import TracerProvider
             from opentelemetry.sdk.resources import Resource
+            from opentelemetry.sdk.trace import TracerProvider
 
             resource = Resource.create({"service.name": self.service_name})
             provider = TracerProvider(resource=resource)
 
             if self.endpoint:
                 try:
-                    from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+                    from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import (
+                        OTLPSpanExporter,
+                    )
                     from opentelemetry.sdk.trace.export import BatchSpanProcessor
                     exporter = OTLPSpanExporter(endpoint=self.endpoint)
                     provider.add_span_processor(BatchSpanProcessor(exporter))

@@ -13,8 +13,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import AsyncIterator, Awaitable, Callable
 from enum import Enum
-from typing import Any, AsyncIterator, Callable, Awaitable
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -627,7 +628,7 @@ class Graph:
         self.checkpoints = []
         try:
             result = await self._execute_loop(state)
-        except GraphInterrupt as e:
+        except GraphInterrupt:
             result = self.checkpoints[-1] if self.checkpoints else state
         finally:
             fork_checkpoints = list(self.checkpoints)
@@ -677,7 +678,7 @@ class Graph:
     def add_conditional_edge(
         self, source: str, condition_fn: Callable[[GraphState], str],
         path_map: dict[str, str] | None = None,
-    ) -> "Graph":
+    ) -> Graph:
         """Add a conditional edge with a routing function ().
 
         The condition_fn receives the state and returns a string key.
@@ -714,7 +715,7 @@ class Graph:
 
         return self
 
-    def compile(self, checkpointer: Any = None, store: Any = None) -> "Graph":
+    def compile(self, checkpointer: Any = None, store: Any = None) -> Graph:
         """Compile the graph for execution ().
 
         Validates the graph, sets up checkpointing backend, and optimizes.
@@ -1040,7 +1041,7 @@ def task(fn: Callable | None = None, *, retries: int = 0) -> Callable:
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-#  interrupt() function — 
+#  interrupt() function —
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 def interrupt(value: Any = None) -> None:

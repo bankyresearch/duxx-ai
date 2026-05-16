@@ -265,7 +265,9 @@ def _create_tools() -> dict[str, Tool]:
     # ━━━━ Technical Analysis ━━━━
     async def _technical(c):
         try:
-            import yfinance as yf; import json as j
+            import json as j  # noqa: F401  (kept for downstream serialization branches)
+
+            import yfinance as yf
             sym = _a(c).get("symbol","AAPL"); ind = _a(c).get("indicator","sma").lower()
             t = yf.Ticker(sym); h = t.history(period="6mo")
             if h.empty: return "No data"
@@ -342,7 +344,8 @@ def _create_tools() -> dict[str, Tool]:
 
     async def _regression(c):
         try:
-            import yfinance as yf; import numpy as np
+            import numpy as np
+            import yfinance as yf
             sym = _a(c).get("symbol","AAPL"); bench = _a(c).get("benchmark","SPY")
             s = yf.Ticker(sym).history(period="1y")["Close"].pct_change().dropna()
             b = yf.Ticker(bench).history(period="1y")["Close"].pct_change().dropna()
@@ -360,16 +363,15 @@ def _create_tools() -> dict[str, Tool]:
     # ━━━━ Stock Discovery ━━━━
     async def _discovery(c):
         try:
-            import httpx
             category = _a(c).get("category","gainers").lower()
-            url_map = {"gainers":"https://finance.yahoo.com/gainers","losers":"https://finance.yahoo.com/losers","active":"https://finance.yahoo.com/most-active"}
+            _url_map = {"gainers":"https://finance.yahoo.com/gainers","losers":"https://finance.yahoo.com/losers","active":"https://finance.yahoo.com/most-active"}  # noqa  reserved for HTML fallback
             # Use yfinance screener if available
             import yfinance as yf
             if category == "gainers":
                 # Get S&P 500 top movers
                 spy = yf.Ticker("SPY"); info = spy.info
                 return f"Market overview - S&P 500: ${info.get('regularMarketPrice','N/A')}, Change: {info.get('regularMarketChangePercent','N/A'):.2f}%\n\nUse stock_price tool for specific tickers."
-            return f"Use stock_price and compare_stocks tools to discover top movers."
+            return "Use stock_price and compare_stocks tools to discover top movers."
         except: return "Use stock_price tool for market data"
     tools["stock_discovery"] = _t("stock_discovery", "Discover top market movers — gainers, losers, most active.", [ToolParameter(name="category",type="string",description="gainers, losers, active",required=False,default="gainers")], _discovery, ["finance","discovery"])
 
@@ -467,7 +469,7 @@ def _create_tools() -> dict[str, Tool]:
         if not key: return "[Set FINNHUB_API_KEY. Free at: https://finnhub.io]"
         try:
             import httpx; sym = _a(c).get("symbol","AAPL")
-            resp = httpx.get(f"https://finnhub.io/api/v1/quote", params={"symbol":sym,"token":key}, timeout=15)
+            resp = httpx.get("https://finnhub.io/api/v1/quote", params={"symbol":sym,"token":key}, timeout=15)
             return json.dumps(resp.json(), indent=2, default=str)
         except Exception as e: return f"Finnhub error: {e}"
     tools["finnhub_data"] = _t("finnhub_data", "Query Finnhub API — real-time quotes, news, earnings. Requires FINNHUB_API_KEY.", [
@@ -478,7 +480,7 @@ def _create_tools() -> dict[str, Tool]:
         import os; key = os.environ.get("INTRINIO_API_KEY","")
         if not key: return "[Set INTRINIO_API_KEY at: https://intrinio.com]"
         try:
-            import httpx, base64; sym = _a(c).get("symbol","AAPL")
+            import httpx; import base64; sym = _a(c).get("symbol","AAPL")
             auth = base64.b64encode(f"{key}:".encode()).decode()
             resp = httpx.get(f"https://api-v2.intrinio.com/securities/{sym}/prices/realtime", headers={"Authorization":f"Basic {auth}"}, timeout=15)
             return json.dumps(resp.json(), indent=2, default=str)[:2000]

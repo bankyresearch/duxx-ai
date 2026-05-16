@@ -284,8 +284,8 @@ class GoogleDriveConnector(DataConnector):
 
     def test_connection(self) -> dict[str, Any]:
         try:
-            from googleapiclient.discovery import build  # type: ignore
             from google.oauth2 import service_account  # type: ignore
+            from googleapiclient.discovery import build  # type: ignore
             creds = service_account.Credentials.from_service_account_file(self.credentials_path)
             service = build("drive", "v3", credentials=creds)
             file_meta = service.files().get(fileId=self.file_id).execute()
@@ -298,8 +298,8 @@ class GoogleDriveConnector(DataConnector):
     def load(self, max_samples: int | None = None) -> list[dict[str, Any]]:
         import tempfile
         try:
-            from googleapiclient.discovery import build  # type: ignore
             from google.oauth2 import service_account  # type: ignore
+            from googleapiclient.discovery import build  # type: ignore
         except ImportError:
             raise ImportError("Install: pip install google-api-python-client google-auth")
 
@@ -379,7 +379,7 @@ class DatabaseConnector(DataConnector):
         with engine.connect() as conn:
             result = conn.execute(text(query))
             columns = list(result.keys())
-            return [dict(zip(columns, row)) for row in result.fetchall()]
+            return [dict(zip(columns, row, strict=False)) for row in result.fetchall()]
 
     def _load_mongodb(self, max_samples: int | None) -> list[dict[str, Any]]:
         try:
@@ -477,7 +477,7 @@ def _load_file_by_extension(path: str, ext: str, max_samples: int | None = None)
             if rows:
                 headers = [str(h or f"col_{i}") for i, h in enumerate(rows[0])]
                 for row in rows[1:]:
-                    data.append(dict(zip(headers, [str(v) if v is not None else "" for v in row])))
+                    data.append(dict(zip(headers, [str(v) if v is not None else "" for v in row], strict=False)))
                     if max_samples and len(data) >= max_samples:
                         break
             wb.close()

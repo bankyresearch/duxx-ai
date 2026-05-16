@@ -5,7 +5,8 @@ from __future__ import annotations
 import asyncio
 import inspect
 import time
-from typing import Any, Callable, get_type_hints
+from collections.abc import Callable
+from typing import Any, get_type_hints
 
 from pydantic import BaseModel, ConfigDict, Field
 

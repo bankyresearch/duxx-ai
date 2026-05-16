@@ -114,7 +114,7 @@ class DuxxExporter(TracerExporter):
     # TracerExporter protocol
     # ------------------------------------------------------------------
 
-    def export(self, trace: "DuxxAITrace") -> None:
+    def export(self, trace: DuxxAITrace) -> None:
         for span in trace.spans:
             try:
                 self._record_span(trace.id, span)
@@ -128,7 +128,7 @@ class DuxxExporter(TracerExporter):
     # Helpers
     # ------------------------------------------------------------------
 
-    def _record_span(self, trace_id: str, span: "DuxxAISpan") -> None:
+    def _record_span(self, trace_id: str, span: DuxxAISpan) -> None:
         # duxx_ai stores parent_id as None for roots; the wire wants
         # "-" / "null" / "" to mean the same thing.
         parent = span.parent_id or "-"

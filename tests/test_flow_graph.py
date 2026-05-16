@@ -1,22 +1,29 @@
 """Tests for FlowGraph — the modern typed state graph engine."""
 
-import asyncio
-import pytest
 from typing import Annotated, TypedDict
 
-from duxx_ai.orchestration.state_graph import (
-    FlowGraph, CompiledFlow, ENTRY, EXIT,
-    Route, Dispatch, Override, FlowPause, pause,
-    EventMode, FlowEvent,
-    RetryStrategy, CacheStrategy,
-    FlowSnapshot, MemorySnapshotStore, ChatState,
-    workflow, step,
-)
-from duxx_ai.orchestration.channels import (
-    LastValue, Topic, BinaryOperatorAggregate,
-    merge_messages, channel_from_annotation,
-)
+import pytest
 
+from duxx_ai.orchestration.channels import (
+    BinaryOperatorAggregate,
+    Topic,
+    merge_messages,
+)
+from duxx_ai.orchestration.state_graph import (
+    ENTRY,
+    EXIT,
+    ChatState,
+    Dispatch,
+    EventMode,
+    FlowGraph,
+    FlowPause,
+    MemorySnapshotStore,
+    Override,
+    RetryStrategy,
+    Route,
+    step,
+    workflow,
+)
 
 # ── State Schemas ──
 

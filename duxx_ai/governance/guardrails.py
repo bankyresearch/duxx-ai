@@ -95,7 +95,7 @@ class PromptInjectionGuardrail(Guardrail):
             if re.search(pattern, text, re.IGNORECASE):
                 return GuardrailResult(
                     passed=False,
-                    reason=f"Potential prompt injection detected",
+                    reason="Potential prompt injection detected",
                     guardrail_name=self.name,
                 )
         return GuardrailResult(passed=True, guardrail_name=self.name)

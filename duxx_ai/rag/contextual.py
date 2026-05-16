@@ -24,16 +24,15 @@ Usage:
 
 from __future__ import annotations
 
-import asyncio
 import hashlib
 import logging
 import re
 from collections import Counter
 from typing import Any
 
-from duxx_ai.rag.loaders import Document
 from duxx_ai.rag.embeddings import Embedder
-from duxx_ai.rag.vectorstore import VectorStore, InMemoryVectorStore, SearchResult
+from duxx_ai.rag.loaders import Document
+from duxx_ai.rag.vectorstore import InMemoryVectorStore, SearchResult, VectorStore
 
 logger = logging.getLogger(__name__)
 
@@ -352,7 +351,7 @@ class ContextualRetrieval:
 
         # Step 3: Create Document objects
         documents = []
-        for i, (original, contextual) in enumerate(zip(chunks, contextualized_chunks)):
+        for i, (original, contextual) in enumerate(zip(chunks, contextualized_chunks, strict=False)):
             doc = Document(
                 content=contextual if self.use_contextual_embeddings else original,
                 source=source,
@@ -486,6 +485,7 @@ class ContextualRetrieval:
         # Try Cohere reranking
         try:
             import os
+
             import httpx
             api_key = self.rerank_api_key or os.environ.get("COHERE_API_KEY", "")
             if not api_key:

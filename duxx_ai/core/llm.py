@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import json
 from abc import ABC, abstractmethod
-from typing import Any, AsyncIterator
+from collections.abc import AsyncIterator
+from typing import Any
 
 import httpx
 from pydantic import BaseModel, Field
 
-from duxx_ai.core.message import Conversation, Message, Role, ToolCall
+from duxx_ai.core.message import Conversation, Role, ToolCall
 from duxx_ai.core.tool import Tool
 
 
@@ -514,7 +515,9 @@ class BedrockProvider(LLMProvider):
 
     async def stream(self, conversation: Conversation, tools: list[Tool] | None = None, system_prompt: str = "") -> AsyncIterator[str]:
         # Bedrock streaming via converse_stream
-        import boto3, asyncio
+        import asyncio
+
+        import boto3
         region = self.config.extra.get("region", "us-east-1")
         client = boto3.client("bedrock-runtime", region_name=region)
 

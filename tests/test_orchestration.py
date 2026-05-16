@@ -2,8 +2,8 @@
 
 import pytest
 
-from duxx_ai.orchestration.graph import Graph, GraphState, EdgeCondition
 from duxx_ai.orchestration.crew import Crew, CrewAgent, Task
+from duxx_ai.orchestration.graph import EdgeCondition, Graph, GraphState
 
 
 class TestGraph:

@@ -39,7 +39,7 @@ import logging
 import subprocess
 import uuid
 from dataclasses import dataclass, field
-from typing import Any, AsyncIterator, Callable
+from typing import Any
 
 from duxx_ai.core.tool import Tool, ToolParameter
 
@@ -508,7 +508,7 @@ class MCPToolkit:
             tasks.append(client.connect())
 
         infos = await asyncio.gather(*tasks, return_exceptions=True)
-        for name, info in zip(self.connections, infos):
+        for name, info in zip(self.connections, infos, strict=False):
             if isinstance(info, Exception):
                 logger.error(f"Failed to connect to '{name}': {info}")
                 results[name] = MCPServerInfo(name=name, status="error")
@@ -622,7 +622,7 @@ class MCPServer:
 
     def _register_tool(self, mcp: Any, tool: Tool) -> None:
         """Register a single Duxx AI tool with FastMCP."""
-        schema = tool.to_schema()
+        _schema = tool.to_schema()  # reserved for future schema-aware registration
 
         @mcp.tool(name=tool.name, description=tool.description)
         async def _handler(**kwargs: Any) -> str:
@@ -709,5 +709,5 @@ class MCPServer:
             }
         return {
             "transport": transport,
-            "url": f"http://127.0.0.1:8000/mcp",
+            "url": "http://127.0.0.1:8000/mcp",
         }

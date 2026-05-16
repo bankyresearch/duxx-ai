@@ -10,11 +10,11 @@ import asyncio
 import hashlib
 import json
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, AsyncIterator, Callable, Sequence
-
+from typing import Any
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 #  1. ReAct Agent — Reasoning + Acting Loop with Self-Correction
@@ -262,7 +262,7 @@ class AgentHandoff:
         self._agents: dict[str, tuple[Any, str]] = {}  # name -> (agent, description)
         self._history: list[HandoffResult] = []
 
-    def register(self, name: str, agent: Any, description: str = "") -> "AgentHandoff":
+    def register(self, name: str, agent: Any, description: str = "") -> AgentHandoff:
         """Register an agent that can receive handoffs."""
         self._agents[name] = (agent, description)
         return self
@@ -885,7 +885,7 @@ Provide a complete, well-organized final answer that integrates all worker outpu
         self.orchestrator = orchestrator
         self.workers: dict[str, tuple[Any, str]] = {}
 
-    def add_worker(self, name: str, agent: Any, description: str) -> "OrchestratorWorker":
+    def add_worker(self, name: str, agent: Any, description: str) -> OrchestratorWorker:
         self.workers[name] = (agent, description)
         return self
 
@@ -985,7 +985,7 @@ class ParallelGuardrails:
     def __init__(self):
         self._guardrails: list[tuple[str, Callable, GuardrailMode]] = []
 
-    def add(self, name: str, check_fn: Callable, mode: GuardrailMode = GuardrailMode.BLOCKING) -> "ParallelGuardrails":
+    def add(self, name: str, check_fn: Callable, mode: GuardrailMode = GuardrailMode.BLOCKING) -> ParallelGuardrails:
         """Add a guardrail check function. fn(text) -> (passed: bool, message: str)"""
         self._guardrails.append((name, check_fn, mode))
         return self

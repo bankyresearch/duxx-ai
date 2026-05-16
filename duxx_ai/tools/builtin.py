@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import ast
-import asyncio
 import json
 import math
 import operator
@@ -13,7 +12,7 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-from duxx_ai.core.tool import Tool, ToolParameter, tool
+from duxx_ai.core.tool import Tool, tool
 
 
 @tool(name="python_exec", description="Execute Python code in a sandboxed environment", tags=["code", "compute"])
@@ -252,7 +251,7 @@ def calculator(expression: str) -> str:
             return _ALLOWED_FUNCS[fname](*args)
         elif isinstance(node, ast.Compare):
             left = _safe_eval(node.left)
-            for op, comparator in zip(node.ops, node.comparators):
+            for op, comparator in zip(node.ops, node.comparators, strict=False):
                 op_type = type(op)
                 if op_type not in _CMPOPS:
                     raise ValueError(f"Unsupported comparison: {op_type.__name__}")
