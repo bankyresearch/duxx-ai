@@ -21,6 +21,7 @@ environments.
 from __future__ import annotations
 
 import json
+import logging
 import uuid
 from dataclasses import dataclass, field
 from typing import Any
@@ -435,55 +436,154 @@ def test_inject_output_skips_chat_call(
     assert step0.differs is True
 
 
-def test_swap_model_propagates_to_replay_step(
+def test_swap_model_propagates_into_chat_call(
     client: FakeReplayClient, captured: str
 ):
-    """SwapModel override should flow through to the invocation
-    handed back from REPLAY.STEP."""
-    seen_models: list[str] = []
+    """SwapModel must reach the LLM, not just the audit record.
 
-    def chat_recording_model(messages):
-        # Bit of a cheat — the captured invocation carries the
-        # model in metadata once we wire it through. For this test
-        # we rely on the fake echoing it, but for now we just
-        # confirm the captured override applied by reading the
-        # replay run.
+    The previous version of this test only asserted the override was
+    in the replay-run state — which is metadata, not LLM behavior.
+    Codex review P1 caught that. We now verify the chat callable
+    receives the swapped ``model`` as a kwarg.
+    """
+    seen_models: list[str | None] = []
+
+    def chat_recording_model(messages, *, model=None):
+        seen_models.append(model)
         return "ok"
 
     replayer = TraceReplayer(client, captured)
-    result = replayer.replay(
+    replayer.replay(
         chat=chat_recording_model,
         overrides=[swap_model(at_idx=1, model="claude-sonnet")],
     )
-    # The override was applied — STEP returned the modified
-    # invocation, so REPLAY.RECORD logged it. We verify via the
-    # fake's run state directly.
-    run = client.runs[result.replay_run_id]
-    # Override was in the list at start.
-    assert any(
-        o["kind"]["kind"] == "swap_model" and o["kind"]["model"] == "claude-sonnet"
-        for o in run.overrides
+    # idx 1 is a tool_call in the fixture — only LLM steps get
+    # the kwarg. The fixture has llm_calls at idx 0 and 2.
+    # Both should have run with model="gpt-4o-mini" (captured),
+    # neither with "claude-sonnet" because we swapped a TOOL step.
+    # Verify the propagation works on an LLM idx instead.
+    seen_models.clear()
+    replayer.replay(
+        chat=chat_recording_model,
+        overrides=[swap_model(at_idx=0, model="claude-sonnet-4.5")],
     )
+    # idx 0 was an llm_call with captured model gpt-4o-mini.
+    # After swap the chat callable must see the new model.
+    assert "claude-sonnet-4.5" in seen_models
+    assert "gpt-4o-mini" in seen_models  # idx 2 unaffected
 
 
-def test_swap_prompt_records_override(
+def test_swap_prompt_propagates_into_chat_call(
     client: FakeReplayClient, captured: str
 ):
+    seen_prompts: list[tuple[str | None, int | None]] = []
+
+    def chat_recording_prompt(messages, *, prompt_name=None, prompt_version=None):
+        seen_prompts.append((prompt_name, prompt_version))
+        return "ok"
+
     replayer = TraceReplayer(client, captured)
-    result = replayer.replay(
-        chat=lambda _m: "ok",
+    replayer.replay(
+        chat=chat_recording_prompt,
         overrides=[
-            swap_prompt(
-                at_idx=0, prompt_name="classifier_v2", prompt_version=2
-            )
+            swap_prompt(at_idx=0, prompt_name="classifier_v2", prompt_version=2),
         ],
     )
-    run = client.runs[result.replay_run_id]
-    assert any(
-        o["kind"]["kind"] == "swap_prompt"
-        and o["kind"]["prompt_name"] == "classifier_v2"
-        for o in run.overrides
+    # idx 0 (llm_call) should see the swapped prompt pointer.
+    assert ("classifier_v2", 2) in seen_prompts
+    # idx 2 (also llm_call, no override) keeps the captured pointer.
+    assert ("classifier", 1) in seen_prompts
+
+
+def test_set_temperature_propagates_when_chat_accepts_it(
+    client: FakeReplayClient, captured: str
+):
+    seen_temps: list[float | None] = []
+
+    def chat_t(messages, *, temperature=None):
+        seen_temps.append(temperature)
+        return "ok"
+
+    replayer = TraceReplayer(client, captured)
+    replayer.replay(
+        chat=chat_t,
+        overrides=[
+            # set_temperature mutates invocation.input[temperature] —
+            # but only when input is a JSON object. CapturingChat
+            # stores {"messages": [...]}, which IS an object, so the
+            # daemon (and our fake) add temperature under that root.
+            {
+                "at_idx": 0,
+                "kind": {"kind": "set_temperature", "temperature": 0.7},
+            },
+        ],
     )
+    assert 0.7 in seen_temps
+
+
+def test_chat_without_kwarg_signature_still_works(
+    client: FakeReplayClient, captured: str
+):
+    """Legacy ``def chat(messages)`` callables stay backward-compatible
+    and don't receive the override kwargs (no TypeError)."""
+    call_count = {"n": 0}
+
+    def legacy_chat(messages):  # no kwargs
+        call_count["n"] += 1
+        return "ok"
+
+    replayer = TraceReplayer(client, captured)
+    replayer.replay(
+        chat=legacy_chat,
+        overrides=[swap_model(at_idx=0, model="claude")],
+    )
+    # All 3 invocations in the fixture are llm_calls, and the
+    # legacy chat callable accepts only `messages`. No TypeError
+    # is raised, and the chat gets called for each step.
+    assert call_count["n"] == 3
+
+
+def test_chat_with_var_keyword_receives_all_overrides(
+    client: FakeReplayClient, captured: str
+):
+    """``def chat(messages, **kw)`` opts into every replay kwarg."""
+    seen_kwargs: list[dict] = []
+
+    def kw_chat(messages, **kw):
+        seen_kwargs.append(kw)
+        return "ok"
+
+    replayer = TraceReplayer(client, captured)
+    replayer.replay(
+        chat=kw_chat,
+        overrides=[swap_model(at_idx=0, model="claude")],
+    )
+    # idx 0 should carry model="claude"; idx 2 should carry the
+    # original captured model gpt-4o-mini.
+    models = [kw.get("model") for kw in seen_kwargs]
+    assert "claude" in models
+    assert "gpt-4o-mini" in models
+
+
+def test_warn_when_swap_model_override_not_acceptable(
+    client: FakeReplayClient, captured: str, caplog
+):
+    """Asked to swap_model but chat doesn't accept ``model`` kwarg —
+    log a warning so callers know the override won't reach the LLM."""
+
+    def legacy_chat(messages):
+        return "ok"
+
+    replayer = TraceReplayer(client, captured)
+    with caplog.at_level(logging.WARNING, logger="duxx_ai.debug.replay"):
+        replayer.replay(
+            chat=legacy_chat,
+            overrides=[swap_model(at_idx=0, model="claude")],
+        )
+    assert any(
+        "swap_model override is set" in r.getMessage()
+        for r in caplog.records
+    ), "expected a warning about swap_model not reaching the LLM"
 
 
 def test_skip_advances_without_calling_chat(
@@ -528,6 +628,21 @@ def test_replay_raises_when_chat_missing_in_live_mode(
     replayer = TraceReplayer(client, captured)
     with pytest.raises(ValueError, match="live replay requires"):
         replayer.replay(mode="live")
+
+
+def test_replay_raises_when_chat_missing_in_stepped_mode(
+    client: FakeReplayClient, captured: str
+):
+    """Stepped replay still re-executes LLM steps — chat is required.
+
+    Without this guard, the loop just breaks on the first invocation
+    and returns an empty diff. Codex review P2 caught this; we fail
+    loudly instead, and point callers at :meth:`walk` for interactive
+    single-stepping.
+    """
+    replayer = TraceReplayer(client, captured)
+    with pytest.raises(ValueError, match="stepped replay requires"):
+        replayer.replay(mode="stepped")
 
 
 def test_replay_unknown_mode_rejected(

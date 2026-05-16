@@ -59,6 +59,7 @@ debugger (see :meth:`TraceReplayer.walk`).
 
 from __future__ import annotations
 
+import inspect
 import json
 import logging
 from dataclasses import dataclass, field
@@ -202,6 +203,10 @@ class TraceReplayer:
         self._client = client
         self.trace_id = trace_id
         self._session: CapturedSession | None = None
+        # One warn per override kind so a noisy session doesn't
+        # flood the log when the user's chat callable can't carry
+        # the overridden field.
+        self._warned_drops: set[str] = set()
 
     # ------------------------------------------------------------ inspect
 
@@ -258,8 +263,17 @@ class TraceReplayer:
             raise ValueError(
                 f"replay mode must be live | stepped | cached, got {mode!r}"
             )
-        if mode == "live" and chat is None:
-            raise ValueError("live replay requires a `chat` callable")
+        # Both ``live`` and ``stepped`` re-execute LLM steps through
+        # ``chat`` — interactive manual stepping is handled by
+        # :meth:`walk`, not by ``replay(mode='stepped')``. Without a
+        # chat callable the loop would just break on the first
+        # invocation and finalize an empty run, which is worse than
+        # failing loudly.
+        if mode in {"live", "stepped"} and chat is None:
+            raise ValueError(
+                f"{mode} replay requires a `chat` callable. "
+                "For interactive single-stepping use replayer.walk() instead."
+            )
 
         run_id = self._start_run(overrides=overrides, mode=mode, metadata=metadata)
 
@@ -271,6 +285,13 @@ class TraceReplayer:
         overrides_by_idx: dict[int, dict] = {
             int(o["at_idx"]): o["kind"] for o in (overrides or [])
         }
+
+        # Introspect the chat callable so we can pass the right
+        # extra kwargs (model / prompt_name / prompt_version /
+        # temperature) when the daemon hands back an overridden
+        # invocation. Without this propagation, swap_model /
+        # swap_prompt / set_temperature would never reach the LLM.
+        chat_kwargs = _supported_chat_kwargs(chat) if chat is not None else set()
 
         steps_executed = 0
         if mode == "cached":
@@ -286,6 +307,7 @@ class TraceReplayer:
                     invocation,
                     chat=chat,
                     override=overrides_by_idx.get(invocation.idx),
+                    chat_kwargs=chat_kwargs,
                 )
                 self._record_output(
                     run_id=run_id,
@@ -420,8 +442,9 @@ class TraceReplayer:
         self,
         invocation: CapturedInvocation,
         *,
-        chat: Callable[[list[dict]], str],
+        chat: Callable[..., str],
         override: dict | None = None,
+        chat_kwargs: set[str] | None = None,
     ) -> Any:
         """Call the user's chat callable for one LLM step.
 
@@ -432,8 +455,20 @@ class TraceReplayer:
           recorded the injection itself, so our REPLAY.RECORD is
           an idempotent re-write.
         * everything else — invoke ``chat`` with the (possibly
-          override-mutated) messages and return its reply wrapped
-          as ``{"content": reply}``.
+          override-mutated) messages, plus any overridden
+          ``model`` / ``prompt_name`` / ``prompt_version`` /
+          ``temperature`` as keyword arguments the chat callable
+          declares in its signature. Return value is wrapped as
+          ``{"content": reply}``.
+
+        ``chat_kwargs`` is the set of keyword-arg names the chat
+        callable accepts (introspected once in :meth:`replay`).
+        Callables with ``**kwargs`` get every override; legacy
+        ``def chat(messages)`` callables get none and stay
+        backward-compatible. When swap_model / swap_prompt /
+        set_temperature overrides exist but the chat signature
+        wouldn't receive them, we warn so callers know the
+        override is metadata-only on this run.
 
         Note: the captured original output sits on ``invocation.output``
         as historical context. It is NOT a signal to skip
@@ -454,8 +489,76 @@ class TraceReplayer:
             return invocation.output if invocation.output is not None else {}
 
         messages = _extract_messages(invocation.input)
-        reply = chat(messages)
+        kwargs = self._chat_kwargs_for(
+            invocation=invocation,
+            override=override,
+            accepted=chat_kwargs or set(),
+        )
+        reply = chat(messages, **kwargs)
         return {"content": reply}
+
+    def _chat_kwargs_for(
+        self,
+        *,
+        invocation: CapturedInvocation,
+        override: dict | None,
+        accepted: set[str],
+    ) -> dict[str, Any]:
+        """Compute the extra kwargs to pass to the chat callable.
+
+        Pulls overridden fields off the invocation REPLAY.STEP
+        returned (the daemon already applied SwapModel / SwapPrompt
+        / SetTemperature when it built that). Only keys the chat
+        callable's signature accepts make it into the returned
+        dict; the rest are dropped silently for callables that
+        weren't built to receive them.
+
+        If the override list asks for a swap but the chat signature
+        can't carry it, log a WARNING once so callers know the
+        override is metadata-only.
+        """
+        kwargs: dict[str, Any] = {}
+        if invocation.model is not None and "model" in accepted:
+            kwargs["model"] = invocation.model
+        if invocation.prompt_name is not None and "prompt_name" in accepted:
+            kwargs["prompt_name"] = invocation.prompt_name
+        if invocation.prompt_version is not None and "prompt_version" in accepted:
+            kwargs["prompt_version"] = invocation.prompt_version
+        # set_temperature mutates invocation.input["temperature"];
+        # surface it as a top-level kwarg for chat callables that
+        # support one.
+        if "temperature" in accepted and isinstance(invocation.input, dict):
+            temp = invocation.input.get("temperature")
+            if temp is not None:
+                kwargs["temperature"] = temp
+
+        # Warn once per override kind when the user asked for a
+        # swap the chat callable won't receive.
+        if override is not None:
+            kind = override.get("kind", "")
+            if kind == "swap_model" and "model" not in accepted:
+                self._warn_drop("swap_model", "model")
+            elif kind == "swap_prompt" and (
+                "prompt_name" not in accepted
+                and "prompt_version" not in accepted
+            ):
+                self._warn_drop("swap_prompt", "prompt_name / prompt_version")
+            elif kind == "set_temperature" and "temperature" not in accepted:
+                self._warn_drop("set_temperature", "temperature")
+        return kwargs
+
+    def _warn_drop(self, override_kind: str, missing_kwarg: str) -> None:
+        if override_kind in self._warned_drops:
+            return
+        self._warned_drops.add(override_kind)
+        logger.warning(
+            "TraceReplayer: %s override is set but the chat callable's "
+            "signature doesn't accept %r — the override will be RECORDED "
+            "on the replay run for audit but will NOT change what the "
+            "LLM sees. Add the kwarg to your chat function to propagate it.",
+            override_kind,
+            missing_kwarg,
+        )
 
     def _record_output(self, *, run_id: str, idx: int, output: Any) -> None:
         # output must be JSON-encodable for the daemon
@@ -525,3 +628,37 @@ def _extract_messages(invocation_input: Any) -> list[dict]:
     raise ValueError(
         f"can't extract chat messages from captured input: {type(invocation_input).__name__}"
     )
+
+
+_REPLAYABLE_CHAT_KWARGS = (
+    "model",
+    "prompt_name",
+    "prompt_version",
+    "temperature",
+)
+
+
+def _supported_chat_kwargs(chat: Callable[..., Any] | None) -> set[str]:
+    """Which override-related kwargs does this chat callable accept?
+
+    Introspects ``chat``'s signature once per ``replay()`` call.
+    Returns the subset of ``("model", "prompt_name", "prompt_version",
+    "temperature")`` we'll be able to pass through. Callables with
+    a ``**kwargs`` parameter get all four; legacy ``def chat(messages)``
+    callables get an empty set and stay backward-compatible.
+
+    Returns the empty set for builtins / C functions we can't
+    introspect — same conservative posture as legacy callables.
+    """
+    if chat is None:
+        return set()
+    try:
+        sig = inspect.signature(chat)
+    except (ValueError, TypeError):
+        return set()
+    params = sig.parameters
+    if any(
+        p.kind is inspect.Parameter.VAR_KEYWORD for p in params.values()
+    ):
+        return set(_REPLAYABLE_CHAT_KWARGS)
+    return {name for name in _REPLAYABLE_CHAT_KWARGS if name in params}
