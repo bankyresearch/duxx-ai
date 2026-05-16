@@ -35,7 +35,7 @@ from pathlib import Path
 # Let the demo import the FakeDuxxClient sitting in the test suite
 # without copy-pasting it.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from tests.test_self_improving import FakeDuxxClient, _Score  # noqa: E402
+from tests.test_self_improving import FakeDuxxClient  # noqa: E402
 
 from duxx_ai.self_improving import (  # noqa: E402
     LoopConfig,
