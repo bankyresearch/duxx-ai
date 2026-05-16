@@ -38,7 +38,6 @@ from __future__ import annotations
 import json
 import logging
 import threading
-import time
 from dataclasses import dataclass
 from typing import Any
 
@@ -168,6 +167,14 @@ class ImprovementLoop:
         if not clusters:
             return
 
+        # `EVAL.CLUSTER_FAILURES` returns row_id + score + output
+        # per member. The ORIGINAL user input lives in the score
+        # row's notes — fetch the score table once and build a
+        # row_id -> input_text map so the candidate generator sees
+        # what users actually asked, not just what the agent
+        # got wrong.
+        inputs_by_row = self._inputs_by_row_id(run_id)
+
         # Convert the largest cluster into FailureSample rows.
         top = clusters[0]
         failures = [
@@ -175,6 +182,7 @@ class ImprovementLoop:
                 row_id=m["row_id"],
                 score=float(m["score"]),
                 output_text=m.get("output_text") or top.get("representative_text", ""),
+                input_text=inputs_by_row.get(m["row_id"], ""),
             )
             for m in top.get("members", [])
         ]
@@ -327,6 +335,37 @@ class ImprovementLoop:
             1 for s in scores if float(s.get("score", 0.0)) >= 0.5
         ) / n
         return n, pass_rate
+
+    def _inputs_by_row_id(self, run_id: str) -> dict[str, str]:
+        """Map ``row_id`` → captured user input text for one run.
+
+        ``EVAL.CLUSTER_FAILURES`` returns each cluster member with
+        ``row_id`` + ``output_text`` + ``score``, but NOT the
+        original user input — that lives in the score row's ``notes``
+        payload (written by :class:`TurnRecorder`). We pull the full
+        scores table once per cycle and build an index so candidate
+        generators can see both halves of every failure.
+        """
+        try:
+            raw = self._client.execute_command("EVAL.SCORES", run_id) or []
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "EVAL.SCORES failed for %s (inputs lookup): %s", run_id, exc
+            )
+            return {}
+        out: dict[str, str] = {}
+        for blob in raw:
+            row = _decode(blob)
+            notes = row.get("notes") or {}
+            if not isinstance(notes, dict):
+                continue
+            input_text = notes.get("input_text")
+            if not input_text:
+                continue
+            row_id = row.get("row_id")
+            if row_id:
+                out[row_id] = str(input_text)
+        return out
 
 
 def _decode(blob) -> dict:
