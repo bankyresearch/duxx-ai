@@ -1,0 +1,660 @@
+"""Unit tests for the trace-replay debugger.
+
+We don't talk to a real ``duxx-server`` here — a
+:class:`FakeReplayClient` simulates the subset of the
+``REPLAY.*`` RESP commands the debugger touches:
+
+* ``REPLAY.CAPTURE trace_id invocation_json``
+* ``REPLAY.GET_SESSION trace_id``
+* ``REPLAY.START source_trace_id mode overrides_json metadata_json``
+* ``REPLAY.STEP run_id``
+* ``REPLAY.RECORD run_id idx output_json``
+* ``REPLAY.COMPLETE run_id``
+* ``REPLAY.DIFF source_trace_id replay_run_id``
+
+The fake mirrors the live daemon's return shapes (bytes for the
+new-run id, JSON-encoded bulk replies for sessions and diffs)
+so production decode paths get exercised in both test and live
+environments.
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+import uuid
+from dataclasses import dataclass, field
+from typing import Any
+
+import pytest
+
+from duxx_ai.debug import (
+    CapturingChat,
+    TraceReplayer,
+    inject_output,
+    skip,
+    swap_model,
+    swap_prompt,
+)
+
+
+# ---------------------------------------------------------------- fake daemon
+
+
+@dataclass
+class _Invocation:
+    idx: int
+    kind: str
+    span_id: str = ""
+    model: str | None = None
+    prompt_name: str | None = None
+    prompt_version: int | None = None
+    input: Any = None
+    output: Any = None
+    metadata: Any = None
+    recorded_at_unix_ns: int = 0
+
+    def to_dict(self) -> dict:
+        d = {
+            "idx": self.idx,
+            "kind": self.kind,
+            "span_id": self.span_id,
+            "input": self.input,
+            "recorded_at_unix_ns": self.recorded_at_unix_ns,
+        }
+        if self.output is not None:
+            d["output"] = self.output
+        if self.model is not None:
+            d["model"] = self.model
+        if self.prompt_name is not None:
+            d["prompt_name"] = self.prompt_name
+        if self.prompt_version is not None:
+            d["prompt_version"] = self.prompt_version
+        if self.metadata is not None:
+            d["metadata"] = self.metadata
+        return d
+
+
+@dataclass
+class _ReplayRun:
+    id: str
+    source_trace_id: str
+    mode: str
+    overrides: list[dict]
+    metadata: dict
+    current_idx: int = 0
+    outputs: dict[int, Any] = field(default_factory=dict)
+    status: str = "pending"
+
+
+class FakeReplayClient:
+    """Stand-in for ``redis.Redis`` against the REPLAY.* surface."""
+
+    def __init__(self) -> None:
+        # trace_id → list[_Invocation]
+        self.sessions: dict[str, list[_Invocation]] = {}
+        # run_id → _ReplayRun
+        self.runs: dict[str, _ReplayRun] = {}
+
+    def execute_command(self, *args: Any) -> Any:  # noqa: C901
+        cmd = str(args[0]).upper()
+        a = [
+            x.decode() if isinstance(x, (bytes, bytearray)) else str(x)
+            for x in args[1:]
+        ]
+
+        if cmd == "REPLAY.CAPTURE":
+            trace_id, inv_json = a[0], a[1]
+            payload = json.loads(inv_json)
+            session = self.sessions.setdefault(trace_id, [])
+            invocation = _Invocation(
+                idx=len(session),
+                kind=payload.get("kind", "llm_call"),
+                span_id=payload.get("span_id", ""),
+                model=payload.get("model"),
+                prompt_name=payload.get("prompt_name"),
+                prompt_version=payload.get("prompt_version"),
+                input=payload.get("input"),
+                output=payload.get("output"),
+                metadata=payload.get("metadata"),
+                recorded_at_unix_ns=payload.get("recorded_at_unix_ns", 0),
+            )
+            session.append(invocation)
+            return invocation.idx
+
+        if cmd == "REPLAY.GET_SESSION":
+            trace_id = a[0]
+            session = self.sessions.get(trace_id)
+            if session is None:
+                return None
+            return json.dumps(
+                {
+                    "trace_id": trace_id,
+                    "invocations": [inv.to_dict() for inv in session],
+                    "fingerprint": "fp-" + trace_id[:8],
+                    "captured_at_unix_ns": 0,
+                }
+            )
+
+        if cmd == "REPLAY.START":
+            source = a[0]
+            mode = a[1] if len(a) > 1 else "live"
+            overrides = json.loads(a[2]) if len(a) > 2 else []
+            metadata = json.loads(a[3]) if len(a) > 3 else {}
+            if source not in self.sessions:
+                raise RuntimeError(f"no captured session: {source}")
+            run_id = uuid.uuid4().hex
+            self.runs[run_id] = _ReplayRun(
+                id=run_id,
+                source_trace_id=source,
+                mode=mode,
+                overrides=overrides,
+                metadata=metadata,
+            )
+            return run_id.encode("utf-8")
+
+        if cmd == "REPLAY.STEP":
+            run_id = a[0]
+            run = self.runs[run_id]
+            session = self.sessions[run.source_trace_id]
+            # exhausted?
+            if run.current_idx >= len(session):
+                return None
+
+            # apply override if any
+            while run.current_idx < len(session):
+                idx = run.current_idx
+                base = session[idx]
+                override = next(
+                    (o for o in run.overrides if int(o["at_idx"]) == idx),
+                    None,
+                )
+                if override is None:
+                    run.current_idx += 1
+                    return json.dumps(base.to_dict())
+
+                kind = override["kind"]
+                k = kind["kind"]
+
+                if k == "skip":
+                    # daemon auto-records null for skipped steps
+                    run.outputs[idx] = None
+                    run.current_idx += 1
+                    continue
+
+                if k == "inject_output":
+                    # output already filled; caller still calls
+                    # RECORD to advance, which is fine.
+                    run.outputs[idx] = kind["output"]
+                    out = dict(base.to_dict())
+                    out["output"] = kind["output"]
+                    run.current_idx += 1
+                    return json.dumps(out)
+
+                if k == "swap_model":
+                    out = dict(base.to_dict())
+                    out["model"] = kind["model"]
+                    run.current_idx += 1
+                    return json.dumps(out)
+
+                if k == "swap_prompt":
+                    out = dict(base.to_dict())
+                    out["prompt_name"] = kind["prompt_name"]
+                    out["prompt_version"] = kind["prompt_version"]
+                    run.current_idx += 1
+                    return json.dumps(out)
+
+                if k == "set_temperature":
+                    out = dict(base.to_dict())
+                    inp = dict(out.get("input") or {})
+                    inp["temperature"] = kind["temperature"]
+                    out["input"] = inp
+                    run.current_idx += 1
+                    return json.dumps(out)
+
+                # unknown override → pass through
+                run.current_idx += 1
+                return json.dumps(base.to_dict())
+            return None
+
+        if cmd == "REPLAY.RECORD":
+            run_id, idx_s, output_json = a[0], a[1], a[2]
+            run = self.runs[run_id]
+            run.outputs[int(idx_s)] = json.loads(output_json)
+            return b"OK"
+
+        if cmd == "REPLAY.COMPLETE":
+            run_id = a[0]
+            self.runs[run_id].status = "completed"
+            return b"OK"
+
+        if cmd == "REPLAY.GET_RUN":
+            run_id = a[0]
+            run = self.runs.get(run_id)
+            if run is None:
+                return None
+            return json.dumps(
+                {
+                    "id": run.id,
+                    "source_trace_id": run.source_trace_id,
+                    "mode": run.mode,
+                    "current_idx": run.current_idx,
+                    "status": run.status,
+                }
+            )
+
+        if cmd == "REPLAY.DIFF":
+            source, run_id = a[0], a[1]
+            run = self.runs[run_id]
+            session = self.sessions[source]
+            per_step = []
+            differing = 0
+            for inv in session:
+                replayed = run.outputs.get(inv.idx)
+                # If the daemon would deserialize the chat reply
+                # back as {"content": "..."} or {"value": ...}, we
+                # treat it as the same shape as the captured
+                # output for comparison purposes.
+                original = inv.output
+                differs = replayed != original
+                if differs:
+                    differing += 1
+                per_step.append(
+                    {
+                        "idx": inv.idx,
+                        "original_output": original,
+                        "replayed_output": replayed,
+                        "differs": differs,
+                    }
+                )
+            return json.dumps(
+                {
+                    "source_trace_id": source,
+                    "replay_run_id": run_id,
+                    "per_step": per_step,
+                    "differing_count": differing,
+                }
+            )
+
+        raise NotImplementedError(f"FakeReplayClient: unhandled command {cmd}")
+
+
+# ---------------------------------------------------------------- fixtures
+
+
+@pytest.fixture
+def client() -> FakeReplayClient:
+    return FakeReplayClient()
+
+
+@pytest.fixture
+def captured(client: FakeReplayClient) -> str:
+    """A trace captured via :class:`CapturingChat` with 3 invocations.
+
+    The fake "LLM" deterministically maps prompts → replies so
+    replay diffs are predictable.
+    """
+
+    def base_chat(messages: list[dict]) -> str:
+        user = next((m["content"] for m in messages if m["role"] == "user"), "")
+        # Boring rule-based "LLM" so the test is deterministic.
+        if "refund" in user.lower():
+            return "REFUND"
+        if "track" in user.lower():
+            return "TRACKING"
+        return "OTHER"
+
+    trace_id = "trace-test-abc"
+    chat = CapturingChat(
+        base=base_chat,
+        client=client,
+        trace_id=trace_id,
+        model="gpt-4o-mini",
+        prompt_name="classifier",
+        prompt_version=1,
+    )
+    chat([{"role": "user", "content": "I want a refund"}])
+    chat([{"role": "user", "content": "Track my package"}])
+    chat([{"role": "user", "content": "What's the weather?"}])
+    return trace_id
+
+
+# ---------------------------------------------------------------- tests
+
+
+def test_capturing_chat_emits_one_row_per_call(client: FakeReplayClient):
+    """CapturingChat should write exactly one REPLAY.CAPTURE per call."""
+    chat = CapturingChat(
+        base=lambda _m: "ok",
+        client=client,
+        trace_id="t1",
+        model="m",
+    )
+    for i in range(3):
+        chat([{"role": "user", "content": f"q{i}"}])
+    assert len(client.sessions["t1"]) == 3
+    # Output round-trips through the JSON encode + fake decode path.
+    assert client.sessions["t1"][0].output == {"content": "ok"}
+    assert client.sessions["t1"][0].model == "m"
+
+
+def test_capturing_chat_records_failures_and_reraises(client: FakeReplayClient):
+    """Errors get captured BEFORE the exception bubbles up to the caller."""
+
+    def angry(_messages):
+        raise RuntimeError("model down")
+
+    chat = CapturingChat(base=angry, client=client, trace_id="t-err")
+    with pytest.raises(RuntimeError, match="model down"):
+        chat([{"role": "user", "content": "?"}])
+
+    captured = client.sessions["t-err"]
+    assert len(captured) == 1
+    assert captured[0].output is None
+    assert captured[0].metadata["error"] is True
+    assert captured[0].metadata["error_class"] == "RuntimeError"
+
+
+def test_replayer_lists_invocations(client: FakeReplayClient, captured: str):
+    replayer = TraceReplayer(client, captured)
+    invs = replayer.invocations
+    assert len(invs) == 3
+    assert invs[0].kind == "llm_call"
+    assert invs[0].input["messages"][0]["content"] == "I want a refund"
+    assert invs[0].output == {"content": "REFUND"}
+    assert invs[0].model == "gpt-4o-mini"
+    assert invs[0].prompt_version == 1
+
+
+def test_replayer_replay_no_overrides_matches_original(
+    client: FakeReplayClient, captured: str
+):
+    """Replay verbatim (no overrides, same chat) → zero diffs."""
+
+    def same_chat(messages):
+        user = messages[-1]["content"].lower()
+        if "refund" in user:
+            return "REFUND"
+        if "track" in user:
+            return "TRACKING"
+        return "OTHER"
+
+    replayer = TraceReplayer(client, captured)
+    result = replayer.replay(chat=same_chat)
+    assert result.mode == "live"
+    assert result.steps_executed == 3
+
+    diff = result.diff()
+    assert diff.differing_count == 0
+    assert all(not s.differs for s in diff.steps)
+
+
+def test_replayer_replay_with_different_chat_shows_diff(
+    client: FakeReplayClient, captured: str
+):
+    """A different chat callable produces different outputs."""
+
+    def changed_chat(_messages):
+        return "ALWAYS REFUND"
+
+    replayer = TraceReplayer(client, captured)
+    result = replayer.replay(chat=changed_chat)
+    diff = result.diff()
+    # All three steps should differ — 2 of them had non-REFUND originals.
+    assert diff.differing_count >= 2
+
+
+def test_inject_output_skips_chat_call(
+    client: FakeReplayClient, captured: str
+):
+    """inject_output should NOT call the chat callable for that step."""
+    call_count = {"n": 0}
+
+    def counting_chat(messages):
+        call_count["n"] += 1
+        user = messages[-1]["content"].lower()
+        if "refund" in user:
+            return "REFUND"
+        if "track" in user:
+            return "TRACKING"
+        return "OTHER"
+
+    replayer = TraceReplayer(client, captured)
+    result = replayer.replay(
+        chat=counting_chat,
+        overrides=[
+            inject_output(at_idx=0, output={"content": "INJECTED"}),
+        ],
+    )
+    # 3 invocations - 1 injected = 2 chat calls
+    assert call_count["n"] == 2
+    assert result.steps_executed == 3
+    diff = result.diff()
+    # Step 0 should reflect the injected value.
+    step0 = next(s for s in diff.steps if s.idx == 0)
+    assert step0.replayed_output == {"content": "INJECTED"}
+    assert step0.differs is True
+
+
+def test_swap_model_propagates_into_chat_call(
+    client: FakeReplayClient, captured: str
+):
+    """SwapModel must reach the LLM, not just the audit record.
+
+    The previous version of this test only asserted the override was
+    in the replay-run state — which is metadata, not LLM behavior.
+    Codex review P1 caught that. We now verify the chat callable
+    receives the swapped ``model`` as a kwarg.
+    """
+    seen_models: list[str | None] = []
+
+    def chat_recording_model(messages, *, model=None):
+        seen_models.append(model)
+        return "ok"
+
+    replayer = TraceReplayer(client, captured)
+    replayer.replay(
+        chat=chat_recording_model,
+        overrides=[swap_model(at_idx=1, model="claude-sonnet")],
+    )
+    # idx 1 is a tool_call in the fixture — only LLM steps get
+    # the kwarg. The fixture has llm_calls at idx 0 and 2.
+    # Both should have run with model="gpt-4o-mini" (captured),
+    # neither with "claude-sonnet" because we swapped a TOOL step.
+    # Verify the propagation works on an LLM idx instead.
+    seen_models.clear()
+    replayer.replay(
+        chat=chat_recording_model,
+        overrides=[swap_model(at_idx=0, model="claude-sonnet-4.5")],
+    )
+    # idx 0 was an llm_call with captured model gpt-4o-mini.
+    # After swap the chat callable must see the new model.
+    assert "claude-sonnet-4.5" in seen_models
+    assert "gpt-4o-mini" in seen_models  # idx 2 unaffected
+
+
+def test_swap_prompt_propagates_into_chat_call(
+    client: FakeReplayClient, captured: str
+):
+    seen_prompts: list[tuple[str | None, int | None]] = []
+
+    def chat_recording_prompt(messages, *, prompt_name=None, prompt_version=None):
+        seen_prompts.append((prompt_name, prompt_version))
+        return "ok"
+
+    replayer = TraceReplayer(client, captured)
+    replayer.replay(
+        chat=chat_recording_prompt,
+        overrides=[
+            swap_prompt(at_idx=0, prompt_name="classifier_v2", prompt_version=2),
+        ],
+    )
+    # idx 0 (llm_call) should see the swapped prompt pointer.
+    assert ("classifier_v2", 2) in seen_prompts
+    # idx 2 (also llm_call, no override) keeps the captured pointer.
+    assert ("classifier", 1) in seen_prompts
+
+
+def test_set_temperature_propagates_when_chat_accepts_it(
+    client: FakeReplayClient, captured: str
+):
+    seen_temps: list[float | None] = []
+
+    def chat_t(messages, *, temperature=None):
+        seen_temps.append(temperature)
+        return "ok"
+
+    replayer = TraceReplayer(client, captured)
+    replayer.replay(
+        chat=chat_t,
+        overrides=[
+            # set_temperature mutates invocation.input[temperature] —
+            # but only when input is a JSON object. CapturingChat
+            # stores {"messages": [...]}, which IS an object, so the
+            # daemon (and our fake) add temperature under that root.
+            {
+                "at_idx": 0,
+                "kind": {"kind": "set_temperature", "temperature": 0.7},
+            },
+        ],
+    )
+    assert 0.7 in seen_temps
+
+
+def test_chat_without_kwarg_signature_still_works(
+    client: FakeReplayClient, captured: str
+):
+    """Legacy ``def chat(messages)`` callables stay backward-compatible
+    and don't receive the override kwargs (no TypeError)."""
+    call_count = {"n": 0}
+
+    def legacy_chat(messages):  # no kwargs
+        call_count["n"] += 1
+        return "ok"
+
+    replayer = TraceReplayer(client, captured)
+    replayer.replay(
+        chat=legacy_chat,
+        overrides=[swap_model(at_idx=0, model="claude")],
+    )
+    # All 3 invocations in the fixture are llm_calls, and the
+    # legacy chat callable accepts only `messages`. No TypeError
+    # is raised, and the chat gets called for each step.
+    assert call_count["n"] == 3
+
+
+def test_chat_with_var_keyword_receives_all_overrides(
+    client: FakeReplayClient, captured: str
+):
+    """``def chat(messages, **kw)`` opts into every replay kwarg."""
+    seen_kwargs: list[dict] = []
+
+    def kw_chat(messages, **kw):
+        seen_kwargs.append(kw)
+        return "ok"
+
+    replayer = TraceReplayer(client, captured)
+    replayer.replay(
+        chat=kw_chat,
+        overrides=[swap_model(at_idx=0, model="claude")],
+    )
+    # idx 0 should carry model="claude"; idx 2 should carry the
+    # original captured model gpt-4o-mini.
+    models = [kw.get("model") for kw in seen_kwargs]
+    assert "claude" in models
+    assert "gpt-4o-mini" in models
+
+
+def test_warn_when_swap_model_override_not_acceptable(
+    client: FakeReplayClient, captured: str, caplog
+):
+    """Asked to swap_model but chat doesn't accept ``model`` kwarg —
+    log a warning so callers know the override won't reach the LLM."""
+
+    def legacy_chat(messages):
+        return "ok"
+
+    replayer = TraceReplayer(client, captured)
+    with caplog.at_level(logging.WARNING, logger="duxx_ai.debug.replay"):
+        replayer.replay(
+            chat=legacy_chat,
+            overrides=[swap_model(at_idx=0, model="claude")],
+        )
+    assert any(
+        "swap_model override is set" in r.getMessage()
+        for r in caplog.records
+    ), "expected a warning about swap_model not reaching the LLM"
+
+
+def test_skip_advances_without_calling_chat(
+    client: FakeReplayClient, captured: str
+):
+    """Skipped steps are auto-recorded as null and the chat is never called."""
+    call_count = {"n": 0}
+
+    def counting_chat(_messages):
+        call_count["n"] += 1
+        return "X"
+
+    replayer = TraceReplayer(client, captured)
+    result = replayer.replay(
+        chat=counting_chat,
+        overrides=[skip(at_idx=1)],
+    )
+    # 3 captured - 1 skipped = 2 chat calls; steps_executed counts
+    # the non-skipped ones.
+    assert call_count["n"] == 2
+    assert result.steps_executed == 2
+
+
+def test_walk_yields_one_step_at_a_time(
+    client: FakeReplayClient, captured: str
+):
+    """walk() is the interactive variant: yield, caller records, repeat."""
+    replayer = TraceReplayer(client, captured)
+    seen = []
+    for run_id, invocation, record in replayer.walk():
+        seen.append(invocation.idx)
+        record({"content": "MANUAL"})
+    assert seen == [0, 1, 2]
+    # Run completes when the generator drains.
+    last_run = list(client.runs.values())[-1]
+    assert last_run.status == "completed"
+
+
+def test_replay_raises_when_chat_missing_in_live_mode(
+    client: FakeReplayClient, captured: str
+):
+    replayer = TraceReplayer(client, captured)
+    with pytest.raises(ValueError, match="live replay requires"):
+        replayer.replay(mode="live")
+
+
+def test_replay_raises_when_chat_missing_in_stepped_mode(
+    client: FakeReplayClient, captured: str
+):
+    """Stepped replay still re-executes LLM steps — chat is required.
+
+    Without this guard, the loop just breaks on the first invocation
+    and returns an empty diff. Codex review P2 caught this; we fail
+    loudly instead, and point callers at :meth:`walk` for interactive
+    single-stepping.
+    """
+    replayer = TraceReplayer(client, captured)
+    with pytest.raises(ValueError, match="stepped replay requires"):
+        replayer.replay(mode="stepped")
+
+
+def test_replay_unknown_mode_rejected(
+    client: FakeReplayClient, captured: str
+):
+    replayer = TraceReplayer(client, captured)
+    with pytest.raises(ValueError, match="replay mode must be"):
+        replayer.replay(mode="zoom")
+
+
+def test_missing_trace_raises_lookuperror(client: FakeReplayClient):
+    """Asking for a trace that was never captured fails loudly."""
+    replayer = TraceReplayer(client, "no-such-trace")
+    with pytest.raises(LookupError):
+        _ = replayer.invocations
