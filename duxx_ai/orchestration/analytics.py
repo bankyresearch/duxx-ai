@@ -127,22 +127,22 @@ class WorkflowReport:
 
     def summary(self) -> str:
         lines = [
-            f"Workflow Analysis Report",
+            "Workflow Analysis Report",
             f"{'=' * 50}",
             f"Nodes: {self.node_count} | Edges: {self.edge_count} | DAG: {self.is_dag}",
             f"Depth: {self.depth} | Width: {self.width}",
-            f"",
+            "",
             f"Critical Path ({self.critical_path_length} steps): {' -> '.join(self.critical_path)}",
             f"Bottlenecks: {', '.join(self.bottlenecks) or 'None'}",
             f"Single Points of Failure: {', '.join(self.single_points_of_failure) or 'None'}",
             f"Parallel Opportunities: {len(self.parallel_opportunities)} groups",
-            f"",
-            f"Top Nodes by Importance:",
+            "",
+            "Top Nodes by Importance:",
         ]
         for name, score in self.most_important_nodes[:5]:
             lines.append(f"  {name}: {score:.4f}")
         lines.extend([
-            f"",
+            "",
             f"Communities: {self.community_count}",
             f"Quality: connectivity={self.connectivity_score:.2f} balance={self.balance_score:.2f} complexity={self.complexity_score:.2f}",
         ])
@@ -492,7 +492,6 @@ class WorkflowAnalyzer:
     def to_adjacency_matrix(self) -> list[list[int]]:
         """Export as adjacency matrix."""
         if HAS_NETWORKX and self._G:
-            import numpy as np
             return nx.adjacency_matrix(self._G).todense().tolist()
         n = len(self.nodes)
         matrix = [[0] * n for _ in range(n)]
@@ -709,7 +708,7 @@ class WorkflowAnalyzer:
         if not HAS_NETWORKX: return {}
         try:
             G = self._G.to_undirected()
-            label_map = {}
+            _label_map: dict = {}  # reserved for future label-propagation tracing
             unique_labels = list(set(labeled.values()))
             for node in G.nodes:
                 if node in labeled:

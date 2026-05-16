@@ -12,14 +12,10 @@ Reference: "The Evolution of Agentic Orchestration" (2026)
 
 from __future__ import annotations
 
-import asyncio
-import hashlib
-import json
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Awaitable
-
+from typing import Any
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 #  1. Virtual File System — Persistent Context Beyond Token Limits

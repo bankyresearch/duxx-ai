@@ -16,22 +16,27 @@ This is the modern graph API for Duxx AI, providing:
 from __future__ import annotations
 
 import asyncio
-import copy
 import hashlib
 import json
 import logging
 import time
 import uuid
+from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import (
-    Any, AsyncIterator, Awaitable, Callable, Literal, TypedDict,
-    TypeVar, Union, get_type_hints,
+    Any,
+    TypedDict,
+    TypeVar,
+    get_type_hints,
 )
 
 from duxx_ai.orchestration.channels import (
-    BaseChannel, LastValue, Topic, BinaryOperatorAggregate,
-    EphemeralValue, merge_messages, channel_from_annotation,
+    BaseChannel,
+    BinaryOperatorAggregate,
+    LastValue,
+    channel_from_annotation,
+    merge_messages,
 )
 
 logger = logging.getLogger(__name__)
@@ -391,7 +396,8 @@ class FileSnapshotStore(SnapshotStore):
         return None
 
     async def list(self, limit: int = 100) -> list[FlowSnapshot]:
-        import os, glob
+        import glob
+        import os
         files = sorted(glob.glob(os.path.join(self.directory, "*.json")), key=os.path.getmtime, reverse=True)
         result = []
         for path in files[:limit]:
@@ -824,9 +830,11 @@ class CompiledFlow:
         """Get statically connected next nodes."""
         return [t for s, t in self.graph._edges if s == current]
 
-    async def _resolve_conditional(self, node_id: str, state: dict[str, Any]) -> list[str | Send]:
+    async def _resolve_conditional(
+        self, node_id: str, state: dict[str, Any]
+    ) -> list[str | Dispatch]:
         """Resolve conditional edges for a node."""
-        targets: list[str | Send] = []
+        targets: list[str | Dispatch] = []
         for cond in self.graph._conditional_edges.get(node_id, []):
             path_fn = cond["path"]
             path_map = cond.get("path_map")
@@ -1174,7 +1182,7 @@ def workflow(
                         else:
                             result = fn(input_data)
                         break
-                    except Exception as e:
+                    except Exception:
                         if attempt >= retry_policy.max_attempts - 1:
                             raise
                         await asyncio.sleep(retry_policy.intervals()[attempt] if attempt < len(retry_policy.intervals()) else 1.0)

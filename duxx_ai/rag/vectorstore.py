@@ -7,8 +7,8 @@ import uuid
 from abc import ABC, abstractmethod
 from typing import Any
 
-from duxx_ai.rag.loaders import Document
 from duxx_ai.rag.embeddings import Embedder
+from duxx_ai.rag.loaders import Document
 
 
 class SearchResult:
@@ -59,7 +59,7 @@ class InMemoryVectorStore(VectorStore):
         texts = [doc.content for doc in documents]
         vectors = self.embedder.embed_many(texts)
 
-        for doc, vec in zip(documents, vectors):
+        for doc, vec in zip(documents, vectors, strict=False):
             doc_id = doc.doc_id or str(uuid.uuid4())[:8]
             self._docs.append(doc)
             self._vectors.append(vec)
@@ -89,10 +89,10 @@ class InMemoryVectorStore(VectorStore):
 
     def delete(self, doc_ids: list[str]) -> int:
         ids_set = set(doc_ids)
-        keep = [(d, v, i) for d, v, i in zip(self._docs, self._vectors, self._ids) if i not in ids_set]
+        keep = [(d, v, i) for d, v, i in zip(self._docs, self._vectors, self._ids, strict=False) if i not in ids_set]
         deleted = len(self._docs) - len(keep)
         if keep:
-            self._docs, self._vectors, self._ids = zip(*keep)  # type: ignore
+            self._docs, self._vectors, self._ids = zip(*keep, strict=False)  # type: ignore
             self._docs = list(self._docs)
             self._vectors = list(self._vectors)
             self._ids = list(self._ids)
@@ -105,7 +105,7 @@ class InMemoryVectorStore(VectorStore):
 
     @staticmethod
     def _cosine_similarity(a: list[float], b: list[float]) -> float:
-        dot = sum(x * y for x, y in zip(a, b))
+        dot = sum(x * y for x, y in zip(a, b, strict=False))
         mag_a = math.sqrt(sum(x * x for x in a))
         mag_b = math.sqrt(sum(x * x for x in b))
         if mag_a == 0 or mag_b == 0:
@@ -154,26 +154,26 @@ class FAISSVectorStore(VectorStore):
         return ids
 
     def search(self, query: str, top_k: int = 5) -> list[SearchResult]:
-        import numpy as np
         import faiss
+        import numpy as np
         if not self._docs:
             return []
         q_vec = np.array([self.embedder.embed(query)], dtype=np.float32)
         faiss.normalize_L2(q_vec)
         scores, indices = self._index.search(q_vec, min(top_k, len(self._docs)))
         results = []
-        for score, idx in zip(scores[0], indices[0]):
+        for score, idx in zip(scores[0], indices[0], strict=False):
             if idx >= 0 and idx < len(self._docs):
                 results.append(SearchResult(document=self._docs[idx], score=float(score)))
         return results
 
     def delete(self, doc_ids: list[str]) -> int:
         # FAISS IndexFlatIP doesn't support deletion — rebuild
-        import numpy as np
         import faiss
+        import numpy as np
         ids_set = set(doc_ids)
         keep_docs, keep_vecs = [], []
-        for i, (doc, doc_id) in enumerate(zip(self._docs, self._ids)):
+        for i, (doc, doc_id) in enumerate(zip(self._docs, self._ids, strict=False)):
             if doc_id not in ids_set:
                 keep_docs.append(doc)
                 # Reconstruct vector from index
@@ -193,7 +193,9 @@ class FAISSVectorStore(VectorStore):
 
     def save(self, path: str) -> None:
         """Save FAISS index to disk."""
-        import faiss, json
+        import json
+
+        import faiss
         faiss.write_index(self._index, path)
         meta_path = path + ".meta.json"
         with open(meta_path, "w") as f:
@@ -202,7 +204,9 @@ class FAISSVectorStore(VectorStore):
     @classmethod
     def load(cls, path: str, embedder: Embedder) -> FAISSVectorStore:
         """Load FAISS index from disk."""
-        import faiss, json
+        import json
+
+        import faiss
         index = faiss.read_index(path)
         store = cls.__new__(cls)
         store.embedder = embedder
@@ -320,7 +324,7 @@ class QdrantVectorStore(VectorStore):
         vectors = self.embedder.embed_many(texts)
         ids = []
         points = []
-        for i, (doc, vec) in enumerate(zip(documents, vectors)):
+        for i, (doc, vec) in enumerate(zip(documents, vectors, strict=False)):
             doc_id = doc.doc_id or str(uuid.uuid4())[:8]
             ids.append(doc_id)
             points.append(PointStruct(
@@ -345,7 +349,7 @@ class QdrantVectorStore(VectorStore):
         return results
 
     def delete(self, doc_ids: list[str]) -> int:
-        from qdrant_client.models import Filter, FieldCondition, MatchAny
+        from qdrant_client.models import FieldCondition, Filter, MatchAny
         self._client.delete(
             collection_name=self._collection,
             points_selector=Filter(must=[FieldCondition(key="doc_id", match=MatchAny(any=doc_ids))]),
@@ -384,7 +388,7 @@ class PineconeVectorStore(VectorStore):
         vectors = self.embedder.embed_many(texts)
         ids = []
         upserts = []
-        for doc, vec in zip(documents, vectors):
+        for doc, vec in zip(documents, vectors, strict=False):
             doc_id = doc.doc_id or str(uuid.uuid4())[:8]
             ids.append(doc_id)
             upserts.append({"id": doc_id, "values": vec, "metadata": {"content": doc.content, **(doc.metadata or {})}})
@@ -423,7 +427,7 @@ class WeaviateVectorStore(VectorStore):
         self._col = self._client.collections.get(collection_name)
     def add(self, documents: list[Document]) -> list[str]:
         texts = [d.content for d in documents]; vecs = self.embedder.embed_many(texts); ids = []
-        for doc, vec in zip(documents, vecs):
+        for doc, vec in zip(documents, vecs, strict=False):
             doc_id = doc.doc_id or str(uuid.uuid4())[:8]; ids.append(doc_id)
             self._col.data.insert(properties={"content": doc.content, "doc_id": doc_id}, vector=vec)
         return ids
@@ -449,7 +453,7 @@ class MilvusVectorStore(VectorStore):
             self._client.create_collection(collection_name, dimension=self._dim)
     def add(self, documents: list[Document]) -> list[str]:
         texts = [d.content for d in documents]; vecs = self.embedder.embed_many(texts); ids = []; data = []
-        for i, (doc, vec) in enumerate(zip(documents, vecs)):
+        for i, (doc, vec) in enumerate(zip(documents, vecs, strict=False)):
             doc_id = doc.doc_id or str(uuid.uuid4())[:8]; ids.append(doc_id)
             data.append({"id": i + self.count(), "vector": vec, "content": doc.content, "doc_id": doc_id})
         self._client.insert(self._col, data); return ids
@@ -472,7 +476,7 @@ class LanceDBVectorStore(VectorStore):
         self.embedder = embedder; self._db = lancedb.connect(uri); self._table_name = table_name; self._table = None
     def add(self, documents: list[Document]) -> list[str]:
         texts = [d.content for d in documents]; vecs = self.embedder.embed_many(texts); ids = []; data = []
-        for doc, vec in zip(documents, vecs):
+        for doc, vec in zip(documents, vecs, strict=False):
             doc_id = doc.doc_id or str(uuid.uuid4())[:8]; ids.append(doc_id)
             data.append({"vector": vec, "content": doc.content, "doc_id": doc_id})
         if self._table is None:
@@ -503,7 +507,7 @@ class ElasticsearchVectorStore(VectorStore):
             self._client.indices.create(index=index_name, body={"mappings":{"properties":{"embedding":{"type":"dense_vector","dims":self._dim,"index":True,"similarity":"cosine"},"content":{"type":"text"},"doc_id":{"type":"keyword"}}}})
     def add(self, documents: list[Document]) -> list[str]:
         texts = [d.content for d in documents]; vecs = self.embedder.embed_many(texts); ids = []
-        for doc, vec in zip(documents, vecs):
+        for doc, vec in zip(documents, vecs, strict=False):
             doc_id = doc.doc_id or str(uuid.uuid4())[:8]; ids.append(doc_id)
             self._client.index(index=self._index, id=doc_id, document={"content": doc.content, "embedding": vec, "doc_id": doc_id})
         return ids
@@ -526,7 +530,7 @@ class RedisVectorStore(VectorStore):
         self._client = redis.from_url(url); self._index = index_name; self._prefix = f"doc:{index_name}:"
     def add(self, documents: list[Document]) -> list[str]:
         import struct; ids = []; texts = [d.content for d in documents]; vecs = self.embedder.embed_many(texts)
-        for doc, vec in zip(documents, vecs):
+        for doc, vec in zip(documents, vecs, strict=False):
             doc_id = doc.doc_id or str(uuid.uuid4())[:8]; ids.append(doc_id)
             blob = struct.pack(f"{len(vec)}f", *vec)
             self._client.hset(f"{self._prefix}{doc_id}", mapping={"content": doc.content, "doc_id": doc_id, "embedding": blob})
@@ -548,7 +552,7 @@ class MongoDBAtlasVectorStore(VectorStore):
         self._col = MongoClient(connection_string)[db_name][collection]
     def add(self, documents: list[Document]) -> list[str]:
         texts = [d.content for d in documents]; vecs = self.embedder.embed_many(texts); ids = []
-        for doc, vec in zip(documents, vecs):
+        for doc, vec in zip(documents, vecs, strict=False):
             doc_id = doc.doc_id or str(uuid.uuid4())[:8]; ids.append(doc_id)
             self._col.insert_one({"doc_id": doc_id, "content": doc.content, "embedding": vec, "metadata": doc.metadata or {}})
         return ids
@@ -597,13 +601,15 @@ class PGVectorStore(VectorStore):
         conn.close()
 
     def add(self, documents: list[Document]) -> list[str]:
-        import psycopg2, json
+        import json
+
+        import psycopg2
         texts = [doc.content for doc in documents]
         vectors = self.embedder.embed_many(texts)
         ids = []
         conn = psycopg2.connect(self._conn_str)
         cur = conn.cursor()
-        for doc, vec in zip(documents, vectors):
+        for doc, vec in zip(documents, vectors, strict=False):
             doc_id = doc.doc_id or str(uuid.uuid4())[:8]
             ids.append(doc_id)
             cur.execute(
@@ -616,7 +622,9 @@ class PGVectorStore(VectorStore):
         return ids
 
     def search(self, query: str, top_k: int = 5) -> list[SearchResult]:
-        import psycopg2, json
+        import json
+
+        import psycopg2
         q_vec = self.embedder.embed(query)
         conn = psycopg2.connect(self._conn_str)
         cur = conn.cursor()
@@ -667,7 +675,7 @@ class SupabaseVectorStore(VectorStore):
         except ImportError: raise ImportError("supabase required: pip install supabase")
     def add(self, documents: list[Document]) -> list[str]:
         vecs = self.embedder.embed_many([d.content for d in documents]); ids = []
-        for doc, vec in zip(documents, vecs):
+        for doc, vec in zip(documents, vecs, strict=False):
             did = doc.doc_id or str(uuid.uuid4())[:8]; ids.append(did)
             self._client.table(self._table).insert({"id": did, "content": doc.content, "embedding": vec, "metadata": doc.metadata or {}}).execute()
         return ids
@@ -690,7 +698,7 @@ class UpstashVectorStore(VectorStore):
         except ImportError: raise ImportError("upstash-vector required: pip install upstash-vector")
     def add(self, documents: list[Document]) -> list[str]:
         vecs = self.embedder.embed_many([d.content for d in documents]); ids = []
-        for doc, vec in zip(documents, vecs):
+        for doc, vec in zip(documents, vecs, strict=False):
             did = doc.doc_id or str(uuid.uuid4())[:8]; ids.append(did)
             self._index.upsert(vectors=[(did, vec, {"content": doc.content})])
         return ids
@@ -710,7 +718,7 @@ class TurbopufferVectorStore(VectorStore):
         import turbopuffer as tpuf; self._ns = tpuf.Namespace(namespace)
     def add(self, documents: list[Document]) -> list[str]:
         vecs = self.embedder.embed_many([d.content for d in documents]); ids = []
-        for i, (doc, vec) in enumerate(zip(documents, vecs)):
+        for i, (doc, vec) in enumerate(zip(documents, vecs, strict=False)):
             did = doc.doc_id or str(uuid.uuid4())[:8]; ids.append(did)
         self._ns.upsert(ids=ids, vectors=vecs, attributes={"content": [d.content for d in documents]})
         return ids
@@ -758,14 +766,14 @@ class Neo4jVectorStore(VectorStore):
     def add(self, documents: list[Document]) -> list[str]:
         vecs = self.embedder.embed_many([d.content for d in documents]); ids = []
         with self._driver.session() as s:
-            for doc, vec in zip(documents, vecs):
+            for doc, vec in zip(documents, vecs, strict=False):
                 did = doc.doc_id or str(uuid.uuid4())[:8]; ids.append(did)
                 s.run("CREATE (d:Document {id: $id, content: $content, embedding: $embedding})", id=did, content=doc.content, embedding=vec)
         return ids
     def search(self, query: str, top_k: int = 5) -> list[SearchResult]:
         q_vec = self.embedder.embed(query)
         with self._driver.session() as s:
-            result = s.run(f"CALL db.index.vector.queryNodes($index, $k, $vec) YIELD node, score RETURN node.content AS content, node.id AS id, score", index=self._index, k=top_k, vec=q_vec)
+            result = s.run("CALL db.index.vector.queryNodes($index, $k, $vec) YIELD node, score RETURN node.content AS content, node.id AS id, score", index=self._index, k=top_k, vec=q_vec)
             return [SearchResult(Document(content=r["content"], doc_id=r["id"]), score=r["score"]) for r in result]
     def delete(self, doc_ids: list[str]) -> int:
         with self._driver.session() as s:
@@ -785,7 +793,7 @@ class CassandraVectorStore(VectorStore):
         except ImportError: raise ImportError("cassio required: pip install cassio")
     def add(self, documents: list[Document]) -> list[str]:
         vecs = self.embedder.embed_many([d.content for d in documents]); ids = []
-        for doc, vec in zip(documents, vecs):
+        for doc, vec in zip(documents, vecs, strict=False):
             did = doc.doc_id or str(uuid.uuid4())[:8]; ids.append(did)
             self._tbl.put(row_id=did, body_blob=doc.content, vector=vec, metadata=doc.metadata or {})
         return ids
@@ -809,7 +817,7 @@ class OpenSearchVectorStore(VectorStore):
             self._client.indices.create(index_name, body={"settings":{"index":{"knn":True}},"mappings":{"properties":{"embedding":{"type":"knn_vector","dimension":self._dim},"content":{"type":"text"},"doc_id":{"type":"keyword"}}}})
     def add(self, documents: list[Document]) -> list[str]:
         vecs = self.embedder.embed_many([d.content for d in documents]); ids = []
-        for doc, vec in zip(documents, vecs):
+        for doc, vec in zip(documents, vecs, strict=False):
             did = doc.doc_id or str(uuid.uuid4())[:8]; ids.append(did)
             self._client.index(index=self._index, id=did, body={"content": doc.content, "embedding": vec, "doc_id": did})
         return ids
@@ -832,11 +840,11 @@ class SQLiteVecStore(VectorStore):
     def __init__(self, embedder: Embedder, db_path: str = "duxx_vectors.db", dimension: int | None = None) -> None:
         import sqlite3; self.embedder = embedder; self._dim = dimension or getattr(embedder, "dimension", 1536)
         self._conn = sqlite3.connect(db_path)
-        self._conn.execute(f"CREATE TABLE IF NOT EXISTS docs (id TEXT PRIMARY KEY, content TEXT, embedding BLOB)")
+        self._conn.execute("CREATE TABLE IF NOT EXISTS docs (id TEXT PRIMARY KEY, content TEXT, embedding BLOB)")
         self._docs: dict[str, Document] = {}; self._vecs: dict[str, list[float]] = {}
     def add(self, documents: list[Document]) -> list[str]:
         import struct; vecs = self.embedder.embed_many([d.content for d in documents]); ids = []
-        for doc, vec in zip(documents, vecs):
+        for doc, vec in zip(documents, vecs, strict=False):
             did = doc.doc_id or str(uuid.uuid4())[:8]; ids.append(did)
             blob = struct.pack(f"{len(vec)}f", *vec)
             self._conn.execute("INSERT OR REPLACE INTO docs (id, content, embedding) VALUES (?,?,?)", (did, doc.content, blob))
@@ -845,7 +853,7 @@ class SQLiteVecStore(VectorStore):
     def search(self, query: str, top_k: int = 5) -> list[SearchResult]:
         q_vec = self.embedder.embed(query); scores = []
         for did, vec in self._vecs.items():
-            dot = sum(a*b for a,b in zip(q_vec, vec))
+            dot = sum(a*b for a,b in zip(q_vec, vec, strict=False))
             ma = math.sqrt(sum(a*a for a in q_vec)); mb = math.sqrt(sum(b*b for b in vec))
             sim = dot/(ma*mb) if ma and mb else 0; scores.append((did, sim))
         scores.sort(key=lambda x: x[1], reverse=True)
@@ -866,7 +874,7 @@ class DuckDBVectorStore(VectorStore):
         self._conn.execute(f"CREATE TABLE IF NOT EXISTS {table} (id VARCHAR PRIMARY KEY, content VARCHAR, embedding FLOAT[{self._dim}])")
     def add(self, documents: list[Document]) -> list[str]:
         vecs = self.embedder.embed_many([d.content for d in documents]); ids = []
-        for doc, vec in zip(documents, vecs):
+        for doc, vec in zip(documents, vecs, strict=False):
             did = doc.doc_id or str(uuid.uuid4())[:8]; ids.append(did)
             self._conn.execute(f"INSERT OR REPLACE INTO {self._table} VALUES (?, ?, ?)", [did, doc.content, vec])
         return ids
@@ -890,7 +898,7 @@ class SingleStoreVectorStore(VectorStore):
     def add(self, documents: list[Document]) -> list[str]:
         import json; vecs = self.embedder.embed_many([d.content for d in documents]); ids = []
         cur = self._conn.cursor()
-        for doc, vec in zip(documents, vecs):
+        for doc, vec in zip(documents, vecs, strict=False):
             did = doc.doc_id or str(uuid.uuid4())[:8]; ids.append(did)
             cur.execute(f"INSERT INTO {self._table} (id, content, embedding) VALUES (%s, %s, JSON_ARRAY_PACK(%s)) ON DUPLICATE KEY UPDATE content=%s", (did, doc.content, json.dumps(vec), doc.content))
         self._conn.commit(); return ids
@@ -915,7 +923,7 @@ class TiDBVectorStore(VectorStore):
     def add(self, documents: list[Document]) -> list[str]:
         import json; vecs = self.embedder.embed_many([d.content for d in documents]); ids = []
         cur = self._conn.cursor()
-        for doc, vec in zip(documents, vecs):
+        for doc, vec in zip(documents, vecs, strict=False):
             did = doc.doc_id or str(uuid.uuid4())[:8]; ids.append(did)
             cur.execute(f"INSERT INTO {self._table} (id, content, embedding) VALUES (%s, %s, %s) ON DUPLICATE KEY UPDATE content=%s", (did, doc.content, json.dumps(vec), doc.content))
         self._conn.commit(); return ids
@@ -937,7 +945,7 @@ class MySQLVectorStore(VectorStore):
     def add(self, documents: list[Document]) -> list[str]:
         import json; vecs = self.embedder.embed_many([d.content for d in documents]); ids = []
         cur = self._conn.cursor()
-        for doc, vec in zip(documents, vecs):
+        for doc, vec in zip(documents, vecs, strict=False):
             did = doc.doc_id or str(uuid.uuid4())[:8]; ids.append(did)
             cur.execute(f"INSERT INTO {self._table} (id, content, embedding) VALUES (%s, %s, %s) ON DUPLICATE KEY UPDATE content=%s", (did, doc.content, json.dumps(vec), doc.content))
         self._conn.commit(); return ids
@@ -962,14 +970,14 @@ class AnnoyVectorStore(VectorStore):
         self._index = AnnoyIndex(self._dim, "angular"); self._docs: list[Document] = []; self._built = False; self._n_trees = n_trees
     def add(self, documents: list[Document]) -> list[str]:
         vecs = self.embedder.embed_many([d.content for d in documents]); ids = []
-        for doc, vec in zip(documents, vecs):
+        for doc, vec in zip(documents, vecs, strict=False):
             idx = len(self._docs); self._docs.append(doc); self._index.add_item(idx, vec)
             ids.append(doc.doc_id or str(idx))
         self._index.build(self._n_trees); self._built = True; return ids
     def search(self, query: str, top_k: int = 5) -> list[SearchResult]:
         if not self._built: return []
         q_vec = self.embedder.embed(query); indices, distances = self._index.get_nns_by_vector(q_vec, min(top_k, len(self._docs)), include_distances=True)
-        return [SearchResult(self._docs[i], score=1.0-d) for i, d in zip(indices, distances)]
+        return [SearchResult(self._docs[i], score=1.0-d) for i, d in zip(indices, distances, strict=False)]
     def delete(self, doc_ids: list[str]) -> int: return 0  # Annoy doesn't support deletion
     def count(self) -> int: return len(self._docs)
 
@@ -981,20 +989,21 @@ class ScaNNVectorStore(VectorStore):
         self._docs: list[Document] = []; self._vecs: list[list[float]] = []; self._searcher = None
     def add(self, documents: list[Document]) -> list[str]:
         vecs = self.embedder.embed_many([d.content for d in documents]); ids = []
-        for doc, vec in zip(documents, vecs):
+        for doc, vec in zip(documents, vecs, strict=False):
             self._docs.append(doc); self._vecs.append(vec); ids.append(doc.doc_id or str(len(self._docs)-1))
         self._searcher = None; return ids  # Rebuild on next search
     def search(self, query: str, top_k: int = 5) -> list[SearchResult]:
         if not self._vecs: return []
         try:
-            import scann, numpy as np
+            import numpy as np
+            import scann
             if not self._searcher:
                 db = np.array(self._vecs, dtype=np.float32)
                 self._searcher = scann.scann_ops_pybind.builder(db, top_k, "dot_product").tree(num_leaves=max(2, len(self._vecs)//10), num_leaves_to_search=max(1, len(self._vecs)//20)).score_ah(2).build()
         except ImportError: raise ImportError("scann required: pip install scann")
         q_vec = np.array(self.embedder.embed(query), dtype=np.float32)
         indices, distances = self._searcher.search(q_vec, final_num_neighbors=top_k)
-        return [SearchResult(self._docs[i], score=float(d)) for i, d in zip(indices, distances) if i < len(self._docs)]
+        return [SearchResult(self._docs[i], score=float(d)) for i, d in zip(indices, distances, strict=False) if i < len(self._docs)]
     def delete(self, doc_ids: list[str]) -> int: return 0
     def count(self) -> int: return len(self._docs)
 
@@ -1009,7 +1018,7 @@ class UsearchVectorStore(VectorStore):
         self._docs: dict[int, Document] = {}; self._next_id = 0
     def add(self, documents: list[Document]) -> list[str]:
         import numpy as np; vecs = self.embedder.embed_many([d.content for d in documents]); ids = []
-        for doc, vec in zip(documents, vecs):
+        for doc, vec in zip(documents, vecs, strict=False):
             key = self._next_id; self._next_id += 1
             self._index.add(key, np.array(vec, dtype=np.float32)); self._docs[key] = doc
             ids.append(doc.doc_id or str(key))
@@ -1017,7 +1026,7 @@ class UsearchVectorStore(VectorStore):
     def search(self, query: str, top_k: int = 5) -> list[SearchResult]:
         import numpy as np; q_vec = np.array(self.embedder.embed(query), dtype=np.float32)
         matches = self._index.search(q_vec, min(top_k, len(self._docs)))
-        return [SearchResult(self._docs[int(k)], score=1.0-float(d)) for k, d in zip(matches.keys, matches.distances) if int(k) in self._docs]
+        return [SearchResult(self._docs[int(k)], score=1.0-float(d)) for k, d in zip(matches.keys, matches.distances, strict=False) if int(k) in self._docs]
     def delete(self, doc_ids: list[str]) -> int: return 0
     def count(self) -> int: return len(self._docs)
 
@@ -1031,7 +1040,7 @@ class DeepLakeVectorStore(VectorStore):
         self._ds = deeplake.empty(path) if not deeplake.exists(path) else deeplake.open(path)
     def add(self, documents: list[Document]) -> list[str]:
         vecs = self.embedder.embed_many([d.content for d in documents]); ids = []
-        for doc, vec in zip(documents, vecs):
+        for doc, vec in zip(documents, vecs, strict=False):
             did = doc.doc_id or str(uuid.uuid4())[:8]; ids.append(did)
             self._ds.append({"id": did, "content": doc.content, "embedding": vec})
         return ids
@@ -1046,7 +1055,7 @@ class VespaVectorStore(VectorStore):
         self.embedder = embedder; self._url = url; self._schema = schema
     def add(self, documents: list[Document]) -> list[str]:
         import httpx; vecs = self.embedder.embed_many([d.content for d in documents]); ids = []
-        for doc, vec in zip(documents, vecs):
+        for doc, vec in zip(documents, vecs, strict=False):
             did = doc.doc_id or str(uuid.uuid4())[:8]; ids.append(did)
             httpx.post(f"{self._url}/document/v1/{self._schema}/{self._schema}/docid/{did}", json={"fields": {"content": doc.content, "embedding": {"values": vec}}}, timeout=10)
         return ids
@@ -1090,7 +1099,7 @@ class MeilisearchVectorStore(VectorStore):
         self._index = self._client.index(index_name)
     def add(self, documents: list[Document]) -> list[str]:
         vecs = self.embedder.embed_many([d.content for d in documents]); ids = []; docs = []
-        for doc, vec in zip(documents, vecs):
+        for doc, vec in zip(documents, vecs, strict=False):
             did = doc.doc_id or str(uuid.uuid4())[:8]; ids.append(did)
             docs.append({"id": did, "content": doc.content, "_vectors": {"default": vec}})
         self._index.add_documents(docs); return ids
@@ -1111,7 +1120,7 @@ class ClickHouseVectorStore(VectorStore):
         self._client.command(f"CREATE TABLE IF NOT EXISTS {table} (id String, content String, embedding Array(Float32)) ENGINE = MergeTree() ORDER BY id")
     def add(self, documents: list[Document]) -> list[str]:
         vecs = self.embedder.embed_many([d.content for d in documents]); ids = []
-        for doc, vec in zip(documents, vecs):
+        for doc, vec in zip(documents, vecs, strict=False):
             did = doc.doc_id or str(uuid.uuid4())[:8]; ids.append(did)
             self._client.insert(self._table, [[did, doc.content, vec]], column_names=["id", "content", "embedding"])
         return ids

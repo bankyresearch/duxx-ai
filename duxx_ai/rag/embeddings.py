@@ -247,7 +247,9 @@ class NVIDIAEmbedder(Embedder):
     def dimension(self) -> int: return self._dim
     def embed(self, text: str) -> list[float]: return self.embed_many([text])[0]
     def embed_many(self, texts: list[str]) -> list[list[float]]:
-        import os, httpx
+        import os
+
+        import httpx
         key = self._api_key or os.environ.get("NVIDIA_API_KEY", "")
         resp = httpx.post("https://integrate.api.nvidia.com/v1/embeddings", headers={"Authorization": f"Bearer {key}"}, json={"input": texts, "model": self.model}, timeout=60)
         resp.raise_for_status(); data = resp.json(); embs = [d["embedding"] for d in sorted(data["data"], key=lambda x: x["index"])]
@@ -263,7 +265,9 @@ class JinaEmbedder(Embedder):
     def dimension(self) -> int: return self._dim
     def embed(self, text: str) -> list[float]: return self.embed_many([text])[0]
     def embed_many(self, texts: list[str]) -> list[list[float]]:
-        import os, httpx
+        import os
+
+        import httpx
         key = self._api_key or os.environ.get("JINA_API_KEY", "")
         resp = httpx.post("https://api.jina.ai/v1/embeddings", headers={"Authorization": f"Bearer {key}"}, json={"input": texts, "model": self.model}, timeout=60)
         resp.raise_for_status(); data = resp.json()
@@ -280,7 +284,9 @@ class NomicEmbedder(Embedder):
     def dimension(self) -> int: return self._dim
     def embed(self, text: str) -> list[float]: return self.embed_many([text])[0]
     def embed_many(self, texts: list[str]) -> list[list[float]]:
-        import os, httpx
+        import os
+
+        import httpx
         key = self._api_key or os.environ.get("NOMIC_API_KEY", "")
         resp = httpx.post("https://api-atlas.nomic.ai/v1/embedding/text", headers={"Authorization": f"Bearer {key}"}, json={"texts": texts, "model": self.model}, timeout=60)
         resp.raise_for_status(); return resp.json().get("embeddings", [])
@@ -306,7 +312,9 @@ class BedrockEmbedder(Embedder):
     @property
     def dimension(self) -> int: return self._dim
     def embed(self, text: str) -> list[float]:
-        import boto3, json
+        import json
+
+        import boto3
         client = boto3.client("bedrock-runtime", region_name=self.region)
         resp = client.invoke_model(modelId=self.model, body=json.dumps({"inputText": text}))
         data = json.loads(resp["body"].read()); vec = data.get("embedding", [])
@@ -542,7 +550,9 @@ class SageMakerEmbedder(Embedder):
     def dimension(self) -> int: return self._dim
     def embed(self, text: str) -> list[float]: return self.embed_many([text])[0]
     def embed_many(self, texts: list[str]) -> list[list[float]]:
-        import boto3, json
+        import json
+
+        import boto3
         client = boto3.client("sagemaker-runtime", region_name=self._region)
         resp = client.invoke_endpoint(EndpointName=self._endpoint, ContentType="application/json", Body=json.dumps({"inputs": texts}))
         data = json.loads(resp["Body"].read()); return data if isinstance(data, list) else data.get("embeddings", [])
@@ -764,7 +774,6 @@ class OpenVINOEmbedder(Embedder):
     @property
     def dimension(self) -> int: return self._dim
     def embed(self, text: str) -> list[float]:
-        import torch
         inputs = self._tokenizer(text, return_tensors="pt", padding=True, truncation=True, max_length=512)
         outputs = self._model(**inputs)
         vec = outputs.last_hidden_state.mean(dim=1).squeeze().detach().numpy().tolist()

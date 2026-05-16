@@ -131,18 +131,18 @@ class TestCase:
             lines.append(f'    # Expected: {step.expected_result}')
             if step.test_data:
                 lines.append(f'    # Data: {step.test_data}')
-            lines.append(f'    pass  # TODO: implement')
+            lines.append('    pass  # TODO: implement')
         lines.append('')
         return '\n'.join(lines)
 
     def to_playwright(self) -> str:
         """Convert to Playwright test code."""
-        fn_name = re.sub(r'[^a-zA-Z0-9_]', '_', self.title.lower().strip())[:50]
+        _fn_name = re.sub(r'[^a-zA-Z0-9_]', '_', self.title.lower().strip())[:50]
         lines = [f'test("{self.title}", async ({{ page }}) => {{']
         for step in self.steps:
             lines.append(f'  // Step {step.step_number}: {step.action}')
             lines.append(f'  // Expected: {step.expected_result}')
-            lines.append(f'  // TODO: implement action')
+            lines.append('  // TODO: implement action')
         lines.append('});')
         lines.append('')
         return '\n'.join(lines)
@@ -221,7 +221,8 @@ class TestSuite:
 
     def to_csv(self) -> str:
         """Export as CSV for test management tools."""
-        import csv, io
+        import csv
+        import io
         buf = io.StringIO()
         writer = csv.writer(buf)
         writer.writerow(["ID", "Title", "Type", "Priority", "Steps", "Tags"])
@@ -588,7 +589,7 @@ Return JSON:
             pass
 
         suite = TestSuite(
-            name=f"PRD Test Suite",
+            name="PRD Test Suite",
             description=f"Generated from PRD with {len(requirements)} requirements",
             test_cases=all_cases,
             requirements=requirements,

@@ -19,8 +19,9 @@ import logging
 import math
 import time
 import uuid
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable, Awaitable
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -466,7 +467,7 @@ class AgentEvaluator:
         # Scores by tag
         tag_scores: dict[str, list[float]] = {}
         cat_scores: dict[str, list[float]] = {}
-        for score, case in zip(scores, cases):
+        for score, case in zip(scores, cases, strict=False):
             for tag in case.tags:
                 tag_scores.setdefault(tag, []).append(score.score)
             if case.category:

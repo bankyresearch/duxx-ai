@@ -16,7 +16,8 @@ See https://github.com/bankyresearch/duxxdb for the underlying engine.
 from __future__ import annotations
 
 import time
-from typing import TYPE_CHECKING, Any, Callable
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from duxx_ai.memory.manager import MemoryEntry
@@ -103,7 +104,7 @@ class DuxxServerBackend:
     # MemoryBackend protocol surface
     # ------------------------------------------------------------------
 
-    def store(self, entry: "MemoryEntry") -> str:
+    def store(self, entry: MemoryEntry) -> str:
         key = entry.agent_id or self._default_agent_id
         new_id = self._client.execute_command("REMEMBER", key, entry.content)
         sid = str(new_id)
@@ -112,7 +113,7 @@ class DuxxServerBackend:
         self._stats["count"] = len(self._meta)
         return sid
 
-    def get(self, id: str) -> "MemoryEntry | None":
+    def get(self, id: str) -> MemoryEntry | None:
         entry = self._meta.get(id)
         if entry is None:
             return None
@@ -131,7 +132,7 @@ class DuxxServerBackend:
         memory_type: str | None = None,
         k: int = 10,
         query_embedding: list[float] | None = None,  # noqa: ARG002 (server embeds)
-    ) -> list["MemoryEntry"]:
+    ) -> list[MemoryEntry]:
         self._stats["recalls"] = self._stats.get("recalls", 0) + 1
         key = agent_id or self._default_agent_id
 
@@ -176,7 +177,7 @@ class DuxxServerBackend:
     # Helpers
     # ------------------------------------------------------------------
 
-    def _reconstruct(self, sid: str, text: str, key: str) -> "MemoryEntry":
+    def _reconstruct(self, sid: str, text: str, key: str) -> MemoryEntry:
         from duxx_ai.memory.manager import MemoryEntry  # local: avoid cycle
 
         return MemoryEntry(

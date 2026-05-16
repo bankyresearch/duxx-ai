@@ -12,7 +12,6 @@ configured.
 from __future__ import annotations
 
 import hashlib
-import json
 import time
 import uuid
 from pathlib import Path
@@ -244,7 +243,7 @@ class MemoryManager:
         self,
         storage_dir: str | None = None,
         *,
-        backend: "MemoryBackend | None" = None,
+        backend: MemoryBackend | None = None,
         agent_id: str = "",
     ) -> None:
         ep_path = f"{storage_dir}/episodic.jsonl" if storage_dir else None
@@ -253,7 +252,7 @@ class MemoryManager:
         self.semantic = SemanticMemory()
         self.procedural = ProceduralMemory()
         self.shared = SharedMemory()
-        self.backend: "MemoryBackend | None" = backend
+        self.backend: MemoryBackend | None = backend
         self.agent_id: str = agent_id
 
     # ------------------------------------------------------------------

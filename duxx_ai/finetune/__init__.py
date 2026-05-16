@@ -1,5 +1,11 @@
 """Fine-tuning pipeline integration inspired by Unsloth's efficiency."""
 
+from duxx_ai.finetune.datasets import (
+    DatasetManager,
+    DatasetStats,
+    SplitResult,
+    ValidationResult,
+)
 from duxx_ai.finetune.pipeline import (
     DatasetConfig,
     EvalConfig,
@@ -25,12 +31,6 @@ from duxx_ai.finetune.registry import (
     job_manager,
     list_models,
     list_quant_methods,
-)
-from duxx_ai.finetune.datasets import (
-    DatasetManager,
-    DatasetStats,
-    SplitResult,
-    ValidationResult,
 )
 
 __all__ = [

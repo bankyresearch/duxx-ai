@@ -6,7 +6,6 @@ and generates runnable Duxx AI Python code using Agent, Graph, Tool, etc.
 
 from __future__ import annotations
 
-import textwrap
 from typing import Any
 
 
@@ -74,10 +73,10 @@ def generate_code(workflow: dict[str, Any]) -> str:
     # ── Header ──
     safe_name = _safe_var(name)
     lines.append(f'"""Duxx AI Workflow: {name}')
-    lines.append(f"")
-    lines.append(f"Auto-generated from Duxx AI Workflow Builder.")
+    lines.append("")
+    lines.append("Auto-generated from Duxx AI Workflow Builder.")
     lines.append(f"Nodes: {len(nodes)}, Edges: {len(edges)}")
-    lines.append(f'"""')
+    lines.append('"""')
     lines.append("")
     lines.append("import asyncio")
     lines.append("")
@@ -120,23 +119,23 @@ def generate_code(workflow: dict[str, Any]) -> str:
         if t["_type"] == "http":
             url = tc.get("url", "https://api.example.com")
             method = tc.get("method", "GET")
-            lines.append(f"@tool")
+            lines.append("@tool")
             lines.append(f'def {tvar}(input_data: str) -> str:')
             lines.append(f'    """HTTP {method} request to {url}"""')
-            lines.append(f"    import httpx")
+            lines.append("    import httpx")
             lines.append(f'    resp = httpx.request("{method}", "{url}")')
-            lines.append(f"    return resp.text")
+            lines.append("    return resp.text")
             lines.append("")
             lines.append("")
 
         elif t["_type"] == "code":
             code = tc.get("code", "result = 'Hello'")
-            lines.append(f"@tool")
+            lines.append("@tool")
             lines.append(f'def {tvar}(input_data: str) -> str:')
-            lines.append(f'    """Execute custom Python code"""')
+            lines.append('    """Execute custom Python code"""')
             for cline in code.split("\n"):
                 lines.append(f"    {cline}")
-            lines.append(f"    return str(result) if 'result' in dir() else 'done'")
+            lines.append("    return str(result) if 'result' in dir() else 'done'")
             lines.append("")
             lines.append("")
 
@@ -144,18 +143,18 @@ def generate_code(workflow: dict[str, Any]) -> str:
             db_type = tc.get("dbType", "postgresql")
             query = tc.get("query", "SELECT 1")
             conn = tc.get("connectionString", "")
-            lines.append(f"@tool")
+            lines.append("@tool")
             lines.append(f'def {tvar}(query: str = "{query}") -> str:')
             lines.append(f'    """Execute {db_type} database query"""')
             lines.append(f'    # Connection: {conn or "configure connection string"}')
-            lines.append(f'    return f"Query result for: {{query}}"')
+            lines.append('    return f"Query result for: {query}"')
             lines.append("")
             lines.append("")
 
         elif t["_type"] == "email":
             to = tc.get("to", "")
             subject = tc.get("subject", "")
-            lines.append(f"@tool")
+            lines.append("@tool")
             lines.append(f'def {tvar}(body: str) -> str:')
             lines.append(f'    """Send email to {to}"""')
             lines.append(f'    # Subject: {subject}')
@@ -166,20 +165,20 @@ def generate_code(workflow: dict[str, Any]) -> str:
         elif t["_type"] == "rag":
             store = tc.get("vectorStore", "memory")
             topk = tc.get("topK", "5")
-            lines.append(f"@tool")
+            lines.append("@tool")
             lines.append(f'def {tvar}(query: str) -> str:')
             lines.append(f'    """RAG retrieval from {store} vector store (top_k={topk})"""')
             lines.append(f'    retriever = SimpleRetriever(top_k={topk})')
-            lines.append(f'    results = retriever.retrieve(query)')
-            lines.append(f'    return "\\n".join(r.content for r in results)')
+            lines.append('    results = retriever.retrieve(query)')
+            lines.append('    return "\\n".join(r.content for r in results)')
             lines.append("")
             lines.append("")
 
         else:
-            lines.append(f"@tool")
+            lines.append("@tool")
             lines.append(f'def {tvar}(input_data: str) -> str:')
             lines.append(f'    """{t["_label"]}"""')
-            lines.append(f'    return f"Processed: {{input_data}}"')
+            lines.append('    return f"Processed: {input_data}"')
             lines.append("")
             lines.append("")
 
@@ -214,34 +213,34 @@ def generate_code(workflow: dict[str, Any]) -> str:
         builtin_str = 'get_builtin_tools(["calculator", "web_request"])'
 
         lines.append(f"# ── Agent: {a['_label']} ──")
-        lines.append(f"agent = Agent(")
-        lines.append(f"    config=AgentConfig(")
+        lines.append("agent = Agent(")
+        lines.append("    config=AgentConfig(")
         lines.append(f'        name="{agent_var}",')
         lines.append(f'        system_prompt="""{sys_prompt}""",')
-        lines.append(f"    ),")
-        lines.append(f"    llm_config=LLMConfig(")
+        lines.append("    ),")
+        lines.append("    llm_config=LLMConfig(")
         lines.append(f'        provider="{provider}",')
         lines.append(f'        model="{model}",')
         lines.append(f"        temperature={temp},")
         lines.append(f"        max_tokens={max_tokens},")
-        lines.append(f"    ),")
+        lines.append("    ),")
         if agent_tools:
             lines.append(f"    tools=[{tool_list}] + {builtin_str},")
         else:
             lines.append(f"    tools={builtin_str},")
-        lines.append(f")")
+        lines.append(")")
         lines.append("")
         lines.append("")
 
         # ── Main entry ──
-        lines.append(f'async def main():')
+        lines.append('async def main():')
         lines.append(f'    """Run the {name} workflow."""')
-        lines.append(f'    result = await agent.run("Hello! How can you help me?")')
-        lines.append(f'    print(result)')
-        lines.append(f"")
-        lines.append(f"")
-        lines.append(f'if __name__ == "__main__":')
-        lines.append(f"    asyncio.run(main())")
+        lines.append('    result = await agent.run("Hello! How can you help me?")')
+        lines.append('    print(result)')
+        lines.append("")
+        lines.append("")
+        lines.append('if __name__ == "__main__":')
+        lines.append("    asyncio.run(main())")
 
     elif is_graph:
         # ── Graph-based workflow ──
@@ -260,15 +259,15 @@ def generate_code(workflow: dict[str, Any]) -> str:
 
             lines.append(f"# Agent: {a['_label']}")
             lines.append(f"{avar}_agent = Agent(")
-            lines.append(f"    config=AgentConfig(")
+            lines.append("    config=AgentConfig(")
             lines.append(f'        name="{avar}",')
             lines.append(f'        system_prompt="""{sys_prompt}""",')
-            lines.append(f"    ),")
-            lines.append(f"    llm_config=LLMConfig(")
+            lines.append("    ),")
+            lines.append("    llm_config=LLMConfig(")
             lines.append(f'        provider="{provider}",')
             lines.append(f'        model="{model}",')
             lines.append(f"        temperature={temp},")
-            lines.append(f"    ),")
+            lines.append("    ),")
 
             # Find connected tools
             agent_id = a.get("id", "")
@@ -286,15 +285,15 @@ def generate_code(workflow: dict[str, Any]) -> str:
 
             if connected_tools:
                 lines.append(f"    tools=[{', '.join(connected_tools)}],")
-            lines.append(f")")
+            lines.append(")")
             lines.append("")
 
             # Add as graph node
             lines.append(f"async def {avar}_handler(state):")
             lines.append(f'    result = await {avar}_agent.run(state.get("input", ""))')
-            lines.append(f'    state["output"] = result')
-            lines.append(f"    return state")
-            lines.append(f"")
+            lines.append('    state["output"] = result')
+            lines.append("    return state")
+            lines.append("")
             lines.append(f'graph.add_node("{avar}", {avar}_handler)')
             lines.append("")
 
@@ -304,7 +303,7 @@ def generate_code(workflow: dict[str, Any]) -> str:
             lines.append(f"async def {tvar}_handler(state):")
             lines.append(f'    result = {tvar}(state.get("input", ""))')
             lines.append(f'    state["{tvar}_output"] = result')
-            lines.append(f"    return state")
+            lines.append("    return state")
             lines.append(f'graph.add_node("{tvar}", {tvar}_handler)')
             lines.append("")
 
@@ -317,8 +316,8 @@ def generate_code(workflow: dict[str, Any]) -> str:
                 val = cc.get("conditionValue", "true")
                 lines.append(f'def {cvar}_router(state):')
                 lines.append(f'    if state.get("{key}") == "{val}":')
-                lines.append(f'        return "true"')
-                lines.append(f'    return "false"')
+                lines.append('        return "true"')
+                lines.append('    return "false"')
                 lines.append("")
 
             elif c["_type"] == "human":
@@ -341,9 +340,9 @@ def generate_code(workflow: dict[str, Any]) -> str:
                 elif src_type == "conditional":
                     edge_id = e.get("sourceHandle", "")
                     if edge_id == "true":
-                        lines.append(f'# Conditional true branch')
+                        lines.append('# Conditional true branch')
                     elif edge_id == "false":
-                        lines.append(f'# Conditional false branch')
+                        lines.append('# Conditional false branch')
                     lines.append(f'graph.add_edge("{src_label}", "{tgt_label}")')
                 else:
                     lines.append(f'graph.add_edge("{src_label}", "{tgt_label}")')
@@ -356,25 +355,25 @@ def generate_code(workflow: dict[str, Any]) -> str:
         lines.append("")
 
         # Main
-        lines.append(f'async def main():')
+        lines.append('async def main():')
         lines.append(f'    """Run the {name} workflow."""')
-        lines.append(f'    result = await graph.run({{"input": "Hello! Process this workflow."}})')
-        lines.append(f'    print(result)')
-        lines.append(f"")
-        lines.append(f"")
-        lines.append(f'if __name__ == "__main__":')
-        lines.append(f"    asyncio.run(main())")
+        lines.append('    result = await graph.run({"input": "Hello! Process this workflow."})')
+        lines.append('    print(result)')
+        lines.append("")
+        lines.append("")
+        lines.append('if __name__ == "__main__":')
+        lines.append("    asyncio.run(main())")
 
     else:
         # Fallback: simple script
         lines.append("# Simple workflow")
-        lines.append(f'async def main():')
+        lines.append('async def main():')
         lines.append(f'    agent = Agent(config=AgentConfig(name="{safe_name}"))')
-        lines.append(f'    result = await agent.run("Hello!")')
-        lines.append(f'    print(result)')
-        lines.append(f"")
-        lines.append(f'if __name__ == "__main__":')
-        lines.append(f"    asyncio.run(main())")
+        lines.append('    result = await agent.run("Hello!")')
+        lines.append('    print(result)')
+        lines.append("")
+        lines.append('if __name__ == "__main__":')
+        lines.append("    asyncio.run(main())")
 
     return "\n".join(lines)
 

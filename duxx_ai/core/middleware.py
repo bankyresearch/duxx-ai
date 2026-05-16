@@ -12,7 +12,7 @@ import logging
 import re
 import time
 from abc import ABC, abstractmethod
-from typing import Any, Callable, Awaitable
+from typing import Any
 
 from duxx_ai.core.message import Conversation
 

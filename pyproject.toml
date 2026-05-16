@@ -84,14 +84,34 @@ exclude = ["duxx_ai.cloud*"]
 
 [tool.ruff]
 line-length = 100
-target-version = "0.30.0"
+target-version = "py310"
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "N", "W", "UP"]
+# CI-blocking rules: actual correctness issues only (undefined names,
+# unused imports, syntax errors). Style, import-sort, naming, and
+# bugbear quality rules get tightened in dedicated cleanup PRs — gating
+# CI on cosmetic warnings before the codebase is stable would either
+# block real PRs or get globally ignored.
+#
+# Tightening plan (future PRs):
+#   1. Add "B" (bugbear) once raise-without-from cleanup lands.
+#   2. Add "I" (isort) once imports are normalized.
+#   3. Add "UP" (pyupgrade) for modern syntax migrations.
+#   4. Add "N" (naming) last — touches the most surface.
+select = [
+    "E9",  # syntax errors
+    "F",   # pyflakes — undefined names, unused imports/vars
+]
+ignore = []
 
 [tool.mypy]
-python_version = "0.30.0"
-strict = true
+python_version = "3.10"
+# Soft-launch mypy. Strict mode against an alpha codebase produces
+# thousands of errors that drown the real ones; tighten as modules land
+# proper type coverage.
+strict = false
+ignore_missing_imports = true
+follow_imports = "silent"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

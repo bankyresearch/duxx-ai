@@ -8,9 +8,8 @@ from duxx_ai.governance.guardrails import (
     PIIGuardrail,
     PromptInjectionGuardrail,
     TokenBudgetGuardrail,
-    TopicGuardrail,
 )
-from duxx_ai.governance.rbac import RBACManager, RoleDefinition, Permission, User
+from duxx_ai.governance.rbac import RBACManager, User
 
 
 class TestContentFilter:

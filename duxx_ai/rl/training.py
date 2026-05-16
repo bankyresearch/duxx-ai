@@ -19,19 +19,21 @@ Usage:
 
 from __future__ import annotations
 
-import asyncio
-import json
 import logging
 import math
 import time
 from abc import ABC, abstractmethod
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable, Awaitable
+from typing import Any
 
 from duxx_ai.rl.core import (
-    RLEnvironment, Action, Observation, StepResult, EnvState,
-    RewardFunction, RewardComposer, TrajectoryBuffer, Episode, Transition,
-    rollout, batch_rollout,
+    Episode,
+    RewardComposer,
+    RewardFunction,
+    RLEnvironment,
+    TrajectoryBuffer,
+    batch_rollout,
 )
 
 logger = logging.getLogger(__name__)

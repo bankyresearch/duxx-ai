@@ -27,11 +27,11 @@ class MemoryBackend(Protocol):
     handled in the manager layer by passing ``memory_type`` through.
     """
 
-    def store(self, entry: "MemoryEntry") -> str:
+    def store(self, entry: MemoryEntry) -> str:
         """Insert an entry. Returns its id (the backend MAY assign a
         new id and overwrite ``entry.id``)."""
 
-    def get(self, id: str) -> "MemoryEntry | None":
+    def get(self, id: str) -> MemoryEntry | None:
         """Point lookup. Returns ``None`` if not found or expired."""
 
     def recall(
@@ -42,7 +42,7 @@ class MemoryBackend(Protocol):
         memory_type: str | None = None,
         k: int = 10,
         query_embedding: list[float] | None = None,
-    ) -> list["MemoryEntry"]:
+    ) -> list[MemoryEntry]:
         """Hybrid recall.
 
         * If ``query_embedding`` is provided, it is used as the vector

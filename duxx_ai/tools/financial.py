@@ -15,7 +15,6 @@ from typing import Any
 
 from duxx_ai.core.tool import Tool, tool
 
-
 # ---------------------------------------------------------------------------
 # Tools
 # ---------------------------------------------------------------------------
@@ -126,7 +125,7 @@ def market_analysis(symbols: str, metrics: str = "price,volume") -> str:
         try:
             ticker = yf.Ticker(sym)
             info = ticker.info or {}
-            hist = ticker.history(period="5d")
+            _hist = ticker.history(period="5d")  # reserved for trailing-window metrics
 
             entry: dict[str, Any] = {"symbol": sym, "name": info.get("shortName", sym)}
 

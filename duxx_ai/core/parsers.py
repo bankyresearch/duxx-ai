@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 import re
 from abc import ABC, abstractmethod
-from typing import Any, TypeVar, Generic, Type
+from typing import Any, Generic, TypeVar
 
 from pydantic import BaseModel
 
@@ -68,7 +68,7 @@ class JSONOutputParser(OutputParser[dict[str, Any]]):
 class PydanticOutputParser(OutputParser[T]):
     """Parse LLM output into a Pydantic model with schema validation."""
 
-    def __init__(self, model_class: Type[BaseModel]) -> None:
+    def __init__(self, model_class: type[BaseModel]) -> None:
         self.model_class = model_class
         self._json_parser = JSONOutputParser()
 
@@ -87,8 +87,8 @@ class PydanticOutputParser(OutputParser[T]):
             desc = prop.get("description", "")
             fields.append(f'  "{name}": <{ptype}>{" // " + desc if desc else ""}')
         return (
-            f"Respond with a JSON object matching this schema:\n"
-            f"{{\n" + ",\n".join(fields) + "\n}"
+            "Respond with a JSON object matching this schema:\n"
+            "{\n" + ",\n".join(fields) + "\n}"
         )
 
 
@@ -258,7 +258,9 @@ class CSVOutputParser(OutputParser[list[dict[str, str]]]):
         result = parser.parse("name,age\\nAlice,30\\nBob,25")
     """
     def parse(self, text: str) -> list[dict[str, str]]:
-        import re, csv, io
+        import csv
+        import io
+        import re
         csv_match = re.search(r"```(?:csv)?\s*\n(.*?)```", text, re.DOTALL)
         raw = csv_match.group(1) if csv_match else text
         reader = csv.DictReader(io.StringIO(raw.strip()))

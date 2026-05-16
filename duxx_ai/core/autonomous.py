@@ -54,13 +54,13 @@ import logging
 import re
 import time
 import uuid
+from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, AsyncIterator, Callable, Awaitable
+from typing import Any
 
-from duxx_ai.core.agent import Agent, AgentConfig, AgentState
-from duxx_ai.core.llm import LLMConfig, create_provider
-from duxx_ai.core.message import Conversation, Message, Role
+from duxx_ai.core.agent import Agent, AgentConfig
+from duxx_ai.core.llm import LLMConfig
 from duxx_ai.core.tool import Tool
 
 logger = logging.getLogger(__name__)

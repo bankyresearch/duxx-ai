@@ -28,24 +28,33 @@ Usage:
 
 from __future__ import annotations
 
-import asyncio
-import json
 import logging
-import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable, Awaitable
+from typing import Any
 
 from duxx_ai.core.agent import Agent, AgentConfig
 from duxx_ai.core.llm import LLMConfig
 from duxx_ai.core.tool import Tool
 from duxx_ai.rl.core import (
-    RLEnvironment, Action, Observation, StepResult,
-    RewardFunction, RewardComposer, TrajectoryBuffer, Episode, Transition,
-    rollout, batch_rollout,
+    Action,
+    Episode,
+    Observation,
+    RewardComposer,
+    RewardFunction,
+    RLEnvironment,
+    StepResult,
+    TrajectoryBuffer,
+    batch_rollout,
 )
 from duxx_ai.rl.training import (
-    BaseTrainer, GRPOTrainer, PPOTrainer, REINFORCETrainer, DPOTrainer, BestOfNTrainer,
-    TrainingConfig, TrainingResult,
+    BestOfNTrainer,
+    DPOTrainer,
+    GRPOTrainer,
+    PPOTrainer,
+    REINFORCETrainer,
+    TrainingConfig,
+    TrainingResult,
 )
 
 logger = logging.getLogger(__name__)

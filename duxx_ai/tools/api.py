@@ -8,10 +8,8 @@ for any reachable endpoint.
 from __future__ import annotations
 
 import json
-from typing import Any
 
 from duxx_ai.core.tool import Tool, tool
-
 
 # ---------------------------------------------------------------------------
 # Tools

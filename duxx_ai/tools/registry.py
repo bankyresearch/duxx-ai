@@ -5,7 +5,6 @@ from __future__ import annotations
 from duxx_ai.core.tool import Tool
 from duxx_ai.tools.builtin import BUILTIN_TOOLS
 
-
 # Global registry: domain_name -> {tool_name: Tool}
 DOMAIN_TOOLS: dict[str, dict[str, Tool]] = {}
 

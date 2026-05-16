@@ -200,8 +200,8 @@ class FineTunePipeline:
         )
 
         from datasets import load_dataset  # type: ignore
-        from trl import SFTTrainer  # type: ignore
         from transformers import TrainingArguments  # type: ignore
+        from trl import SFTTrainer  # type: ignore
 
         ds_path = dataset_path or self.prepare_dataset()
         dataset = load_dataset("json", data_files=ds_path, split="train")
@@ -245,10 +245,14 @@ class FineTunePipeline:
 
     def _train_with_peft(self, dataset_path: str | None) -> TrainingResult:
         """Fallback training using HuggingFace PEFT."""
-        from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments  # type: ignore
-        from peft import LoraConfig, get_peft_model  # type: ignore
-        from trl import SFTTrainer  # type: ignore
         from datasets import load_dataset  # type: ignore
+        from peft import LoraConfig, get_peft_model  # type: ignore
+        from transformers import (  # type: ignore
+            AutoModelForCausalLM,
+            AutoTokenizer,
+            TrainingArguments,
+        )
+        from trl import SFTTrainer  # type: ignore
 
         cfg = self.training_config
 
@@ -329,8 +333,8 @@ class FineTunePipeline:
 
         try:
             import torch  # type: ignore
-            from transformers import AutoModelForCausalLM, AutoTokenizer  # type: ignore
             from datasets import load_dataset  # type: ignore
+            from transformers import AutoModelForCausalLM, AutoTokenizer  # type: ignore
 
             tokenizer = AutoTokenizer.from_pretrained(self.result.model_path)
             model = AutoModelForCausalLM.from_pretrained(

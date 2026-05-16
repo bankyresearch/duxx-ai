@@ -19,13 +19,11 @@ Usage:
 
 from __future__ import annotations
 
-import json
 import logging
 import random
 import re
-from typing import Any
 
-from duxx_ai.rl.core import RLEnvironment, Observation, Action, StepResult, EnvState
+from duxx_ai.rl.core import Action, Observation, RLEnvironment, StepResult
 
 logger = logging.getLogger(__name__)
 
@@ -452,7 +450,7 @@ class ConversationEnv(RLEnvironment):
             )
         elif hits > 0:
             return StepResult(
-                observation=Observation(text=f"User: That's helpful, but I need more information..."),
+                observation=Observation(text="User: That's helpful, but I need more information..."),
                 reward=0.1 * hits,
             )
         else:

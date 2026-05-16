@@ -25,7 +25,7 @@ def _cosine(a: list[float], b: list[float]) -> float:
     dot = 0.0
     na = 0.0
     nb = 0.0
-    for x, y in zip(a, b):
+    for x, y in zip(a, b, strict=False):
         dot += x * y
         na += x * x
         nb += y * y
@@ -55,7 +55,7 @@ class InProcessBackend:
         storage_path: str | Path | None = None,
         max_items: int | None = None,
     ) -> None:
-        self._entries: dict[str, "MemoryEntry"] = {}
+        self._entries: dict[str, MemoryEntry] = {}
         self._stats: dict[str, int] = {"count": 0, "evictions": 0, "recalls": 0}
         self.storage_path: Path | None = (
             Path(storage_path) if storage_path is not None else None
@@ -69,7 +69,7 @@ class InProcessBackend:
     # MemoryBackend protocol surface
     # ------------------------------------------------------------------
 
-    def store(self, entry: "MemoryEntry") -> str:
+    def store(self, entry: MemoryEntry) -> str:
         self._entries[entry.id] = entry
         self._stats["count"] = len(self._entries)
         if self.storage_path is not None:
@@ -77,7 +77,7 @@ class InProcessBackend:
         self._evict_if_needed(entry.memory_type)
         return entry.id
 
-    def get(self, id: str) -> "MemoryEntry | None":
+    def get(self, id: str) -> MemoryEntry | None:
         entry = self._entries.get(id)
         if entry is None:
             return None
@@ -97,7 +97,7 @@ class InProcessBackend:
         memory_type: str | None = None,
         k: int = 10,
         query_embedding: list[float] | None = None,
-    ) -> list["MemoryEntry"]:
+    ) -> list[MemoryEntry]:
         self._stats["recalls"] = self._stats.get("recalls", 0) + 1
         query_lower = query.lower()
         q_words = set(query_lower.split())
@@ -159,7 +159,7 @@ class InProcessBackend:
             ]
         self._stats["count"] = len(self._entries)
 
-    def _append(self, entry: "MemoryEntry") -> None:
+    def _append(self, entry: MemoryEntry) -> None:
         assert self.storage_path is not None
         self.storage_path.parent.mkdir(parents=True, exist_ok=True)
         with open(self.storage_path, "a", encoding="utf-8") as f:

@@ -1,6 +1,5 @@
 """Tests for the memory system."""
 
-import time
 
 import pytest
 
