@@ -501,12 +501,13 @@ canonical pattern.
 
 ## Enterprise
 
-The open-source SDK is complete on its own. **Duxx AI Enterprise**
-(private) adds managed cloud fine-tuning, cloud model storage, the
-credentials manager, the hosted Studio, and three complete reference
-deployments (support ops, research desk, financial advisory) —
-see [duxx-ai-enterprise](https://github.com/bankyresearch/duxx-ai-enterprise)
-(commercial license; contact us for access).
+The open-source SDK is complete on its own. Every enterprise
+capability — managed cloud fine-tuning, model storage and serving,
+the credentials manager, the hosted Studio, multi-tenant governance,
+and the productized vertical agent fleet — is delivered through
+**dxVerb**, the managed platform-as-a-service built on the Duxx Stack
+(think Databricks for agentic AI). Commercial offering; contact us
+for access.
 
 Companion docs:
 
