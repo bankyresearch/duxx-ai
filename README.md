@@ -499,6 +499,30 @@ canonical pattern.
 
 ---
 
+## Enterprise
+
+The open-source SDK is complete on its own. **Duxx AI Enterprise**
+(private) adds managed cloud fine-tuning, cloud model storage, the
+credentials manager, the hosted Studio, and three complete reference
+deployments (support ops, research desk, financial advisory) —
+see [duxx-ai-enterprise](https://github.com/bankyresearch/duxx-ai-enterprise)
+(commercial license; contact us for access).
+
+Companion docs:
+
+* [`docs/ENTERPRISE_CAPABILITIES.md`](docs/ENTERPRISE_CAPABILITIES.md)
+  — every enterprise concern mapped to a concrete primitive in
+  this repo or in DuxxDB.
+* [`docs/COMPARISON.md`](docs/COMPARISON.md) — how the Duxx Stack
+  positions against LangChain / LangGraph / CrewAI / AutoGen /
+  Pinecone / Qdrant / Weaviate / LangSmith / Braintrust / Portkey /
+  PromptLayer.
+* [`docs/UNIQUENESS_AND_BENEFITS.md`](docs/UNIQUENESS_AND_BENEFITS.md)
+  — what's structurally unique, how to widen the moat, who
+  benefits (enterprises / mid-market / individuals).
+
+---
+
 ## Layout
 
 ```

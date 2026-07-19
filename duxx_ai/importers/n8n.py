@@ -679,11 +679,21 @@ class N8nImporter:
             if node.duxx_ai_type == "custom":
                 warnings.append(f"Node '{node.name}' (type: {node.type}) has no direct Duxx AI mapping — using pass-through")
 
-        # Credentials: auto-resolve from Duxx AI credentials manager
-        from duxx_ai.credentials import creds
+        # Credentials: auto-resolve from the Duxx AI credentials manager
+        # when available (ships with Duxx AI Enterprise; optional here —
+        # the open-source SDK still imports the workflow, it just flags
+        # every credentialed node for manual configuration).
+        try:
+            from duxx_ai.credentials import creds
+        except ImportError:
+            creds = None
         unresolved_creds = []
         for node in active_nodes:
             if node.credentials:
+                if creds is None:
+                    unresolved_creds.extend(node.credentials)
+                    warnings.append(f"Node '{node.name}' needs credentials ({', '.join(node.credentials.keys())}) — configure them manually (auto-resolution is a Duxx AI Enterprise feature)")
+                    continue
                 all_resolved = True
                 for cred_type in node.credentials:
                     resolved = creds.resolve_n8n_credential(cred_type)

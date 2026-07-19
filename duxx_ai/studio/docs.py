@@ -1805,51 +1805,20 @@ datasets = list_popular_datasets(<span class="str">"Chat"</span>)  <span class="
 <div id="page-tinker" class="page">
 <h1>Tinker Cloud Fine-Tuning</h1>
 <p class="lead">Train on 40+ models (up to 397B params) with pay-per-token pricing. No local GPU required.</p>
-
-<h2 id="tinker-setup">Setup</h2>
-<pre class="code-block"><code><span class="kw">from</span> duxx_ai.finetune.tinker <span class="kw">import</span> TinkerProvider, TinkerConfig
-provider = TinkerProvider(TinkerConfig(
-    api_key=<span class="str">"tk-..."</span>,
-    base_model=<span class="str">"meta-llama/Llama-3.1-8B"</span>,
-    lora_rank=<span class="val">32</span>,
-    learning_rate=<span class="val">1e-4</span>,
-))</code></pre>
-
-<h2 id="tinker-cost">Estimate Cost</h2>
-<pre class="code-block"><code>cost = provider.estimate_cost(<span class="str">"llama-3.1-8b"</span>, dataset_tokens=<span class="val">500000</span>, epochs=<span class="val">3</span>)
-print(<span class="str">f"Estimated: ${cost['total_estimated_usd']}"</span>)</code></pre>
-
-<h2 id="tinker-train">Train</h2>
-<pre class="code-block"><code>job = provider.create_job(<span class="str">"my-finetune"</span>, dataset_path=<span class="str">"train.jsonl"</span>)
-result = <span class="kw">await</span> provider.start_training(job.id)</code></pre>
-
-<h2 id="tinker-models">22 Supported Models</h2>
-<pre class="code-block"><code><span class="kw">from</span> duxx_ai.finetune.tinker <span class="kw">import</span> list_tinker_models
-<span class="kw">for</span> m <span class="kw">in</span> list_tinker_models():
-    print(<span class="str">f"{m['name']:30s} ${m['price_train']:.2f}/1M tok"</span>)</code></pre>
+<p>Managed cloud fine-tuning (<code>duxx_ai.finetune.tinker</code>) ships with
+<strong>Duxx AI Enterprise</strong> — it is not part of the open-source SDK.
+The open-source <code>duxx_ai.finetune</code> pipeline (datasets, converters,
+local training, registry) is fully available; see the Fine-Tuning page.</p>
 </div>
 
 <!-- ══ Model Storage ══ -->
 <div id="page-model-storage" class="page">
 <h1>Model Storage</h1>
 <p class="lead">Export trained models to S3, GCS, Azure, HuggingFace Hub, or Duxx AI Cloud.</p>
-
-<h2 id="storage-s3">AWS S3</h2>
-<pre class="code-block"><code><span class="kw">from</span> duxx_ai.finetune.storage <span class="kw">import</span> S3ModelStorage
-s3 = S3ModelStorage(bucket=<span class="str">"my-models"</span>)
-uri = s3.upload(<span class="str">"./duxx_ai-finetuned"</span>, <span class="str">"my-model-v1"</span>)
-<span class="cm"># s3://my-models/duxx_ai-models/my-model-v1</span></code></pre>
-
-<h2 id="storage-hf">HuggingFace Hub</h2>
-<pre class="code-block"><code><span class="kw">from</span> duxx_ai.finetune.storage <span class="kw">import</span> HuggingFaceHubStorage
-hf = HuggingFaceHubStorage(token=<span class="str">"hf_..."</span>)
-uri = hf.upload(<span class="str">"./model"</span>, <span class="str">"my-org/my-model"</span>)</code></pre>
-
-<h2 id="storage-cloud">Duxx AI Cloud (Managed)</h2>
-<pre class="code-block"><code><span class="kw">from</span> duxx_ai.finetune.storage <span class="kw">import</span> DuxxCloudStorage
-cloud = DuxxCloudStorage(api_key=<span class="str">"dxx-..."</span>)
-uri = cloud.upload(<span class="str">"./model"</span>, <span class="str">"my-model-v1"</span>)
-<span class="cm"># duxx_ai://my-org/my-model-v1</span></code></pre>
+<p>Managed model storage backends (<code>duxx_ai.finetune.storage</code>) ship with
+<strong>Duxx AI Enterprise</strong> — they are not part of the open-source SDK.
+Locally trained models can always be exported with your own tooling
+(e.g. <code>huggingface_hub</code>, <code>boto3</code>).</p>
 </div>
 
 <!-- ══ Evaluation ══ -->
