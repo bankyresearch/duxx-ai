@@ -135,16 +135,54 @@ class Agent:
         raise RuntimeError("LLM call failed with no error captured")
 
     async def stream(self, user_input: str) -> AsyncIterator[str]:
-        """Stream the agent response token by token."""
+        """Stream the agent's response, executing tool calls between model turns.
+
+        Output guardrails need the finished text, so an agent with guardrails yields its
+        whole checked response at once.
+        """
+        if self.guardrails:
+            yield await self.run(user_input)
+            return
+
         self.conversation.add(Message(role=Role.USER, content=user_input, agent_id=self.name))
         self._trim_conversation()
+        tool_list = list(self.tools.values()) if self.tools else None
 
-        async for token in self.provider.stream(
-            self.conversation,
-            tools=list(self.tools.values()) if self.tools else None,
-            system_prompt=self.config.system_prompt,
-        ):
-            yield token
+        for i in range(self.config.max_iterations):
+            self.state.iteration = i + 1
+            response: LLMResponse | None = None
+            async for item in self.provider.stream_events(
+                self.conversation, tools=tool_list, system_prompt=self.config.system_prompt
+            ):
+                if isinstance(item, LLMResponse):
+                    response = item
+                else:
+                    yield item
+            if response is None:
+                raise RuntimeError("Provider stream ended without a final response")
+            self._track_usage(response)
+
+            if not response.tool_calls:
+                if response.content:
+                    self.conversation.add(
+                        Message(role=Role.ASSISTANT, content=response.content, agent_id=self.name)
+                    )
+                return
+
+            self.conversation.add(
+                Message(
+                    role=Role.ASSISTANT,
+                    content=response.content,
+                    tool_calls=response.tool_calls,
+                    agent_id=self.name,
+                )
+            )
+            tool_results = await self._execute_tools(response.tool_calls)
+            self.conversation.add(
+                Message(role=Role.TOOL, tool_results=tool_results, agent_id=self.name)
+            )
+
+        yield "Agent reached maximum iterations without a final response."
 
     async def run(self, user_input: str, context: dict[str, Any] | None = None) -> str:
         """Run the agent with a user input and return the final response."""
@@ -268,7 +306,9 @@ class Agent:
             return result
 
     def _track_usage(self, response: LLMResponse) -> None:
-        total = response.usage.get("total_tokens", 0)
+        usage = response.usage
+        # Anthropic reports input and output separately and no total
+        total = usage.get("total_tokens") or usage.get("input_tokens", 0) + usage.get("output_tokens", 0)
         self.state.total_tokens += total
         self.state.total_cost += _estimate_cost(response.model, total)
 

@@ -8,7 +8,7 @@ from collections.abc import AsyncIterator
 from typing import Any
 
 import httpx
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from duxx_ai.core.message import Conversation, Role, ToolCall
 from duxx_ai.core.tool import Tool
@@ -75,6 +75,14 @@ class LLMResponse(BaseModel):
     model: str = ""
     finish_reason: str = ""
 
+    @field_validator("usage", mode="before")
+    @classmethod
+    def _keep_integer_counters(cls, value: Any) -> dict[str, int]:
+        """Keep the token counters; providers also put nested objects and strings in `usage`."""
+        if not isinstance(value, dict):
+            return {}
+        return {k: v for k, v in value.items() if isinstance(v, int) and not isinstance(v, bool)}
+
 
 class LLMProvider(ABC):
     def __init__(self, config: LLMConfig) -> None:
@@ -95,6 +103,22 @@ class LLMProvider(ABC):
         tools: list[Tool] | None = None,
         system_prompt: str | None = None,
     ) -> AsyncIterator[str]: ...
+
+    async def stream_events(
+        self,
+        conversation: Conversation,
+        tools: list[Tool] | None = None,
+        system_prompt: str | None = None,
+    ) -> AsyncIterator[str | LLMResponse]:
+        """Yield text as it arrives, then exactly one final `LLMResponse` with any tool calls.
+
+        This default makes one non-streaming call, so every provider can run tools from
+        `Agent.stream`. Providers that can stream tool calls override it for token-level output.
+        """
+        response = await self.complete(conversation, tools=tools, system_prompt=system_prompt)
+        if response.content:
+            yield response.content
+        yield response
 
 
 class OpenAIProvider(LLMProvider):
@@ -187,21 +211,35 @@ class OpenAIProvider(LLMProvider):
                             yield delta["content"]
 
 
+# Models that answered 400 to `temperature` (Claude 5 and later reject it). Learned from the API instead of a
+# hard-coded list, so new models work unchanged; the first request to such a model is retried once.
+_ANTHROPIC_NO_TEMPERATURE: set[str] = set()
+
+
 class AnthropicProvider(LLMProvider):
-    async def complete(
+    def _url(self) -> str:
+        return f"{self.config.base_url or 'https://api.anthropic.com/v1'}/messages"
+
+    def _headers(self) -> dict[str, str]:
+        return {
+            "x-api-key": self.config.get_api_key(),
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json",
+        }
+
+    def _body(
         self,
         conversation: Conversation,
-        tools: list[Tool] | None = None,
-        system_prompt: str | None = None,
-    ) -> LLMResponse:
-        messages = conversation.to_dicts(provider="anthropic")
-
+        tools: list[Tool] | None,
+        system_prompt: str | None,
+    ) -> dict[str, Any]:
         body: dict[str, Any] = {
             "model": self.config.model,
-            "messages": messages,
+            "messages": conversation.to_dicts(provider="anthropic"),
             "max_tokens": self.config.max_tokens,
-            "temperature": self.config.temperature,
         }
+        if self.config.model not in _ANTHROPIC_NO_TEMPERATURE:
+            body["temperature"] = self.config.temperature
         if system_prompt:
             body["system"] = system_prompt
         if tools:
@@ -213,19 +251,27 @@ class AnthropicProvider(LLMProvider):
                 }
                 for t in tools
             ]
+        return body
 
-        api_key = self.config.get_api_key()
-        base = self.config.base_url or "https://api.anthropic.com/v1"
+    def _drop_rejected_temperature(self, status: int, text: str, body: dict[str, Any]) -> bool:
+        """True when the API refused `temperature`; removes it so the caller can retry."""
+        if status != 400 or "temperature" not in body or "temperature" not in text:
+            return False
+        _ANTHROPIC_NO_TEMPERATURE.add(self.config.model)
+        body.pop("temperature")
+        return True
+
+    async def complete(
+        self,
+        conversation: Conversation,
+        tools: list[Tool] | None = None,
+        system_prompt: str | None = None,
+    ) -> LLMResponse:
+        body = self._body(conversation, tools, system_prompt)
         async with httpx.AsyncClient(timeout=120) as client:
-            resp = await client.post(
-                f"{base}/messages",
-                headers={
-                    "x-api-key": api_key,
-                    "anthropic-version": "2023-06-01",
-                    "content-type": "application/json",
-                },
-                json=body,
-            )
+            resp = await client.post(self._url(), headers=self._headers(), json=body)
+            if self._drop_rejected_temperature(resp.status_code, resp.text, body):
+                resp = await client.post(self._url(), headers=self._headers(), json=body)
             resp.raise_for_status()
             data = resp.json()
 
@@ -247,45 +293,83 @@ class AnthropicProvider(LLMProvider):
             finish_reason=data.get("stop_reason", ""),
         )
 
+    async def _sse(self, body: dict[str, Any]) -> AsyncIterator[dict[str, Any]]:
+        """POST with streaming on and yield the decoded server-sent events."""
+        body = {**body, "stream": True}
+        async with httpx.AsyncClient(timeout=120) as client:
+            for attempt in range(2):
+                async with client.stream(
+                    "POST", self._url(), headers=self._headers(), json=body
+                ) as resp:
+                    if resp.status_code >= 400:
+                        text = (await resp.aread()).decode(errors="replace")
+                        if attempt == 0 and self._drop_rejected_temperature(
+                            resp.status_code, text, body
+                        ):
+                            continue
+                        resp.raise_for_status()
+                    async for line in resp.aiter_lines():
+                        if line.startswith("data: "):
+                            try:
+                                yield json.loads(line[6:])
+                            except json.JSONDecodeError:
+                                continue
+                    return
+
     async def stream(
         self,
         conversation: Conversation,
         tools: list[Tool] | None = None,
         system_prompt: str | None = None,
     ) -> AsyncIterator[str]:
-        messages = conversation.to_dicts(provider="anthropic")
-        body: dict[str, Any] = {
-            "model": self.config.model,
-            "messages": messages,
-            "max_tokens": self.config.max_tokens,
-            "stream": True,
-        }
-        if system_prompt:
-            body["system"] = system_prompt
+        async for event in self._sse(self._body(conversation, None, system_prompt)):
+            if event.get("type") == "content_block_delta":
+                delta = event.get("delta", {})
+                if delta.get("type") == "text_delta":
+                    yield delta.get("text", "")
 
-        api_key = self.config.get_api_key()
-        base = self.config.base_url or "https://api.anthropic.com/v1"
-        async with httpx.AsyncClient(timeout=120) as client:
-            async with client.stream(
-                "POST",
-                f"{base}/messages",
-                headers={
-                    "x-api-key": api_key,
-                    "anthropic-version": "2023-06-01",
-                    "content-type": "application/json",
-                },
-                json=body,
-            ) as resp:
-                async for line in resp.aiter_lines():
-                    if line.startswith("data: "):
-                        try:
-                            event = json.loads(line[6:])
-                            if event.get("type") == "content_block_delta":
-                                delta = event.get("delta", {})
-                                if delta.get("type") == "text_delta":
-                                    yield delta.get("text", "")
-                        except json.JSONDecodeError:
-                            continue
+    async def stream_events(
+        self,
+        conversation: Conversation,
+        tools: list[Tool] | None = None,
+        system_prompt: str | None = None,
+    ) -> AsyncIterator[str | LLMResponse]:
+        content = ""
+        calls: dict[int, dict[str, str]] = {}
+        usage: dict[str, Any] = {}
+        model = self.config.model
+        stop = ""
+        async for event in self._sse(self._body(conversation, tools, system_prompt)):
+            kind = event.get("type")
+            if kind == "message_start":
+                model = event["message"].get("model", model)
+                usage.update(event["message"].get("usage", {}))
+            elif kind == "content_block_start":
+                block = event["content_block"]
+                if block["type"] == "tool_use":
+                    calls[event["index"]] = {"id": block["id"], "name": block["name"], "json": ""}
+            elif kind == "content_block_delta":
+                delta = event["delta"]
+                if delta["type"] == "text_delta":
+                    content += delta["text"]
+                    yield delta["text"]
+                elif delta["type"] == "input_json_delta":
+                    calls[event["index"]]["json"] += delta["partial_json"]
+            elif kind == "message_delta":
+                usage.update(event.get("usage", {}))
+                stop = event.get("delta", {}).get("stop_reason") or stop
+            elif kind == "error":
+                raise RuntimeError(event.get("error", {}).get("message", "Anthropic stream error"))
+        yield LLMResponse(
+            content=content,
+            tool_calls=[
+                ToolCall(id=c["id"], name=c["name"], arguments=json.loads(c["json"] or "{}"))
+                for _, c in sorted(calls.items())
+            ],
+            usage=usage,
+            model=model,
+            finish_reason=stop,
+        )
 
 
 class LocalProvider(LLMProvider):
